@@ -3,184 +3,360 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>69 Studio | AI Bot Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <title>69 Studio | AI Bot Command Center</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary: #38bdf8;
-            --bg: #0f172a;
-            --card: #1e293b;
-            --glass: rgba(30, 41, 59, 0.7);
-            --user: #facc15;
-            --bot: #4ade80;
+            --primary: #ff4d4d;
+            --primary-glow: rgba(255, 77, 77, 0.3);
+            --bg: #0a0a0c;
+            --card: #121214;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8f9fa;
+            --text-dim: #94a3b8;
+            --accent: #38bdf8;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
             font-family: 'Outfit', sans-serif;
             background: var(--bg);
-            color: #f1f5f9;
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
         }
 
-        .header {
-            background: var(--card);
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid #334155;
+        /* Animated Background */
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 0%, rgba(255, 77, 77, 0.05) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 30px 20px;
+            background: rgba(18, 18, 20, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 2px solid var(--border);
             position: sticky;
             top: 0;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-
-        .header h1 {
-            margin: 0;
-            font-size: 1.8rem;
-            background: linear-gradient(to right, #38bdf8, #818cf8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: var(--card);
-            padding: 20px;
-            border-radius: 16px;
-            border: 1px solid #334155;
-            text-align: center;
-        }
-
-        .stat-card h3 { margin: 0; color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; }
-        .stat-card p { margin: 10px 0 0; font-size: 2rem; font-weight: 600; color: var(--primary); }
-
-        .chat-list {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .user-card {
-            background: var(--glass);
-            border-radius: 20px;
-            border: 1px solid #334155;
-            overflow: hidden;
-            transition: transform 0.3s ease;
-        }
-
-        .user-card:hover { border-color: var(--primary); }
-
-        .user-header {
-            background: #ffffff05;
-            padding: 15px 20px;
-            border-bottom: 1px solid #334155;
+            z-index: 1000;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .user-header h2 { margin: 0; font-size: 1rem; color: #818cf8; }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
 
-        .messages {
-            padding: 20px;
+        .logo-circle {
+            width: 45px;
+            height: 45px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #fff;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .brand h1 {
+            font-size: 1.4rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .brand span { color: var(--primary); }
+
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 25px;
+        }
+
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-box {
+            background: var(--card);
+            padding: 25px;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .stat-box:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .stat-box i {
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .stat-box h3 {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-box p {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+
+        .chat-container {
             display: flex;
             flex-direction: column;
+            gap: 25px;
+        }
+
+        .chat-card {
+            background: var(--card);
+            border-radius: 28px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            animation: fadeIn 0.6s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-header {
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
             gap: 12px;
         }
 
-        .msg-bubble {
-            max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            line-height: 1.5;
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: #2a2a2e;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+
+        .user-info h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .is-lead {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .chat-body {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .msg {
+            max-width: 80%;
+            padding: 14px 18px;
+            border-radius: 20px;
             font-size: 0.95rem;
+            position: relative;
         }
 
         .msg-user {
             align-self: flex-start;
-            background: #facc1515;
-            border: 1px solid #facc1533;
-            color: #fef08a;
-            border-bottom-left-radius: 4px;
+            background: #1e1e22;
+            color: #fff;
+            border-bottom-left-radius: 5px;
         }
 
         .msg-bot {
             align-self: flex-end;
-            background: #4ade8015;
-            border: 1px solid #4ade8033;
-            color: #bbf7d0;
-            border-bottom-right-radius: 4px;
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 5px;
+            box-shadow: 0 10px 20px var(--primary-glow);
         }
 
-        .refresh-btn {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: var(--primary);
-            color: #000;
-            border: none;
-            padding: 15px 25px;
-            border-radius: 30px;
-            font-weight: 600;
+        .msg-time {
+            display: block;
+            font-size: 0.7rem;
+            margin-top: 6px;
+            opacity: 0.5;
+            text-align: right;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 15px;
+            font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            border: none;
+            transition: 0.3s;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            font-family: inherit;
         }
 
-        .loading { text-align: center; padding: 50px; color: #94a3b8; }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 8px 16px var(--primary-glow);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
+        .btn:hover {
+            transform: scale(1.03);
+            filter: brightness(1.1);
+        }
+
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 100px;
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 77, 77, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        @media (max-width: 768px) {
+            header { padding: 20px; flex-direction: column; gap: 20px; }
+            .container { margin: 20px auto; padding: 0 15px; }
+            .stat-box p { font-size: 1.8rem; }
+            .msg { max-width: 90%; }
+        }
     </style>
 </head>
 <body>
+    <div class="bg-glow"></div>
 
-    <div class="header">
-        <h1>69 STUDIO AI COMMAND CENTER</h1>
-    </div>
+    <header>
+        <div class="brand">
+            <div class="logo-circle">69</div>
+            <h1>Olivia <span>AI</span> Command</h1>
+        </div>
+        <div class="actions">
+            <button class="btn btn-ghost" onclick="clearLogs()"><i class="fas fa-trash-alt"></i> Clear Logs</button>
+            <button class="btn btn-primary" onclick="loadLogs()"><i class="fas fa-sync-alt"></i> Sync Data</button>
+        </div>
+    </header>
 
     <div class="container">
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Active Chats</h3>
+        <div class="stats-summary">
+            <div class="stat-box">
+                <i class="fas fa-users"></i>
+                <h3>Total Conversations</h3>
                 <p id="totalChats">0</p>
             </div>
-            <div class="stat-card">
-                <h3>System Status</h3>
-                <p style="color: #4ade80;">Online</p>
+            <div class="stat-box">
+                <i class="fas fa-bolt"></i>
+                <h3>Bot Integrity</h3>
+                <p style="color: var(--success); font-size: 1.2rem;">99.9% SHARP</p>
+            </div>
+            <div class="stat-box">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Security Mode</h3>
+                <p style="font-size: 1.2rem; color: var(--accent);">Encrypted</p>
             </div>
         </div>
 
-        <div id="logsContainer" class="chat-list">
-            <div class="loading">Loading intelligence data...</div>
+        <div id="logsContainer" class="chat-container">
+            <div class="loading-screen">
+                <div class="spinner"></div>
+                <p>Establishing secure connection to Olivia...</p>
+            </div>
         </div>
     </div>
 
-    <button class="refresh-btn" onclick="loadLogs()">⚡ Refresh Data</button>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script>
         let password = new URLSearchParams(window.location.search).get('pass');
         
         async function loadLogs() {
             if (!password || password === 'undefined') {
-                password = prompt("Please enter Admin Password:");
+                password = prompt("AUTHENTICATION REQUIRED: Enter Command Password");
                 if (!password) {
-                    document.getElementById('logsContainer').innerHTML = '<div class="loading" style="color: #f87171">Error: Password is required.</div>';
+                    document.getElementById('logsContainer').innerHTML = '<div class="loading-screen" style="color: var(--primary)">ACCESS DENIED: Credentials Missing</div>';
                     return;
                 }
-                // Update URL for convenience
                 window.history.replaceState(null, '', `?pass=${password}`);
             }
 
@@ -188,41 +364,81 @@
                 const response = await fetch(`/api/logs?pass=${password}`);
                 if (!response.ok) {
                     if (response.status === 403) {
-                        password = null; // Reset to trigger prompt next time
-                        document.getElementById('logsContainer').innerHTML = '<div class="loading" style="color: #f87171">Access Denied / Invalid Password</div>';
+                        password = null;
+                        document.getElementById('logsContainer').innerHTML = '<div class="loading-screen" style="color: var(--primary)">FATAL ERROR: Invalid Credentials</div>';
                     }
                     throw new Error('Unauthorized');
                 }
-                
                 const data = await response.json();
                 renderLogs(data);
             } catch (err) {
-                // Error handled above
+                console.error(err);
+            }
+        }
+
+        async function clearLogs() {
+            if (!confirm("CRITICAL ACTION: Are you sure you want to permanently delete all intelligence logs?")) return;
+            
+            try {
+                const response = await fetch(`/api/logs/clear?pass=${password}`, { method: 'POST' });
+                if (response.ok) {
+                    alert('LOGS PURGED SUCCESSFULLY');
+                    loadLogs();
+                }
+            } catch (err) {
+                alert('FAILED TO PURGE LOGS');
             }
         }
 
         function renderLogs(data) {
             const container = document.getElementById('logsContainer');
-            document.getElementById('totalChats').innerText = Object.keys(data).length;
+            const totalCount = Object.keys(data).length;
+            document.getElementById('totalChats').innerText = totalCount;
 
-            if (Object.keys(data).length === 0) {
-                container.innerHTML = '<div class="loading">No conversations recorded yet.</div>';
+            if (totalCount === 0) {
+                container.innerHTML = '<div class="loading-screen">SYSTEM IDLE: No intelligence logs found.</div>';
                 return;
             }
 
+            // Target keywords to identify potential leads
+            const leadKeywords = ['@', '07', '+94', '+971', 'name', 'interested'];
+
             let html = '';
-            for (const [jid, msgs] of Object.entries(data)) {
+            // Sort by latest message time
+            const sortedJids = Object.keys(data).sort((a, b) => {
+                const lastA = data[a][data[a].length - 1]?.time || 0;
+                const lastB = data[b][data[b].length - 1]?.time || 0;
+                return new Date(lastB) - new Date(lastA);
+            });
+
+            for (const jid of sortedJids) {
+                const msgs = data[jid];
+                const cleanJid = jid.split('@')[0];
+                
+                // Detect if it's a lead
+                const allText = msgs.map(m => m.text.toLowerCase()).join(' ');
+                const isLead = leadKeywords.some(k => allText.includes(k));
+
                 html += `
-                    <div class="user-card">
-                        <div class="user-header">
-                            <h2>📍 Contact: ${jid.split('@')[0]}</h2>
-                            <span style="font-size: 0.8rem; color: #64748b">${msgs.length} messages</span>
+                    <div class="chat-card">
+                        <div class="chat-header">
+                            <div class="user-info">
+                                <div class="user-avatar"><i class="fas fa-terminal"></i></div>
+                                <div>
+                                    <h2>ID: ${cleanJid}</h2>
+                                    <small style="color: var(--text-dim)">${msgs.length} messages in exchange</small>
+                                </div>
+                            </div>
+                            ${isLead ? '<span class="is-lead"><i class="fas fa-star"></i> High Value Lead</span>' : ''}
                         </div>
-                        <div class="messages">
+                        <div class="chat-body">
                             ${msgs.map(m => `
-                                <div class="msg-bubble ${m.role === 'user' ? 'msg-user' : 'msg-bot'}">
-                                    <strong>${m.role === 'user' ? 'Customer' : 'AI Bot'}:</strong><br>
+                                <div class="msg ${m.role === 'user' ? 'msg-user' : 'msg-bot'}">
+                                    <div style="font-weight: 700; font-size: 0.75rem; margin-bottom: 4px; opacity: 0.8;">
+                                        ${m.role === 'user' ? 'CUSTOMER' : 'OLIVIA AI'}
+                                    </div>
                                     ${m.text}
+                                    <span class="msg-time">${m.time ? moment(m.time).fromNow() : 'Unknown'}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -233,7 +449,7 @@
         }
 
         loadLogs();
-        setInterval(loadLogs, 15000); // Auto refresh
+        setInterval(loadLogs, 30000); // Sync every 30 seconds
     </script>
 </body>
 </html>

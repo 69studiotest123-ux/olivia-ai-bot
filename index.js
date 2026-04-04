@@ -13,7 +13,30 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const chatHistory = new Map();
+const historyFile = 'history.json';
+let chatHistory = new Map();
+
+// Load History from File
+try {
+    if (fs.existsSync(historyFile)) {
+        const raw = fs.readFileSync(historyFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        chatHistory = new Map(Object.entries(parsed));
+        console.log('✅ Loaded persistent chat history.');
+    }
+} catch (e) {
+    console.error('❌ Failed to load history:', e.message);
+}
+
+function saveHistory() {
+    try {
+        const data = Object.fromEntries(chatHistory);
+        fs.writeFileSync(historyFile, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error('❌ Failed to save history:', e.message);
+    }
+}
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -28,6 +51,17 @@ app.get('/api/logs', (req, res) => {
     }
     const logs = Object.fromEntries(chatHistory);
     res.json(logs);
+});
+
+// API Endpoint to Clear Logs
+app.post('/api/logs/clear', (req, res) => {
+    const password = req.query.pass;
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+    chatHistory.clear();
+    saveHistory();
+    res.json({ success: true });
 });
 
 // Admin Route (redirect to static file)
@@ -55,7 +89,13 @@ app.listen(port, '0.0.0.0', () => {
 
 // --- GOOGLE AI SETUP ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    generationConfig: {
+        maxOutputTokens: 500,
+        temperature: 0.7,
+    }
+});
 
 async function startBot() {
     const version = [2, 3000, 1036512893];
@@ -103,28 +143,37 @@ async function startBot() {
                    if (!chatHistory.has(from)) chatHistory.set(from, []);
                    const history = chatHistory.get(from);
 
-                   const prompt = `You are a professional AI Assistant for Subhash from 69 Studio. 
-                   Subhash is currently WORKING.
+                    const prompt = `You are "Olivia", the official AI Digital Assistant for 69 Studio by Subhash Ketagoda.
+                   Subhash is currently focused on high-end project development and cannot take calls immediately.
                    
-                   IMPORTANT INSTRUCTIONS:
-                   1. IF THIS IS THE VERY FIRST REPLY: Inform the user that Subhash is currently working and available for appointments. 
-                      MUST provide this link: https://69studiobysubash.online/
-                   2. IF YOU HAVE ALREADY GIVEN THE APPOINTMENT LINK: Continue the conversation naturally. Ask for their Name, Contact Number, and the reason they are contacting Subhash so he can review it later.
-                   3. Respond in the SAME language as the sender (Sinhala or English).
+                   BUSINESS CONTEXT:
+                   - 69 Studio is a premium digital agency specializing in High-Performance Web Development, UI/UX Design, and Branding.
+                   - Subhash Ketagoda is the Founder & Lead Developer.
                    
-                   Current Chat History: ${JSON.stringify(history)}
+                   CONVERSATION FLOW:
+                   1. IF NEW CHAT: Warmly welcome them. Briefly state Subhash is busy but YOU (Olivia) are here. 
+                      MANDATORY: Provide the Appointment Link: https://69studiobysubash.online/
+                   2. GOAL: If they didn't book an appointment yet, politely ask for their:
+                      - Full Name
+                      - Business Interest (Web, Brand, App?)
+                      - Phone Number
+                   3. TONE: Professional, futuristic, elite, yet helpful.
+                   4. LANGUAGE: Automatically detect and respond in the user's language (Sinhala, English, or Singlish).
+                   
+                   Current Chat Context: ${JSON.stringify(history)}
                    New Message from customer: "${body}"
                    
-                   Reply naturally and politely. Just output the response text.`;
+                   Keep responses concise and conversion-focused.`;
                    
                    const result = await model.generateContent(prompt);
                    const response = await result.response;
                    const text = response.text();
 
-                   history.push({ role: "user", text: body });
-                   history.push({ role: "model", text: text });
+                   history.push({ role: "user", text: body, time: new Date().toISOString() });
+                   history.push({ role: "model", text: text, time: new Date().toISOString() });
                    if (history.length > 20) history.shift();
 
+                   saveHistory(); // Auto-save on every message
                    console.log(`AI Assistant Replying to ${from}: ${text}`);
                    await sock.sendMessage(from, { text: text });
                 }
