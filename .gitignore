@@ -1,0 +1,9 @@
+node_modules
+.env
+auth_info_baileys
+qr.png
+list-models.js
+package-lock.json
+.puppeteer-cache
+.cache
+tmp/
