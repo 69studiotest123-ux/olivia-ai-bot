@@ -523,12 +523,13 @@
 
     <!-- TAB: LEADS -->
     <div id="tab-leads" class="tab-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <p class="section-title" style="margin:0;">Recent Conversations</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <p class="section-title" style="margin:0;">Conversations</p>
             <button class="btn btn-primary" onclick="syncLeads()" style="padding:8px 16px; font-size:0.8rem;">
                 <i class="fas fa-sync-alt"></i> Sync
             </button>
         </div>
+        <input type="text" class="search-bar" id="leadSearch" placeholder="🔍 Search by phone number..." oninput="filterLeads()">
         <div id="leadsList" class="leads-list">
             <div class="loading-screen">
                 <div class="spinner"></div>
@@ -679,7 +680,15 @@
     const userTextEl = document.getElementById('userText');
     const modelNames = { groq: 'Groq (Llama 3.3)', gemini: 'Gemini 2.0 Flash', chatgpt: 'ChatGPT (GPT-4o)' };
 
-    // Auth
+    // Auth — smart re-prompt on 403
+    async function checkAuth() {
+        const test = await fetch(`/api/logs?pass=${password}`);
+        if (test.status === 403) {
+            password = prompt('Wrong password! Enter the correct password:');
+            if (password) window.history.replaceState(null, '', `?pass=${password}`);
+        }
+    }
+
     if (!password) {
         password = prompt('AUTHENTICATION REQUIRED: Enter Password');
         if (password) window.history.replaceState(null, '', `?pass=${password}`);
@@ -768,15 +777,36 @@
     async function syncLeads() {
         try {
             const res = await fetch(`/api/logs?pass=${password}`);
-            if (!res.ok) throw new Error('Unauthorized');
+            if (res.status === 403) {
+                // Wrong password — re-prompt like admin page
+                password = prompt('Incorrect password. Enter the correct password:');
+                if (password) {
+                    window.history.replaceState(null, '', `?pass=${password}`);
+                    syncLeads(); // retry
+                }
+                return;
+            }
+            if (!res.ok) throw new Error('Server error');
             const data = await res.json();
             renderLeads(data);
         } catch (err) {
-            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p style="color:var(--primary)">Authentication failed.</p></div>';
+            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p style="color:var(--text-dim)">Could not load data. Tap Sync to retry.</p></div>';
         }
     }
 
-    function renderLeads(data) {
+    let allLeadsData = {}; // Store for search/filter
+
+    function filterLeads() {
+        const q = document.getElementById('leadSearch')?.value.toLowerCase() || '';
+        const filtered = {};
+        for (const [jid, msgs] of Object.entries(allLeadsData)) {
+            if (jid.toLowerCase().includes(q)) filtered[jid] = msgs;
+        }
+        renderLeads(filtered, false);
+    }
+
+    function renderLeads(data, store = true) {
+        if (store) allLeadsData = data;
         const total = Object.keys(data).length;
         document.getElementById('totalChats').innerText = total;
 
@@ -805,7 +835,7 @@
             if (isLead) leads++;
 
             html += `
-                <div class="lead-card">
+                <div class="lead-card" id="card-${cleanJid}">
                     <div class="lead-card-header">
                         <div class="lead-info">
                             <div class="lead-avatar"><i class="fas fa-user"></i></div>
@@ -814,15 +844,44 @@
                                 <small>${msgs.length} messages</small>
                             </div>
                         </div>
-                        ${isLead ? '<span class="lead-badge"><i class="fas fa-star"></i> Lead</span>' : ''}
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${isLead ? '<span class="lead-badge"><i class="fas fa-star"></i> Lead</span>' : ''}
+                            <button class="log-toggle-btn" onclick="toggleLog('${cleanJid}')">
+                                <i class="fas fa-comments"></i> Log
+                            </button>
+                        </div>
                     </div>
                     <div class="lead-preview">${lastText}</div>
+                    <div class="log-view" id="log-${cleanJid}">
+                        ${msgs.map(m => {
+                            const txt = m.parts?.[0]?.text || m.text || '';
+                            const isUser = m.role === 'user';
+                            const time = m.time ? new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+                            return `<div class="log-msg ${isUser ? 'log-msg-user' : 'log-msg-bot'}">
+                                <div class="log-msg-label">${isUser ? 'Customer' : 'Olivia AI'}</div>
+                                ${txt}
+                                <div class="log-msg-time">${time}</div>
+                            </div>`;
+                        }).join('')}
+                    </div>
                 </div>
             `;
         }
 
         document.getElementById('totalLeads').innerText = leads;
+        document.getElementById('totalChats').innerText = total;
         document.getElementById('leadsList').innerHTML = html;
+    }
+
+    function toggleLog(jid) {
+        const el = document.getElementById('log-' + jid);
+        if (!el) return;
+        const isOpen = el.classList.contains('open');
+        document.querySelectorAll('.log-view.open').forEach(l => l.classList.remove('open'));
+        if (!isOpen) {
+            el.classList.add('open');
+            setTimeout(() => el.scrollTop = el.scrollHeight, 100);
+        }
     }
 
     async function clearLogs() {
