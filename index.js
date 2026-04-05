@@ -15,28 +15,34 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const historyFile = 'history.json';
-let chatHistory = new Map();
+const appointmentsFile = 'appointments.json';
+let appointments = [];
 
 // Load History from File
 try {
     if (fs.existsSync(historyFile)) {
         const raw = fs.readFileSync(historyFile, 'utf8');
-        const parsed = JSON.parse(raw);
-        chatHistory = new Map(Object.entries(parsed));
-        console.log('✅ Loaded persistent chat history.');
+        chatHistory = new Map(Object.entries(JSON.parse(raw)));
     }
-} catch (e) {
-    console.error('❌ Failed to load history:', e.message);
-}
+} catch (e) { console.error('History load error:', e); }
+
+// Load Appointments from File
+try {
+    if (fs.existsSync(appointmentsFile)) {
+        appointments = JSON.parse(fs.readFileSync(appointmentsFile, 'utf8'));
+    }
+} catch (e) { console.error('Appointments load error:', e); }
 
 function saveHistory() {
     try {
-        const data = Object.fromEntries(chatHistory);
-        fs.writeFileSync(historyFile, JSON.stringify(data, null, 2));
-    } catch (e) {
-        console.error('❌ Failed to save history:', e.message);
-    }
+        fs.writeFileSync(historyFile, JSON.stringify(Object.fromEntries(chatHistory), null, 2));
+    } catch (e) { console.error('History save error:', e); }
+}
+
+function saveAppointments() {
+    try {
+        fs.writeFileSync(appointmentsFile, JSON.stringify(appointments, null, 2));
+    } catch (e) { console.error('Appointments save error:', e); }
 }
 
 const app = express();
@@ -56,12 +62,32 @@ app.get('/api/logs', (req, res) => {
     res.json(logs);
 });
 
+// API: Get Appointments
+app.get('/api/appointments', (req, res) => {
+    const password = req.query.pass;
+    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(appointments);
+});
+
+// API: Add Appointment (External trigger from 69studio website)
+app.post('/api/appointments/add', (req, res) => {
+    const { pass, name, phone, date, time, service } = req.body;
+    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    
+    const newAppt = { 
+        id: Date.now(),
+        name, phone, date, time, service, 
+        timestamp: new Date().toISOString() 
+    };
+    appointments.unshift(newAppt); // Latest first
+    saveAppointments();
+    res.json({ success: true, appointment: newAppt });
+});
+
 // API Endpoint to Clear Logs
 app.post('/api/logs/clear', (req, res) => {
     const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
+    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
     chatHistory.clear();
     saveHistory();
     res.json({ success: true });

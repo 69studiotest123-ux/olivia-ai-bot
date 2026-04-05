@@ -560,6 +560,21 @@
         .bar-row { margin-top: 5px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
         .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 1s ease; }
 
+        /* APPOINTMENTS */
+        .appt-card {
+            background: rgba(255,255,255,0.03); border-radius: 16px;
+            padding: 15px; border: 1px solid var(--border);
+            margin-bottom: 10px; transition: 0.2s;
+        }
+        .appt-card:hover { border-color: var(--primary); background: rgba(255,255,255,0.05); }
+        .appt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .appt-name { font-weight: 700; color: var(--text-main); font-size: 0.95rem; }
+        .appt-service { background: rgba(56,189,248,0.15); color: var(--accent); padding: 3px 8px; border-radius: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+        .appt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .appt-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-dim); }
+        .appt-item i { color: var(--primary); width: 12px; }
+        .appt-phone { color: var(--success); font-weight: 600; text-decoration: none; display: block; margin-top: 5px; font-size: 0.8rem; }
+
         @media (max-width: 400px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .template-grid { grid-template-columns: 1fr; }
@@ -691,16 +706,27 @@
     <!-- TAB: LEADS -->
     <div id="tab-leads" class="tab-panel">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <p class="section-title" style="margin:0;">Conversations</p>
-            <button class="btn btn-primary" onclick="syncLeads()" style="padding:8px 16px; font-size:0.8rem;">
+            <p class="section-title" style="margin:0; color:var(--primary); font-size:0.75rem; font-weight:700;">69 STUDIO BOOKINGS (<span id="totalAppts">0</span>)</p>
+            <button class="btn btn-ghost" onclick="refreshAppointments()" style="padding:6px 12px; font-size:0.7rem;">
                 <i class="fas fa-sync-alt"></i> Sync
             </button>
         </div>
-        <input type="text" class="search-bar" id="leadSearch" placeholder="🔍 Search by phone number..." oninput="filterLeads()">
+        
+        <div id="appointmentsList" style="max-height: 250px; overflow-y: auto; margin-bottom: 25px; padding-right:5px;">
+            <div class="loading-screen"><p>Syncing website bookings...</p></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <p class="section-title" style="margin:0; font-size:0.75rem; font-weight:700;">WHATSAPP LEADS (<span id="totalLeads">0</span>)</p>
+            <button class="btn btn-primary" onclick="syncLeads()" style="padding:6px 12px; font-size:0.7rem;">
+                <i class="fas fa-sync-alt"></i> Sync Logs
+            </button>
+        </div>
+        <input type="text" class="search-bar" id="leadSearch" placeholder="🔍 Search logs..." oninput="filterLeads()" style="margin-bottom:15px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; color:white; width:100%; padding:10px;">
+        
         <div id="leadsList" class="leads-list">
             <div class="loading-screen">
-                <div class="spinner"></div>
-                <p>Loading intelligence data...</p>
+                <p>Loading chat intelligence...</p>
             </div>
         </div>
     </div>
@@ -886,7 +912,11 @@
             setTimeout(()=>{ loginScreen.style.display='none'; }, 700);
             const data = await res.json();
             renderLeads(data);
-            setInterval(syncLeads, 30000); // auto-sync every 30s
+            refreshAppointments();
+            setInterval(() => {
+                syncLeads();
+                refreshAppointments();
+            }, 30000); // auto-sync every 30s
         } catch(e) {
             errEl.innerText = 'Connection error. Check network.';
             btn.disabled = false;
@@ -906,8 +936,14 @@
                 document.getElementById('loginScreen').style.display = 'flex';
                 document.getElementById('loginError').innerText = 'Session expired. Please re-enter password.';
             } else {
-                res.json().then(data => renderLeads(data));
-                setInterval(syncLeads, 30000);
+                res.json().then(data => {
+                    renderLeads(data);
+                    refreshAppointments();
+                });
+                setInterval(() => {
+                    syncLeads();
+                    refreshAppointments();
+                }, 30000);
             }
         });
     }
@@ -1069,6 +1105,44 @@
             aiTextEl.classList.remove('thinking-shimmer');
             aiTextEl.innerText = 'Connection error. Please try again.';
         }
+    }
+
+    async function refreshAppointments() {
+        if (!password) return;
+        try {
+            const res = await fetch(`/api/appointments?pass=${password}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            renderAppointments(data);
+        } catch(e) { console.error('Appt sync error:', e); }
+    }
+
+    function renderAppointments(data) {
+        const container = document.getElementById('appointmentsList');
+        document.getElementById('totalAppts').innerText = data.length;
+
+        if (data.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding: 20px; border: 1px dashed var(--border); border-radius: 12px;">No bookings found yet.</p>';
+            return;
+        }
+
+        let html = '';
+        data.forEach(a => {
+            html += `
+                <div class="appt-card">
+                    <div class="appt-header">
+                        <div class="appt-name">${a.name || 'Anonymous User'}</div>
+                        <div class="appt-service">${a.service || 'Studio Session'}</div>
+                    </div>
+                    <div class="appt-grid">
+                        <div class="appt-item"><i class="fas fa-calendar-alt"></i> ${a.date || 'TBD'}</div>
+                        <div class="appt-item"><i class="fas fa-clock"></i> ${a.time || 'TBD'}</div>
+                    </div>
+                    <a href="tel:${a.phone}" class="appt-phone"><i class="fas fa-phone-alt"></i> ${a.phone || 'No phone'}</a>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
     }
 
     // Sync leads
