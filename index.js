@@ -73,11 +73,11 @@ app.get('/api/appointments', (req, res) => {
 app.post('/api/appointments/add', (req, res) => {
     const { pass, name, phone, date, time, service } = req.body;
     if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
-    
-    const newAppt = { 
+
+    const newAppt = {
         id: Date.now(),
-        name, phone, date, time, service, 
-        timestamp: new Date().toISOString() 
+        name, phone, date, time, service,
+        timestamp: new Date().toISOString()
     };
     appointments.unshift(newAppt); // Latest first
     saveAppointments();
@@ -88,11 +88,11 @@ app.post('/api/appointments/add', (req, res) => {
 app.get('/api/appointments/add', (req, res) => {
     const { pass, name, phone, date, time, service } = req.query;
     if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
-    
-    const newAppt = { 
+
+    const newAppt = {
         id: Date.now(),
-        name, phone, date, time, service, 
-        timestamp: new Date().toISOString() 
+        name, phone, date, time, service,
+        timestamp: new Date().toISOString()
     };
     appointments.unshift(newAppt);
     saveAppointments();
@@ -123,7 +123,7 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`Web server listening on port ${port}`);
     console.log(`ADMIN DASHBOARD: ${publicUrl}/admin?pass=${process.env.ADMIN_PASSWORD}`);
     console.log(`PERSONAL ASSISTANT: ${publicUrl}/assistant?pass=${process.env.ADMIN_PASSWORD}`);
-    
+
     // --- SELF PING TO KEEP ALIVE ON RENDER ---
     if (process.env.RENDER_EXTERNAL_URL) {
         setInterval(async () => {
@@ -296,7 +296,7 @@ app.get('/api/assistant/ask', async (req, res) => {
 async function startBot() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📡 Connecting with WhatsApp v${version.join('.')} (Latest: ${isLatest})`);
-    
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
@@ -345,15 +345,15 @@ async function startBot() {
                     const aiResponse = await getGroqResponse(body, history);
 
                     // Save to history format compatible with our Map
-                    history.push({ 
-                        role: "user", 
-                        parts: [{ text: body }], 
-                        time: new Date().toISOString() 
+                    history.push({
+                        role: "user",
+                        parts: [{ text: body }],
+                        time: new Date().toISOString()
                     });
-                    history.push({ 
-                        role: "model", 
-                        parts: [{ text: aiResponse }], 
-                        time: new Date().toISOString() 
+                    history.push({
+                        role: "model",
+                        parts: [{ text: aiResponse }],
+                        time: new Date().toISOString()
                     });
 
                     // Keep only last 20 messages for persistence
