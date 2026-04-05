@@ -149,6 +149,14 @@
         .bottom-nav-wrap { display: none; }
         .bottom-nav-wrap.visible { display: flex; }
 
+        /* Notification Badge */
+        .nav-badge {
+            position: absolute; top: 8px; right: 28%;
+            width: 8px; height: 8px; background: #ff3b30;
+            border-radius: 50%; border: 2px solid var(--bg);
+            display: none; z-index: 10;
+        }
+
         /* BACKGROUND GLOW */
         .bg-glow {
             position: fixed; top: 0; left: 0;
@@ -853,7 +861,8 @@
         <i class="fas fa-microphone-alt"></i>
         <span>Assistant</span>
     </button>
-    <button class="nav-item" onclick="switchTab('leads', this)">
+    <button class="nav-item" onclick="switchTab('leads', this); document.getElementById('leadsBadge').style.display='none';">
+        <div class="nav-badge" id="leadsBadge"></div>
         <i class="fas fa-users"></i>
         <span>Leads</span>
     </button>
@@ -1120,6 +1129,10 @@
     function renderAppointments(data) {
         const container = document.getElementById('appointmentsList');
         document.getElementById('totalAppts').innerText = data.length;
+
+        if (data.length > 0) {
+            document.getElementById('leadsBadge').style.display = 'block';
+        }
 
         if (data.length === 0) {
             container.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding: 20px; border: 1px dashed var(--border); border-radius: 12px;">No bookings found yet.</p>';
