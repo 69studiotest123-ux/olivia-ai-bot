@@ -43,32 +43,34 @@
 
         /* HEADER */
         header {
-            padding: 20px;
+            padding: 12px 16px;
             background: rgba(18, 18, 20, 0.9);
             backdrop-filter: blur(20px);
             border-bottom: 2px solid var(--border);
             position: sticky; top: 0; z-index: 1000;
             display: flex; justify-content: space-between; align-items: center;
+            gap: 10px;
         }
 
-        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .logo-circle {
-            width: 42px; height: 42px;
+            width: 36px; height: 36px; flex-shrink: 0;
             background: var(--primary); border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 1rem; color: #fff;
-            box-shadow: 0 0 20px var(--primary-glow);
+            font-weight: 800; font-size: 0.85rem; color: #fff;
+            box-shadow: 0 0 15px var(--primary-glow);
         }
-        .brand h1 { font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; }
+        .brand h1 { font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
         .brand span { color: var(--primary); }
 
         /* MODEL SELECTOR */
         .model-select {
             background: var(--card); color: var(--text-main);
             border: 1px solid var(--border);
-            padding: 8px 14px; border-radius: 12px;
-            font-family: inherit; font-size: 0.8rem;
+            padding: 7px 10px; border-radius: 10px;
+            font-family: inherit; font-size: 0.75rem;
             cursor: pointer; outline: none; transition: 0.3s;
+            max-width: 130px;
         }
         .model-select:hover { border-color: var(--primary); }
 
@@ -298,8 +300,46 @@
         input:checked + .toggle-slider { background: var(--primary); }
         input:checked + .toggle-slider:before { transform: translateX(22px); }
 
+        /* Quick Reply Templates */
+        .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 25px; }
+        .template-chip {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 14px; padding: 14px; cursor: pointer;
+            transition: 0.2s; text-align: left;
+        }
+        .template-chip:hover { border-color: var(--primary); background: rgba(255,77,77,0.05); }
+        .template-chip .chip-lang { font-size: 0.65rem; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .template-chip .chip-text { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
+        .template-chip .chip-copy { font-size: 0.7rem; color: var(--accent); margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+
+        /* Broadcast */
+        .broadcast-box {
+            background: var(--card); border-radius: 20px;
+            border: 1px solid var(--border); padding: 20px; margin-bottom: 15px;
+        }
+        .broadcast-box textarea {
+            width: 100%; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border); border-radius: 12px;
+            color: var(--text-main); font-family: inherit; font-size: 0.9rem;
+            padding: 14px; resize: none; outline: none; line-height: 1.5;
+        }
+        .broadcast-box textarea:focus { border-color: var(--primary); }
+
+        /* Analytics */
+        .analytics-row {
+            background: var(--card); border-radius: 16px;
+            border: 1px solid var(--border); padding: 16px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px;
+        }
+        .analytics-row .label { font-size: 0.85rem; color: var(--text-dim); }
+        .analytics-row .value { font-size: 1.4rem; font-weight: 700; color: var(--primary); }
+        .bar-row { margin-top: 5px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 1s ease; }
+
         @media (max-width: 400px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .template-grid { grid-template-columns: 1fr; }
             .voice-panel { padding: 35px 20px; }
             #micBtn { width: 110px; height: 110px; font-size: 2rem; }
             .pulse-ring { width: 110px; height: 110px; }
@@ -314,13 +354,13 @@
         <div class="logo-circle">AI</div>
         <h1>Subhash <span>AI</span></h1>
     </div>
-    <div style="display:flex; align-items:center; gap:12px;">
+    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
         <select id="modelSelector" class="model-select">
             <option value="groq">⚡ Groq</option>
             <option value="gemini">✨ Gemini</option>
-            <option value="chatgpt">🧠 ChatGPT</option>
+            <option value="chatgpt">🧠 GPT-4o</option>
         </select>
-        <span><span class="status-dot"></span></span>
+        <span class="status-dot" style="flex-shrink:0;"></span>
     </div>
 </header>
 
@@ -410,7 +450,84 @@
             </div>
             <i class="fas fa-trash-alt" style="color:var(--primary)"></i>
         </div>
+    </div>    <!-- TAB: MORE (Quick Replies + Broadcast + Analytics) -->
+    <div id="tab-more" class="tab-panel">
+
+        <!-- ANALYTICS -->
+        <p class="section-title">Analytics</p>
+        <div class="analytics-row">
+            <div>
+                <div class="label">Total Conversations</div>
+                <div class="bar-row"><div class="bar-fill" id="barChats" style="width:0%"></div></div>
+            </div>
+            <div class="value" id="analyticsChats">0</div>
+        </div>
+        <div class="analytics-row">
+            <div>
+                <div class="label">High-Value Leads</div>
+                <div class="bar-row"><div class="bar-fill" id="barLeads" style="width:0%; background:var(--success)"></div></div>
+            </div>
+            <div class="value" id="analyticsLeads" style="color:var(--success)">0</div>
+        </div>
+        <div class="analytics-row">
+            <div>
+                <div class="label">Bot Response Rate</div>
+                <div class="bar-row"><div class="bar-fill" id="barRate" style="width:95%; background:var(--accent)"></div></div>
+            </div>
+            <div class="value" style="color:var(--accent)">95%</div>
+        </div>
+
+        <!-- QUICK REPLY TEMPLATES -->
+        <p class="section-title" style="margin-top:25px;">Quick Reply Templates</p>
+        <div class="template-grid">
+            <div class="template-chip" onclick="copyTemplate('Hi! Thanks for reaching out. Subhash is currently busy but will be in touch soon. 😊')">
+                <div class="chip-lang">🇬🇧 English</div>
+                <div class="chip-text">Hi! Thanks for reaching out. Subhash will be in touch soon.</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+            <div class="template-chip" onclick="copyTemplate('Ayubowan! Subhash me welawe busy, ekai mama oyata reply kale. Monawadu one da? 😊')">
+                <div class="chip-lang">🇱🇰 Singlish</div>
+                <div class="chip-text">Ayubowan! Subhash busy, monawadu one da?</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+            <div class="template-chip" onclick="copyTemplate('For appointments, please visit: https://69studiobysubash.online/appointments.html ✨')">
+                <div class="chip-lang">📅 Appointment</div>
+                <div class="chip-text">Appointment link for booking sessions.</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+            <div class="template-chip" onclick="copyTemplate('Subhash gena details dannata oyata schedule ekak hadanna puluwanda? https://69studiobysubash.online/appointments.html')">
+                <div class="chip-lang">🇱🇰 Appointment</div>
+                <div class="chip-text">Sinhala appointment message with link.</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+            <div class="template-chip" onclick="copyTemplate('Thank you for your patience! We\'ll follow up with you shortly. 🙏')">
+                <div class="chip-lang">🇬🇧 Follow Up</div>
+                <div class="chip-text">Polite follow-up message for pending leads.</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+            <div class="template-chip" onclick="copyTemplate('Oyage message ekata reply karanna late una nisa samawenna. Dan Subhash oyata sambandha vevvi. 🙏')">
+                <div class="chip-lang">🇱🇰 Apology</div>
+                <div class="chip-text">Sinhala apology for late reply.</div>
+                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
+            </div>
+        </div>
+
+        <!-- BROADCAST MESSAGE -->
+        <p class="section-title">Compose Broadcast</p>
+        <div class="broadcast-box">
+            <textarea id="broadcastMsg" rows="4" placeholder="Type a message to send to all leads..."></textarea>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button class="btn btn-ghost" style="flex:1;" onclick="previewBroadcast()">
+                    <i class="fas fa-eye"></i> Preview
+                </button>
+                <button class="btn btn-primary" style="flex:1;" onclick="copyBroadcast()">
+                    <i class="fas fa-copy"></i> Copy Message
+                </button>
+            </div>
+            <p id="broadcastStatus" style="font-size:0.75rem; color:var(--success); margin-top:10px; text-align:center;"></p>
+        </div>
     </div>
+
 </div>
 
 <!-- BOTTOM NAVIGATION -->
@@ -422,6 +539,10 @@
     <button class="nav-item" onclick="switchTab('leads', this)">
         <i class="fas fa-users"></i>
         <span>Leads</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('more', this)">
+        <i class="fas fa-th-large"></i>
+        <span>Tools</span>
     </button>
     <button class="nav-item" onclick="switchTab('settings', this)">
         <i class="fas fa-sliders-h"></i>
@@ -587,6 +708,31 @@
             const res = await fetch(`/api/logs/clear?pass=${password}`, { method: 'POST' });
             if (res.ok) { alert('Logs cleared!'); syncLeads(); }
         } catch (err) { alert('Failed to clear logs.'); }
+    }
+
+    // Quick Reply copy
+    function copyTemplate(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const status = document.createElement('div');
+            status.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--success);color:white;padding:10px 20px;border-radius:12px;font-size:0.85rem;z-index:9999;';
+            status.innerText = '✓ Copied to clipboard!';
+            document.body.appendChild(status);
+            setTimeout(() => status.remove(), 2000);
+        });
+    }
+
+    // Broadcast
+    function copyBroadcast() {
+        const msg = document.getElementById('broadcastMsg').value.trim();
+        if (!msg) { document.getElementById('broadcastStatus').innerText = 'Please type a message first.'; return; }
+        navigator.clipboard.writeText(msg).then(() => {
+            document.getElementById('broadcastStatus').innerText = '✓ Message copied! Paste it in WhatsApp Broadcast.';
+        });
+    }
+    function previewBroadcast() {
+        const msg = document.getElementById('broadcastMsg').value.trim();
+        if (!msg) return;
+        alert('Preview:\n\n' + msg);
     }
 
     // Init
