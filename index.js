@@ -178,42 +178,30 @@ async function startBot() {
             console.log(`Received message from ${from}: ${body}`);
             try {
                 if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
-                   if (!chatHistory.has(from)) chatHistory.set(from, []);
-                   const history = chatHistory.get(from);
+                    if (!chatHistory.has(from)) chatHistory.set(from, []);
+                    const history = chatHistory.get(from);
 
-                    const prompt = `You are "Olivia", the official AI Digital Assistant for 69 Studio by Subhash Ketagoda.
-                   Subhash is currently focused on high-end project development and cannot take calls immediately.
-                   
-                   BUSINESS CONTEXT:
-                   - 69 Studio is a premium digital agency specializing in High-Performance Web Development, UI/UX Design, and Branding.
-                   - Subhash Ketagoda is the Founder & Lead Developer.
-                   
-                   CONVERSATION FLOW:
-                   1. IF NEW CHAT: Warmly welcome them. Briefly state Subhash is busy but YOU (Olivia) are here. 
-                      MANDATORY: Provide the Appointment Link: https://69studiobysubash.online/
-                   2. GOAL: If they didn't book an appointment yet, politely ask for their:
-                      - Full Name
-                      - Business Interest (Web, Brand, App?)
-                      - Phone Number
-                   3. TONE: Professional, futuristic, elite, yet helpful.
-                   4. LANGUAGE: Automatically detect and respond in the user's language (Sinhala, English, or Singlish).
-                   
-                   Current Chat Context: ${JSON.stringify(history)}
-                   New Message from customer: "${body}"
-                   
-                   Keep responses concise and conversion-focused.`;
-                   
-                   const result = await model.generateContent(prompt);
-                   const response = await result.response;
-                   const text = response.text();
+                    // Get AI Response using Groq
+                    const aiResponse = await getGroqResponse(body, history);
 
-                   history.push({ role: "user", text: body, time: new Date().toISOString() });
-                   history.push({ role: "model", text: text, time: new Date().toISOString() });
-                   if (history.length > 20) history.shift();
+                    // Save to history format compatible with our Map
+                    history.push({ 
+                        role: "user", 
+                        parts: [{ text: body }], 
+                        time: new Date().toISOString() 
+                    });
+                    history.push({ 
+                        role: "model", 
+                        parts: [{ text: aiResponse }], 
+                        time: new Date().toISOString() 
+                    });
 
-                   saveHistory(); // Auto-save on every message
-                   console.log(`AI Assistant Replying to ${from}: ${text}`);
-                   await sock.sendMessage(from, { text: text });
+                    // Keep only last 20 messages for persistence
+                    if (history.length > 20) history.shift();
+
+                    saveHistory(); // Auto-save
+                    console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
+                    await sock.sendMessage(from, { text: aiResponse });
                 }
             } catch (error) {
                 console.error('AI Error:', error.message);
