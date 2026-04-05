@@ -3,6 +3,8 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import Groq from 'groq-sdk';
 import pino from 'pino';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { OpenAI } from 'openai';
 import 'dotenv/config';
 import fs from 'fs';
 import qrImage from 'qr-image';
@@ -93,8 +95,10 @@ app.listen(port, '0.0.0.0', () => {
     }
 });
 
-// --- GROQ AI SETUP ---
+// --- AI SETUP ---
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "empty");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "empty" });
 
 async function getGroqResponse(message, history = []) {
     try {
@@ -149,15 +153,13 @@ async function getGroqResponse(message, history = []) {
 
 // Personal Assistant AI Logic
 app.get('/api/assistant/ask', async (req, res) => {
-    const password = req.query.pass;
-    const query = req.query.q;
+    const { pass: password, q: query, model: modelType } = req.query;
 
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
 
     try {
-        // Prepare a summary of current leads for the AI
         const rawHistory = Object.fromEntries(chatHistory);
         const leadsSummary = Object.entries(rawHistory).map(([jid, msgs]) => {
             const cleanJid = jid.split('@')[0];
@@ -165,38 +167,44 @@ app.get('/api/assistant/ask', async (req, res) => {
             return `Lead ${cleanJid}: ${lastMsg}`;
         }).join('\n');
 
-        const messages = [
-            {
-                role: "system",
-                content: `You are Subhash's loyal and highly efficient AI Personal Assistant. 
-                Your tone is professional, respectful, and proactive.
-                
-                Context:
-                Current Leads from the WhatsApp Bot:
-                ${leadsSummary || "No active leads at the moment."}
-                
-                Instructions:
-                - Answer Subhash's questions directly and naturally.
-                - If he asks what to do, look at the leads and suggest follow-ups.
-                - Keep responses concise as they will be read aloud via Text-to-Speech.
-                - Do not use markdown. Speak like a real human assistant.
-                `
-            },
-            { role: "user", content: query }
-        ];
+        const systemPrompt = `You are Subhash's loyal and highly efficient AI Personal Assistant. 
+        Your tone is professional, respectful, and proactive.
+        Context: Current Leads: \n${leadsSummary || "No active leads."}
+        Instructions: Answer Subhash directly. Look at leads and suggest follow-ups. Keep it concise. No markdown or bold.`;
 
-        const chatCompletion = await groq.chat.completions.create({
-            messages: messages,
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.7,
-            max_tokens: 512,
-        });
+        let answer = "";
 
-        const answer = chatCompletion.choices[0].message.content;
+        if (modelType === "gemini") {
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            const result = await model.generateContent(`${systemPrompt}\n\nUser: ${query}`);
+            const response = await result.response;
+            answer = response.text();
+        } else if (modelType === "chatgpt") {
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: query }
+                ],
+            });
+            answer = completion.choices[0].message.content;
+        } else { // Default to Groq Llama
+            const chatCompletion = await groq.chat.completions.create({
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: query }
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.7,
+                max_tokens: 512,
+            });
+            answer = chatCompletion.choices[0].message.content;
+        }
+
         res.json({ answer });
     } catch (error) {
         console.error("Assistant Error:", error.message);
-        res.status(500).json({ error: 'Failed to get AI response' });
+        res.status(500).json({ error: 'AI Error: ' + error.message });
     }
 });
 

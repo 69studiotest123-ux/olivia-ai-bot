@@ -263,6 +263,20 @@
         .btn:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--primary); }
         .btn-active { background: var(--primary); color: white; border-color: var(--primary); }
 
+        .model-select {
+            background: var(--card);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 8px 15px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .model-select:hover { border-color: var(--primary); }
         @media (max-width: 1024px) {
             main { grid-template-columns: 1fr; overflow-y: auto; }
             .sidebar { height: auto; }
@@ -277,9 +291,16 @@
             <div class="logo-circle">S</div>
             <h1>Subhash <span>AI</span> Assistant</h1>
         </div>
-        <div style="display: flex; align-items: center;">
-            <span class="status-dot"></span>
-            <span style="font-size: 0.85rem; color: var(--text-dim)">Voice Engine Ready</span>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <select id="modelSelector" class="model-select">
+                <option value="groq">Groq (Llama 3.3)</option>
+                <option value="gemini">Gemini 2.0 Flash</option>
+                <option value="chatgpt">ChatGPT (GPT-4o)</option>
+            </select>
+            <div style="display: flex; align-items: center;">
+                <span class="status-dot"></span>
+                <span style="font-size: 0.85rem; color: var(--text-dim)">Voice Engine Ready</span>
+            </div>
         </div>
     </header>
 
@@ -387,9 +408,8 @@
             }
 
             try {
-                // We'll use the existing GROQ logic through a custom endpoint or standard logs
-                // For simplicity now, let's just make it talk back based on logs
-                const response = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}`);
+                const model = document.getElementById('modelSelector').value;
+                const response = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}&model=${model}`);
                 const data = await response.json();
                 
                 aiTextDisplay.innerText = data.answer;
