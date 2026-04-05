@@ -1106,10 +1106,10 @@
             handleQuery(transcript);
         };
 
-        recognition.onerror = () => {
+        recognition.onerror = (event) => {
             document.body.classList.remove('listening');
             micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            userTextEl.innerText = 'Error. Try again.';
+            userTextEl.innerText = 'Error: ' + (event.error || 'Try again.');
         };
 
         recognition.onend = () => {
@@ -1119,7 +1119,10 @@
 
         micBtn.onclick = () => {
             unlockAudio(); // Ensure safari unlock
-            recognition.start();
+            recognition.lang = currentLang; // Ensure language is applied
+            try {
+                recognition.start();
+            } catch(e) {}
         };
     } else {
         micBtn.onclick = () => alert('Voice not supported. Use Chrome.');

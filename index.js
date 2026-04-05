@@ -258,6 +258,42 @@ async function getGroqResponse(message, history = []) {
     }
 }
 
+// Website Chat Endpoint (Connects your website widget to Olivia)
+app.post('/api/chat', async (req, res) => {
+    const { message, user } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+
+    try {
+        // Use a default user ID for website guests if no session ID provided
+        const userId = user || 'website-guest';
+        
+        if (!chatHistory.has(userId)) chatHistory.set(userId, []);
+        const history = chatHistory.get(userId);
+
+        // Process via Groq
+        const aiResponse = await getGroqResponse(message, history);
+
+        // Keep history for conversational flow
+        history.push({
+            role: "user",
+            parts: [{ text: message }],
+            time: new Date().toISOString()
+        });
+        history.push({
+            role: "model",
+            parts: [{ text: aiResponse }],
+            time: new Date().toISOString()
+        });
+        if (history.length > 20) history.shift();
+        saveHistory();
+
+        res.json({ reply: aiResponse });
+    } catch (error) {
+        console.error("Web Chat API Error:", error.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // Vision AI Endpoint (Image Analysis)
 app.post('/api/assistant/vision', async (req, res) => {
     const { pass: password, query, imageBase64, mimeType, model: modelType } = req.body;
