@@ -583,6 +583,18 @@
         .appt-item i { color: var(--primary); width: 12px; }
         .appt-phone { color: var(--success); font-weight: 600; text-decoration: none; display: block; margin-top: 5px; font-size: 0.8rem; }
 
+        /* TO-DO LIST */
+        .todo-item {
+            background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border);
+            padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;
+            transition: 0.2s; margin-bottom: 8px;
+        }
+        .todo-item:hover { border-color: var(--primary); }
+        .todo-item.completed .todo-text { text-decoration: line-through; opacity: 0.5; }
+        .todo-text { flex: 1; font-size: 0.9rem; cursor: pointer; margin: 0 10px; }
+        .todo-del { color: #ef4444; cursor: pointer; background: none; border: none; font-size: 1rem; padding: 5px; opacity: 0.8; transition: 0.2s; }
+        .todo-del:hover { opacity: 1; transform: scale(1.1); }
+
         /* LANGUAGE TOGGLE */
         .lang-switch {
             display: flex; gap: 4px; background: rgba(255,255,255,0.05);
@@ -796,8 +808,23 @@
             </div>
             <i class="fas fa-trash-alt" style="color:var(--primary)"></i>
         </div>
-    </div>    <!-- TAB: MORE (Quick Replies + Broadcast + Analytics) -->
+    </div>    <!-- TAB: MORE (Tasks + Reports + Broadcast) -->
     <div id="tab-more" class="tab-panel">
+
+        <!-- TASKS / TODO LIST -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <p class="section-title" style="margin:0;">My Tasks</p>
+            <button class="btn btn-ghost" onclick="loadTodos()" style="padding:4px 8px; font-size:0.7rem;"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="todo-container" style="margin-bottom:25px;">
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <input type="text" id="newTodoInput" placeholder="Add a new task..." style="flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; color:white; padding:10px 14px; font-family:inherit; outline:none;" onkeydown="if(event.key==='Enter') addTodo()">
+                <button class="btn btn-primary" onclick="addTodo()" style="padding:10px 16px;"><i class="fas fa-plus"></i></button>
+            </div>
+            <div id="todoList">
+                <div class="loading-screen" style="padding:20px;"><p>Loading tasks...</p></div>
+            </div>
+        </div>
 
         <!-- ANALYTICS -->
         <p class="section-title">Analytics</p>
@@ -889,7 +916,7 @@
     </button>
     <button class="nav-item" onclick="switchTab('more', this)">
         <i class="fas fa-th-large"></i>
-        <span>Tools</span>
+        <span>Tasks</span>
     </button>
     <button class="nav-item" onclick="switchTab('settings', this)">
         <i class="fas fa-sliders-h"></i>
@@ -943,9 +970,11 @@
             const data = await res.json();
             renderLeads(data);
             refreshAppointments();
+            loadTodos();
             setInterval(() => {
                 syncLeads();
                 refreshAppointments();
+                loadTodos();
             }, 30000); // auto-sync every 30s
         } catch(e) {
             errEl.innerText = 'Connection error. Check network.';
@@ -969,10 +998,12 @@
                 res.json().then(data => {
                     renderLeads(data);
                     refreshAppointments();
+                    loadTodos();
                 });
                 setInterval(() => {
                     syncLeads();
                     refreshAppointments();
+                    loadTodos();
                 }, 30000);
             }
         });
@@ -1148,6 +1179,58 @@
             aiTextEl.classList.remove('thinking-shimmer');
             aiTextEl.innerText = 'Connection error. Please try again.';
         }
+    }
+
+    // === TO-DO LIST LOGIC ===
+    async function loadTodos() {
+        if (!password) return;
+        try {
+            const res = await fetch(`/api/todos?pass=${password}`);
+            if (!res.ok) return;
+            const todos = await res.json();
+            renderTodos(todos);
+        } catch(e) { console.error('Todo sync error:', e); }
+    }
+
+    function renderTodos(todos) {
+        const container = document.getElementById('todoList');
+        if (todos.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding: 20px; border: 1px dashed var(--border); border-radius: 12px;">No active tasks. You are all caught up! ✨</p>';
+            return;
+        }
+
+        let html = '';
+        todos.forEach(t => {
+            html += `
+                <div class="todo-item ${t.completed ? 'completed' : ''}">
+                    <i class="fas ${t.completed ? 'fa-check-circle' : 'fa-circle'}" style="color:${t.completed ? 'var(--success)' : 'var(--text-dim)'}; cursor:pointer; font-size:1.1rem; transition:0.2s;" onclick="todoAction('toggle', ${t.id})"></i>
+                    <div class="todo-text" onclick="todoAction('toggle', ${t.id})">${t.text}</div>
+                    <button class="todo-del" onclick="todoAction('delete', ${t.id})"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    async function addTodo() {
+        const input = document.getElementById('newTodoInput');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        await todoAction('add', null, text);
+        // AI feedback (optional) -> we just update UI sync for now.
+    }
+
+    async function todoAction(action, id = null, text = null) {
+        try {
+            const res = await fetch('/api/todos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pass: password, action, id, text })
+            });
+            const data = await res.json();
+            if (data.success) renderTodos(data.todos);
+        } catch(e) { console.error('Todo action error:', e); }
     }
 
     async function refreshAppointments() {

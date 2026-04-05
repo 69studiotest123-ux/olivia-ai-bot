@@ -18,8 +18,10 @@ const __dirname = path.dirname(__filename);
 
 const historyFile = 'history.json';
 const appointmentsFile = 'appointments.json';
+const todosFile = 'todos.json';
 let chatHistory = new Map();
 let appointments = [];
+let todos = [];
 
 // Load History from File
 try {
@@ -46,6 +48,19 @@ function saveAppointments() {
     try {
         fs.writeFileSync(appointmentsFile, JSON.stringify(appointments, null, 2));
     } catch (e) { console.error('Appointments save error:', e); }
+}
+
+// Load Todos from File
+try {
+    if (fs.existsSync(todosFile)) {
+        todos = JSON.parse(fs.readFileSync(todosFile, 'utf8'));
+    }
+} catch (e) { console.error('Todos load error:', e); }
+
+function saveTodos() {
+    try {
+        fs.writeFileSync(todosFile, JSON.stringify(todos, null, 2));
+    } catch (e) { console.error('Todos save error:', e); }
 }
 
 const app = express();
@@ -79,6 +94,31 @@ app.get('/api/appointments', (req, res) => {
     const password = req.query.pass;
     if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
     res.json(appointments);
+});
+
+// API: Get Todos
+app.get('/api/todos', (req, res) => {
+    const password = req.query.pass;
+    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(todos);
+});
+
+// API: Manage Todos (Add, Toggle, Delete)
+app.post('/api/todos', (req, res) => {
+    const { pass, action, text, id, url } = req.body;
+    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+
+    if (action === 'add') {
+        const newTodo = { id: Date.now(), text, completed: false, url: url || '' };
+        todos.unshift(newTodo);
+    } else if (action === 'toggle') {
+        const t = todos.find(t => t.id === id);
+        if (t) t.completed = !t.completed;
+    } else if (action === 'delete') {
+        todos = todos.filter(t => t.id !== id);
+    }
+    saveTodos();
+    res.json({ success: true, todos });
 });
 
 // API: Add Appointment (External trigger from 69studio website)
@@ -201,10 +241,23 @@ app.listen(port, '0.0.0.0', () => {
     }
 });
 
-// --- AI SETUP ---
+// --- AI SETUP AND PARSERS ---
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "empty" });
+
+function processAiResponseForTodos(aiText) {
+    if (!aiText) return aiText;
+    const todoRegex = /\[ADD_TODO:\s*(.+?)\]/gi;
+    let match;
+    let added = false;
+    while ((match = todoRegex.exec(aiText)) !== null) {
+        todos.unshift({ id: Date.now() + Math.random(), text: match[1].trim(), completed: false, url: '' });
+        added = true;
+    }
+    if (added) saveTodos();
+    return aiText.replace(todoRegex, '').trim();
+}
 
 async function getGroqResponse(message, history = []) {
     try {
@@ -233,6 +286,9 @@ async function getGroqResponse(message, history = []) {
                 Important Examples:
                 - If first message is "Hi": "Hi! I'm Olivia, Subhash's assistant. He's busy, so could you tell me your name and why you're contacting? Also, book an appointment here: https://69studiobysubash.online/appointments.html"
                 - If second message is "I am Aruna": "Nice to meet you Aruna! I'll let Subhash know you contacted soon. Anything else I can help with?"
+                
+                Tool Integration:
+                - If you need to remind Subhash to do something, or the user asks to add a todo list task, add this EXACT tag in your message: [ADD_TODO: task description].
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -271,7 +327,8 @@ app.post('/api/chat', async (req, res) => {
         const history = chatHistory.get(userId);
 
         // Process via Groq
-        const aiResponse = await getGroqResponse(message, history);
+        let aiResponse = await getGroqResponse(message, history);
+        aiResponse = processAiResponseForTodos(aiResponse);
 
         // Keep history for conversational flow
         history.push({
@@ -358,7 +415,12 @@ app.get('/api/assistant/ask', async (req, res) => {
         1. Answer the user directly based on their prompt.
         2. KEEP IT VERY CONCISE (1-2 sentences maximum). Do not use bold or markdown.
         3. Only mention the following recent leads *if* the user explicitly asks about leads or updates:
-        ${leadsSummary ? leadsSummary.substring(0, 500) : "No active leads."}`;
+        ${leadsSummary ? leadsSummary.substring(0, 500) : "No active leads."}
+        
+        TOOL INTEGRATION:
+        - If Subhash asks you to remind him of a task, or add a task to his to-do list, add this EXACT tag in your message: [ADD_TODO: task description].
+        Example: "I've added that to your list! [ADD_TODO: Read email]"
+        `;
 
         let answer = "";
 
@@ -389,6 +451,7 @@ app.get('/api/assistant/ask', async (req, res) => {
             answer = chatCompletion.choices[0].message.content;
         }
 
+        answer = processAiResponseForTodos(answer);
         res.json({ answer });
     } catch (error) {
         console.error("Assistant Error:", error.message);
@@ -445,7 +508,8 @@ async function startBot() {
                     const history = chatHistory.get(from);
 
                     // Get AI Response using Groq
-                    const aiResponse = await getGroqResponse(body, history);
+                    let aiResponse = await getGroqResponse(body, history);
+                    aiResponse = processAiResponseForTodos(aiResponse);
 
                     // Save to history format compatible with our Map
                     history.push({
