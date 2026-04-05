@@ -11,6 +11,7 @@ import qrImage from 'qr-image';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { google } from 'googleapis';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,6 +93,10 @@ app.post('/api/appointments/add', (req, res) => {
     };
     appointments.unshift(newAppt); // Latest first
     saveAppointments();
+    
+    // Auto-sync with Google Calendar (Async background task)
+    addToGoogleCalendar(newAppt).catch(e => console.error('Calendar task failed:', e.message));
+    
     res.json({ success: true, appointment: newAppt });
 });
 
@@ -107,6 +112,10 @@ app.get('/api/appointments/add', (req, res) => {
     };
     appointments.unshift(newAppt);
     saveAppointments();
+
+    // Auto-sync with Google Calendar
+    addToGoogleCalendar(newAppt).catch(e => console.error('Calendar task failed:', e.message));
+
     res.send(`<h1>Appointment Added Successfully!</h1><p>Customer: <b>${name}</b></p><p>Go back to your Olivia App's Leads tab to see it.</p>`);
 });
 
@@ -128,6 +137,45 @@ app.get('/admin', (req, res) => {
 app.get('/assistant', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/assistant.html'));
 });
+
+// --- GOOGLE CALENDAR LOGIC ---
+async function addToGoogleCalendar(appt) {
+    if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+        console.warn('⚠️ Google Calendar credentials missing in .env. Skipping sync.');
+        return;
+    }
+
+    try {
+        const auth = new google.auth.JWT(
+            process.env.GOOGLE_CLIENT_EMAIL,
+            null,
+            process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'), // handle newlines in env
+            ['https://www.googleapis.com/auth/calendar']
+        );
+
+        const calendar = google.calendar({ version: 'v3', auth });
+        const calendarId = process.env.GOOGLE_CALENDAR_ID || process.env.GOOGLE_CLIENT_EMAIL;
+
+        // Parse date/time — assuming Sinhala user enters like 2024-05-10 and 10:00AM
+        // A smarter parser would be needed for complex formats
+        const startDateTime = new Date(`${appt.date} ${appt.time}`);
+        const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // 1hr duration default
+
+        const event = {
+            summary: `📅 Olivia: Appointment with ${appt.name}`,
+            location: '69 Studio',
+            description: `Customer Phone: ${appt.phone}\nService: ${appt.service || 'Photography'}\n\nBooked via Olivia AI Assistant.`,
+            start: { dateTime: startDateTime.toISOString(), timeZone: 'Asia/Colombo' },
+            end: { dateTime: endDateTime.toISOString(), timeZone: 'Asia/Colombo' },
+            reminders: { useDefault: true }
+        };
+
+        await calendar.events.insert({ calendarId, resource: event });
+        console.log(`✅ Event successfully added to Google Calendar for ${appt.name}`);
+    } catch (error) {
+        console.error('❌ Failed to add event to Google Calendar:', error.message);
+    }
+}
 
 app.listen(port, '0.0.0.0', () => {
     const publicUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
