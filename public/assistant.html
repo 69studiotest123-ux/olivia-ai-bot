@@ -928,7 +928,7 @@
 </div><!-- end #mainApp -->
 
 <script>
-    let password = new URLSearchParams(window.location.search).get('pass');
+    let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
     const aiTextEl = document.getElementById('aiText');
     const userTextEl = document.getElementById('userText');
     const modelNames = { groq: 'Groq (Llama 3.3)', gemini: 'Gemini 2.0 Flash', chatgpt: 'ChatGPT (GPT-4o)' };
@@ -964,6 +964,7 @@
             }
             // Success!
             password = usePw;
+            localStorage.setItem('olivia_pass', password);
             window.history.replaceState(null, '', `?pass=${password}`);
             const loginScreen = document.getElementById('loginScreen');
             loginScreen.classList.add('hidden');
@@ -993,6 +994,7 @@
                 document.getElementById('loginScreen').style.display = 'flex';
                 document.getElementById('loginError').innerText = 'Session expired. Please re-enter password.';
             } else {
+                localStorage.setItem('olivia_pass', password);
                 res.json().then(data => {
                     renderLeads(data);
                     refreshAppointments();
