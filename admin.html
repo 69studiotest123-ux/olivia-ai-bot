@@ -140,6 +140,22 @@
             gap: 25px;
         }
 
+        /* APPOINTMENTS */
+        .appt-card {
+            background: var(--card); border-radius: 20px;
+            padding: 20px; border: 1px solid var(--border);
+            margin-bottom: 12px; transition: 0.3s;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .appt-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+        .appt-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .appt-name { font-weight: 700; color: var(--text-main); font-size: 1.1rem; }
+        .appt-service { background: rgba(56,189,248,0.1); color: var(--accent); padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .appt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 5px; }
+        .appt-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-dim); }
+        .appt-item i { color: var(--primary); width: 16px; }
+        .appt-phone { color: var(--success); font-weight: 700; text-decoration: none; font-size: 0.95rem; }
+
         .chat-card {
             background: var(--card);
             border-radius: 28px;
@@ -322,21 +338,36 @@
     <div class="container">
         <div class="stats-summary">
             <div class="stat-box">
+                <i class="fas fa-calendar-check"></i>
+                <h3>Studio Bookings</h3>
+                <p id="totalAppts">0</p>
+            </div>
+            <div class="stat-box">
                 <i class="fas fa-users"></i>
-                <h3>Total Conversations</h3>
+                <h3>Total Chats</h3>
                 <p id="totalChats">0</p>
             </div>
             <div class="stat-box">
                 <i class="fas fa-bolt"></i>
-                <h3>Bot Integrity</h3>
-                <p style="color: var(--success); font-size: 1.2rem;">99.9% SHARP</p>
-            </div>
-            <div class="stat-box">
-                <i class="fas fa-shield-alt"></i>
-                <h3>Security Mode</h3>
-                <p style="font-size: 1.2rem; color: var(--accent);">Encrypted</p>
+                <h3>Bot Status</h3>
+                <p style="color: var(--success); font-size: 1.1rem;">LIVE & SHARP</p>
             </div>
         </div>
+
+        <div style="margin-bottom: 40px;">
+            <h2 style="font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: var(--primary); margin-bottom: 20px;">
+                <i class="fas fa-calendar-alt"></i> Website Appointments
+            </h2>
+            <div id="appointmentsList">
+                <div class="loading-screen" style="border: 1px dashed var(--border); padding: 40px; border-radius: 20px;">
+                    <div class="spinner"></div> Syncing with 69 Studio...
+                </div>
+            </div>
+        </div>
+
+        <h2 style="font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 20px;">
+            <i class="fas fa-comments"></i> WhatsApp Intelligence logs
+        </h2>
 
         <div id="logsContainer" class="chat-container">
             <div class="loading-screen">
@@ -371,9 +402,50 @@
                 }
                 const data = await response.json();
                 renderLogs(data);
+                loadAppointments();
             } catch (err) {
                 console.error(err);
             }
+        }
+
+        async function loadAppointments() {
+            if (!password) return;
+            try {
+                const response = await fetch(`/api/appointments?pass=${password}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderAppointments(data);
+            } catch (err) { console.error('Appt sync failed:', err); }
+        }
+
+        function renderAppointments(data) {
+            const container = document.getElementById('appointmentsList');
+            document.getElementById('totalAppts').innerText = data.length;
+
+            if (data.length === 0) {
+                container.innerHTML = '<div class="stat-box" style="text-align:center; padding: 40px; border: 1px dashed var(--border); background: transparent;">' +
+                    '<p style="color: var(--text-dim)">No bookings received yet from 69studiobysubash.online</p></div>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(a => {
+                html += `
+                    <div class="appt-card">
+                        <div class="appt-header">
+                            <div class="appt-name">${a.name || 'Anonymous User'}</div>
+                            <div class="appt-service">${a.service || 'Studio Session'}</div>
+                        </div>
+                        <div class="appt-grid">
+                            <div class="appt-item"><i class="fas fa-calendar-alt"></i> ${a.date || 'TBD'}</div>
+                            <div class="appt-item"><i class="fas fa-clock"></i> ${a.time || 'TBD'}</div>
+                            <div class="appt-item"><i class="fas fa-phone-alt"></i> <a href="tel:${a.phone}" class="appt-phone">${a.phone || 'N/A'}</a></div>
+                            <div class="appt-item"><i class="fas fa-history"></i> Received ${moment(a.timestamp).fromNow()}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
         }
 
         async function clearLogs() {
