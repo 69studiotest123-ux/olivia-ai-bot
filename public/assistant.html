@@ -257,12 +257,42 @@
         }
 
         .olivia-avatar-glow {
-            width: 140px; height: 140px;
-            border-radius: 50%; object-fit: cover;
-            border: 4px solid var(--card);
-            box-shadow: 0 0 30px var(--primary-glow);
-            z-index: 5; position: relative;
-            transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 150px; height: 150px; border-radius: 50%;
+            object-fit: cover; border: 4px solid var(--border);
+            box-shadow: 0 0 40px rgba(255, 77, 77, 0.4);
+            position: relative; z-index: 2;
+            transition: 0.3s;
+        }
+
+        /* Talking Lipsync Effect */
+        .avatar-mouth {
+            position: absolute;
+            top: 59%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 14px; height: 4px;
+            background: #d44e4e;
+            border-radius: 50%;
+            z-index: 10;
+            display: none;
+            opacity: 0.7;
+            box-shadow: 0 0 5px rgba(212, 78, 78, 0.5);
+        }
+
+        .olivia-talking .avatar-mouth {
+            display: block;
+            animation: talking-lips 0.2s infinite ease-in-out;
+        }
+
+        @keyframes talking-lips {
+            0%, 100% { height: 4px; transform: translate(-50%, -50%) scaleX(1); opacity: 0.6; }
+            50% { height: 10px; transform: translate(-50%, -50%) scaleX(1.1); opacity: 0.9; }
+        }
+
+        /* Pulse entire avatar when talking */
+        .olivia-talking .olivia-avatar-glow {
+            transform: scale(1.05);
+            border-color: var(--primary);
+            box-shadow: 0 0 60px var(--primary-glow);
         }
         body.listening .olivia-avatar-glow { transform: scale(1.1); box-shadow: 0 0 50px var(--primary-glow); }
 
@@ -691,11 +721,12 @@
                     <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
                     <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
                 </div>
-                <div class="wave-container">
+                <div class="wave-container" id="avatarContainer">
                     <div class="wave-layer"></div>
                     <div class="wave-layer"></div>
                     <div class="wave-layer"></div>
                     <img src="olivia.png" class="olivia-avatar-glow" alt="Olivia">
+                    <div class="avatar-mouth"></div>
                     <button id="micBtn"><i class="fas fa-microphone"></i></button>
                 </div>
                 <div class="voice-text">
@@ -1106,6 +1137,18 @@
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.pitch = 1.1; utterance.rate = 1.0;
+        
+        const avatar = document.getElementById('avatarContainer');
+        utterance.onstart = () => {
+            avatar.classList.add('olivia-talking');
+        };
+        utterance.onend = () => {
+            avatar.classList.remove('olivia-talking');
+        };
+        utterance.onerror = () => {
+            avatar.classList.remove('olivia-talking');
+        };
+
         const voices = window.speechSynthesis.getVoices();
         const female = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Samantha') || v.name.includes('shrikant'));
         if (female) utterance.voice = female;
