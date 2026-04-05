@@ -416,7 +416,7 @@
                 const cleanJid = jid.split('@')[0];
                 
                 // Detect if it's a lead
-                const allText = msgs.map(m => m.text.toLowerCase()).join(' ');
+                const allText = msgs.map(m => (m.parts && m.parts[0] ? m.parts[0].text : (m.text || '')).toLowerCase()).join(' ');
                 const isLead = leadKeywords.some(k => allText.includes(k));
 
                 html += `
@@ -437,7 +437,7 @@
                                     <div style="font-weight: 700; font-size: 0.75rem; margin-bottom: 4px; opacity: 0.8;">
                                         ${m.role === 'user' ? 'CUSTOMER' : 'OLIVIA AI'}
                                     </div>
-                                    ${m.text}
+                                    ${m.parts && m.parts[0] ? m.parts[0].text : (m.text || 'No Message')}
                                     <span class="msg-time">${m.time ? moment(m.time).fromNow() : 'Unknown'}</span>
                                 </div>
                             `).join('')}
