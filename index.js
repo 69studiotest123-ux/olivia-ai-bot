@@ -122,6 +122,7 @@ async function getGroqResponse(message, history = []) {
                 - Use subtle emojis (😊, ✨).
                 - NEVER use Sinhala script (අ ආ...).
                 - NEVER mention "69 Studio".
+                - IMPORTANT: NEVER assume the user's name. Only call them by name if they tell you in THIS chat. If you don't know it, ask or just be friendly.
 
                 Important Examples:
                 - If first message is "Hi": "Hi! I'm Olivia, Subhash's assistant. He's busy, so could you tell me your name and why you're contacting? Also, book an appointment here: https://69studiobysubash.online/appointments.html"
@@ -129,8 +130,8 @@ async function getGroqResponse(message, history = []) {
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
-                role: h.role === "bot" ? "assistant" : "user",
-                content: h.parts[0].text
+                role: h.role === "model" ? "assistant" : "user",
+                content: h.parts ? h.parts[0].text : (h.text || "")
             })),
             { role: "user", content: message }
         ];
