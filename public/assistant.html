@@ -273,6 +273,7 @@
             display: flex; gap: 10px; padding: 15px 20px;
             border-top: 1px solid var(--border);
             background: rgba(255,255,255,0.02);
+            align-items: center;
         }
         .chat-input-bar input {
             flex: 1; background: transparent;
@@ -287,8 +288,18 @@
             color: white; cursor: pointer; font-size: 1rem;
             display: flex; align-items: center; justify-content: center;
             transition: 0.2s; box-shadow: 0 4px 10px var(--primary-glow);
+            flex-shrink: 0;
         }
         .send-btn:hover { transform: scale(1.1); }
+        .photo-btn {
+            width: 40px; height: 40px; border-radius: 12px;
+            background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
+            color: var(--accent); cursor: pointer; font-size: 1rem;
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.2s; flex-shrink: 0;
+        }
+        .photo-btn:hover { background: rgba(56,189,248,0.2); transform: scale(1.1); }
+        .bubble-img { max-width: 100%; border-radius: 12px; margin-bottom: 6px; display: block; }
 
         /* BUTTONS */
         .actions { display: flex; gap: 12px; }
@@ -479,6 +490,10 @@
                     </div>
                 </div>
                 <div class="chat-input-bar">
+                    <button class="photo-btn" onclick="document.getElementById('photoInput').click()" title="Attach Photo">
+                        <i class="fas fa-camera"></i>
+                    </button>
+                    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
                     <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChat()">
                     <button class="send-btn" onclick="sendChat()">
                         <i class="fas fa-paper-plane"></i>
@@ -876,13 +891,17 @@
             const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}`);
             const data = await res.json();
             document.getElementById(typingId)?.remove();
+            if (!res.ok || data.error) {
+                appendBubble('ai', 'Error: ' + (data.error || 'Server returned an error. Check if Render is running.'));
+                return;
+            }
             const reply = data.answer || 'Sorry, no response.';
             appendBubble('ai', reply);
             chatHistory.push({ role: 'ai', text: reply });
             if (document.getElementById('voiceToggle').checked) speakText(reply);
         } catch (err) {
             document.getElementById(typingId)?.remove();
-            appendBubble('ai', 'Connection error. Please try again.');
+            appendBubble('ai', 'Connection error: ' + err.message + '. Make sure the server is running.');
         }
     }
 
@@ -899,6 +918,58 @@
     function scrollChat() {
         const msgs = document.getElementById('chatMessages');
         msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    // Photo / Image upload for Vision AI
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        event.target.value = ''; // Reset for re-upload
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const dataUrl = e.target.result;
+            const base64 = dataUrl.split(',')[1];
+            const mimeType = file.type;
+
+            // Show image bubble
+            const msgs = document.getElementById('chatMessages');
+            const imgDiv = document.createElement('div');
+            imgDiv.className = 'chat-bubble bubble-user';
+            imgDiv.innerHTML = `<img src="${dataUrl}" class="bubble-img" alt="Uploaded image">`;
+            msgs.appendChild(imgDiv);
+            scrollChat();
+
+            // Optional: ask a question about it
+            const question = document.getElementById('chatInput').value.trim();
+            document.getElementById('chatInput').value = '';
+
+            // Typing indicator
+            const typingId = 'typing-' + Date.now();
+            const typingEl = document.createElement('div');
+            typingEl.id = typingId;
+            typingEl.className = 'chat-bubble bubble-ai bubble-typing';
+            typingEl.innerHTML = '<span></span><span></span><span></span>';
+            msgs.appendChild(typingEl);
+            scrollChat();
+
+            const model = document.getElementById('modelSelector').value;
+            try {
+                const res = await fetch('/api/assistant/vision', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, query: question, imageBase64: base64, mimeType, model })
+                });
+                const data = await res.json();
+                document.getElementById(typingId)?.remove();
+                appendBubble('ai', data.answer || 'Could not analyze image.');
+                if (document.getElementById('voiceToggle').checked) speakText(data.answer);
+            } catch (err) {
+                document.getElementById(typingId)?.remove();
+                appendBubble('ai', 'Error analyzing image. Please try again.');
+            }
+        };
+        reader.readAsDataURL(file);
     }
 
     // Init

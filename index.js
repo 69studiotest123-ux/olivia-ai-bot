@@ -44,6 +44,7 @@ const port = process.env.PORT || 3000;
 
 // Serve Static Files
 app.use(express.static('public'));
+app.use(express.json({ limit: '10mb' })); // For image uploads
 
 // API Endpoint for Logs
 app.get('/api/logs', (req, res) => {
@@ -152,7 +153,49 @@ async function getGroqResponse(message, history = []) {
     }
 }
 
-// Personal Assistant AI Logic
+// Vision AI Endpoint (Image Analysis)
+app.post('/api/assistant/vision', async (req, res) => {
+    const { pass: password, query, imageBase64, mimeType, model: modelType } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const systemPrompt = `You are Subhash's personal AI assistant. Analyze the image provided and give a concise, helpful response. If asked a specific question about it, answer that. Be professional and brief.`;
+
+    try {
+        let answer = '';
+
+        if (modelType === 'gemini') {
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+            const result = await model.generateContent([
+                systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.'),
+                { inlineData: { data: imageBase64, mimeType: mimeType || 'image/jpeg' } }
+            ]);
+            answer = result.response.text();
+        } else if (modelType === 'chatgpt') {
+            const completion = await openai.chat.completions.create({
+                model: 'gpt-4o',
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.') },
+                        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } }
+                    ]
+                }]
+            });
+            answer = completion.choices[0].message.content;
+        } else {
+            answer = 'Image analysis requires Gemini or ChatGPT. Please switch the model above and try again. 😊';
+        }
+
+        res.json({ answer });
+    } catch (error) {
+        console.error('Vision Error:', error.message);
+        res.status(500).json({ error: 'Vision AI Error: ' + error.message });
+    }
+});
+
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType } = req.query;
 
