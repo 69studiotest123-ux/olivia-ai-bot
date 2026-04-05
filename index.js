@@ -146,12 +146,17 @@ async function addToGoogleCalendar(appt) {
     }
 
     try {
-        const auth = new google.auth.JWT(
-            process.env.GOOGLE_CLIENT_EMAIL,
-            null,
-            process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'), // handle newlines in env
-            ['https://www.googleapis.com/auth/calendar']
-        );
+        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+            privateKey = privateKey.substring(1, privateKey.length - 1);
+        }
+        privateKey = privateKey.replace(/\\n/g, '\n');
+
+        const auth = new google.auth.JWT({
+            email: process.env.GOOGLE_CLIENT_EMAIL,
+            key: privateKey,
+            scopes: ['https://www.googleapis.com/auth/calendar']
+        });
 
         const calendar = google.calendar({ version: 'v3', auth });
         const calendarId = process.env.GOOGLE_CALENDAR_ID || process.env.GOOGLE_CLIENT_EMAIL;
