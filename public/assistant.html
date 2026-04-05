@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0c">
     <title>Subhash | AI Voice Assistant</title>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -21,452 +22,577 @@
             --success: #10b981;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: 'Outfit', sans-serif;
             background: var(--bg);
             color: var(--text-main);
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
+            line-height: 1.6;
+            overflow-x: hidden;
+            padding-bottom: 80px; /* Space for bottom nav */
         }
 
-        /* Animated Background */
+        /* BACKGROUND GLOW */
         .bg-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at 50% 50%, rgba(255, 77, 77, 0.08) 0%, transparent 70%);
-            z-index: -1;
-            pointer-events: none;
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 0%, rgba(255, 77, 77, 0.05) 0%, transparent 50%);
+            z-index: -1; pointer-events: none;
         }
 
+        /* HEADER */
         header {
-            padding: 20px 40px;
-            background: rgba(18, 18, 20, 0.8);
+            padding: 20px;
+            background: rgba(18, 18, 20, 0.9);
             backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-bottom: 2px solid var(--border);
+            position: sticky; top: 0; z-index: 1000;
+            display: flex; justify-content: space-between; align-items: center;
         }
 
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
+        .brand { display: flex; align-items: center; gap: 12px; }
         .logo-circle {
-            width: 40px;
-            height: 40px;
-            background: var(--primary);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            color: #fff;
+            width: 42px; height: 42px;
+            background: var(--primary); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1rem; color: #fff;
             box-shadow: 0 0 20px var(--primary-glow);
         }
+        .brand h1 { font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; }
+        .brand span { color: var(--primary); }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--success);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--success);
-            margin-right: 8px;
-            display: inline-block;
-        }
-
-        main {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            padding: 40px;
-            gap: 40px;
-            max-width: 1600px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        /* AI VISUALIZER */
-        .visualizer-container {
-            background: var(--card);
-            border-radius: 32px;
+        /* MODEL SELECTOR */
+        .model-select {
+            background: var(--card); color: var(--text-main);
             border: 1px solid var(--border);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            padding: 8px 14px; border-radius: 12px;
+            font-family: inherit; font-size: 0.8rem;
+            cursor: pointer; outline: none; transition: 0.3s;
+        }
+        .model-select:hover { border-color: var(--primary); }
+
+        /* STATUS DOT */
+        .status-dot {
+            width: 8px; height: 8px;
+            background: var(--success); border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            display: inline-block; margin-right: 6px;
+            animation: blink 2s infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* CONTAINER */
+        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+
+        /* VOICE PANEL */
+        .voice-panel {
+            background: var(--card);
+            border-radius: 28px; border: 1px solid var(--border);
+            padding: 50px 30px;
+            display: flex; flex-direction: column;
+            align-items: center; text-align: center;
+            margin-bottom: 25px;
+            position: relative; overflow: hidden;
         }
 
-        .pulse-circle {
-            width: 200px;
-            height: 200px;
-            background: var(--primary);
-            border-radius: 50%;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2;
-            cursor: pointer;
-            transition: 0.3s;
-            box-shadow: 0 0 50px var(--primary-glow);
+        .voice-panel::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
         }
 
-        .pulse-circle i {
-            font-size: 4rem;
-            color: white;
+        /* PULSE BUTTON */
+        .pulse-wrapper {
+            position: relative;
+            width: 140px; height: 140px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 30px;
         }
 
         .pulse-ring {
             position: absolute;
-            width: 200px;
-            height: 200px;
-            background: var(--primary);
-            border-radius: 50%;
-            opacity: 0.5;
-            animation: pulse 2s infinite;
+            width: 140px; height: 140px;
+            background: var(--primary); border-radius: 50%;
+            opacity: 0;
+        }
+        .pulse-ring:nth-child(1) { animation: pulseRing 2.5s ease-out infinite; }
+        .pulse-ring:nth-child(2) { animation: pulseRing 2.5s ease-out infinite 0.8s; }
+
+        @keyframes pulseRing {
+            0% { transform: scale(1); opacity: 0.4; }
+            100% { transform: scale(2.2); opacity: 0; }
         }
 
-        .pulse-ring:nth-child(1) { animation-delay: 0s; }
-        .pulse-ring:nth-child(2) { animation-delay: 0.5s; }
-        .pulse-ring:nth-child(3) { animation-delay: 1s; }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.5; }
-            100% { transform: scale(3); opacity: 0; }
+        #micBtn {
+            width: 140px; height: 140px;
+            background: var(--primary); border-radius: 50%;
+            border: none; cursor: pointer; color: white;
+            font-size: 2.5rem; position: relative; z-index: 2;
+            box-shadow: 0 0 40px var(--primary-glow);
+            transition: 0.3s; display: flex; align-items: center; justify-content: center;
         }
+        #micBtn:hover { transform: scale(1.05); filter: brightness(1.2); }
+        #micBtn:active { transform: scale(0.95); }
 
-        .listening .pulse-circle {
-            background: var(--accent);
-            box-shadow: 0 0 50px rgba(56, 189, 248, 0.3);
-        }
+        /* Listening state */
+        body.listening .pulse-ring { background: var(--accent); }
+        body.listening #micBtn { background: var(--accent); box-shadow: 0 0 40px rgba(56,189,248,0.4); }
 
-        .listening .pulse-ring {
-            background: var(--accent);
-        }
-
-        .transcript {
-            margin-top: 40px;
-            text-align: center;
-            padding: 0 40px;
-            max-width: 600px;
-        }
-
-        .transcript h2 {
-            font-size: 1.8rem;
-            margin-bottom: 10px;
-            min-height: 2.5rem;
-        }
-
-        .transcript p {
-            color: var(--text-dim);
-            font-size: 1rem;
-        }
-
-        /* SIDEBAR (AGENDA) */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .side-card {
-            background: var(--card);
-            border-radius: 24px;
-            border: 1px solid var(--border);
-            padding: 25px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .side-card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .side-card h3 i { color: var(--primary); }
-
-        .agenda-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            overflow-y: auto;
-        }
-
-        .agenda-item {
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 16px;
-            border: 1px solid var(--border);
+        .voice-text h2 {
+            font-size: 1.3rem; font-weight: 600;
+            min-height: 2rem; margin-bottom: 8px;
             transition: 0.3s;
         }
+        .voice-text p { font-size: 0.9rem; color: var(--text-dim); }
 
-        .agenda-item:hover {
-            border-color: var(--primary);
-            background: rgba(255, 77, 77, 0.02);
-        }
-
-        .agenda-item h4 {
-            font-size: 0.95rem;
-            margin-bottom: 5px;
-        }
-
-        .agenda-item span {
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            display: block;
-        }
-
-        .action-btns {
+        /* STATS */
+        .stats-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px; margin-bottom: 25px;
+        }
+        .stat-box {
+            background: var(--card); padding: 20px;
+            border-radius: 20px; border: 1px solid var(--border);
+            transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        .stat-box:hover { border-color: var(--primary); transform: translateY(-3px); }
+        .stat-box i { font-size: 1.2rem; color: var(--primary); margin-bottom: 10px; display: block; }
+        .stat-box h3 { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-box p { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+
+        /* LEADS SECTION */
+        .section-title {
+            font-size: 0.8rem; text-transform: uppercase;
+            letter-spacing: 2px; color: var(--text-dim);
+            margin-bottom: 15px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .section-title::after {
+            content: ''; flex: 1; height: 1px; background: var(--border);
         }
 
+        .leads-list { display: flex; flex-direction: column; gap: 15px; }
+
+        .lead-card {
+            background: var(--card); border-radius: 20px;
+            border: 1px solid var(--border); overflow: hidden;
+            animation: fadeIn 0.5s ease forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .lead-card-header {
+            padding: 16px 20px;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .lead-info { display: flex; align-items: center; gap: 12px; }
+        .lead-avatar {
+            width: 38px; height: 38px;
+            background: #1e1e22; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--accent);
+        }
+        .lead-info h4 { font-size: 0.95rem; font-weight: 600; }
+        .lead-info small { color: var(--text-dim); font-size: 0.75rem; }
+        .lead-badge {
+            background: rgba(16, 185, 129, 0.1); color: var(--success);
+            padding: 3px 10px; border-radius: 100px; font-size: 0.7rem;
+            font-weight: 700; text-transform: uppercase;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .lead-preview {
+            padding: 14px 20px; font-size: 0.85rem;
+            color: var(--text-dim);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* BUTTONS */
+        .actions { display: flex; gap: 12px; }
         .btn {
-            background: var(--card);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 12px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: 0.3s;
+            padding: 10px 20px; border-radius: 12px; font-weight: 700;
+            cursor: pointer; border: none; transition: 0.3s;
+            display: flex; align-items: center; gap: 8px;
+            font-family: inherit; font-size: 0.85rem;
         }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 8px 16px var(--primary-glow); }
+        .btn-ghost { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); }
+        .btn:hover { transform: scale(1.03); filter: brightness(1.1); }
 
-        .btn:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--primary); }
-        .btn-active { background: var(--primary); color: white; border-color: var(--primary); }
-
-        .model-select {
-            background: var(--card);
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            padding: 8px 15px;
-            border-radius: 12px;
-            font-family: inherit;
-            font-size: 0.85rem;
-            cursor: pointer;
-            outline: none;
-            transition: 0.3s;
+        /* BOTTOM NAVIGATION */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(18, 18, 20, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: space-around;
+            padding: 10px 0 20px;
+            z-index: 999;
         }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 4px; cursor: pointer; padding: 8px 20px;
+            border-radius: 12px; transition: 0.2s;
+            color: var(--text-dim);
+            border: none; background: transparent; font-family: inherit;
+        }
+        .nav-item i { font-size: 1.2rem; }
+        .nav-item span { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item:hover { background: rgba(255,255,255,0.04); }
 
-        .model-select:hover { border-color: var(--primary); }
-        @media (max-width: 1024px) {
-            main { grid-template-columns: 1fr; overflow-y: auto; }
-            .sidebar { height: auto; }
+        /* TABS */
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        /* LOADING */
+        .loading-screen {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 60px; color: var(--text-dim); text-align: center;
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid rgba(255,77,77,0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Settings tab */
+        .setting-row {
+            background: var(--card); border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 18px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px;
+        }
+        .setting-row h4 { font-size: 0.9rem; margin-bottom: 2px; }
+        .setting-row p { font-size: 0.75rem; color: var(--text-dim); }
+
+        /* Toggle Switch */
+        .toggle { position: relative; width: 48px; height: 26px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #2e2e32; border-radius: 26px; transition: 0.3s;
+        }
+        .toggle-slider:before {
+            content: ''; position: absolute;
+            width: 20px; height: 20px;
+            left: 3px; bottom: 3px;
+            background: white; border-radius: 50%; transition: 0.3s;
+        }
+        input:checked + .toggle-slider { background: var(--primary); }
+        input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+        @media (max-width: 400px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .voice-panel { padding: 35px 20px; }
+            #micBtn { width: 110px; height: 110px; font-size: 2rem; }
+            .pulse-ring { width: 110px; height: 110px; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-glow"></div>
+<div class="bg-glow"></div>
 
-    <header>
-        <div class="brand">
-            <div class="logo-circle">S</div>
-            <h1>Subhash <span>AI</span> Assistant</h1>
-        </div>
-        <div style="display: flex; align-items: center; gap: 20px;">
-            <select id="modelSelector" class="model-select">
-                <option value="groq">Groq (Llama 3.3)</option>
-                <option value="gemini">Gemini 2.0 Flash</option>
-                <option value="chatgpt">ChatGPT (GPT-4o)</option>
-            </select>
-            <div style="display: flex; align-items: center;">
-                <span class="status-dot"></span>
-                <span style="font-size: 0.85rem; color: var(--text-dim)">Voice Engine Ready</span>
-            </div>
-        </div>
-    </header>
+<header>
+    <div class="brand">
+        <div class="logo-circle">AI</div>
+        <h1>Subhash <span>AI</span></h1>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <select id="modelSelector" class="model-select">
+            <option value="groq">⚡ Groq</option>
+            <option value="gemini">✨ Gemini</option>
+            <option value="chatgpt">🧠 ChatGPT</option>
+        </select>
+        <span><span class="status-dot"></span></span>
+    </div>
+</header>
 
-    <main>
-        <div class="visualizer-container" id="visualizer">
-            <div class="pulse-ring"></div>
-            <div class="pulse-ring"></div>
-            <div class="pulse-ring"></div>
-            <div class="pulse-circle" id="micBtn">
-                <i class="fas fa-microphone"></i>
+<div class="container">
+    <!-- TAB: ASSISTANT -->
+    <div id="tab-assistant" class="tab-panel active">
+        <div class="voice-panel">
+            <div class="pulse-wrapper">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <button id="micBtn"><i class="fas fa-microphone"></i></button>
             </div>
-            
-            <div class="transcript">
-                <h2 id="aiText">Click the mic and say "Hi"</h2>
-                <p id="userText">Your thoughts will appear here...</p>
+            <div class="voice-text">
+                <h2 id="aiText">Tap mic and speak... 🎙️</h2>
+                <p id="userText">I'm ready. Ask me anything.</p>
             </div>
         </div>
 
-        <div class="sidebar">
-            <div class="side-card">
-                <h3><i class="fas fa-calendar-check"></i> Today's Summary</h3>
-                <ul class="agenda-list" id="agendaList">
-                    <li class="agenda-item">
-                        <h4>Establish Secure Connection</h4>
-                        <span>Syncing with your intelligence logs...</span>
-                    </li>
-                </ul>
-                
-                <div class="action-btns">
-                    <button class="btn" onclick="speakText('Hello Subhash, I am here to help.')">
-                        <i class="fas fa-volume-up"></i> Test Voice
-                    </button>
-                    <button class="btn" onclick="syncLeads()">
-                        <i class="fas fa-sync"></i> Sync Logs
-                    </button>
+        <div class="stats-grid">
+            <div class="stat-box">
+                <i class="fas fa-users"></i>
+                <h3>Leads</h3>
+                <p id="totalLeads">0</p>
+            </div>
+            <div class="stat-box">
+                <i class="fas fa-comments"></i>
+                <h3>Chats</h3>
+                <p id="totalChats">0</p>
+            </div>
+            <div class="stat-box">
+                <i class="fas fa-bolt"></i>
+                <h3>Status</h3>
+                <p style="color: var(--success); font-size: 1rem;">LIVE</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: LEADS -->
+    <div id="tab-leads" class="tab-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <p class="section-title" style="margin:0;">Recent Conversations</p>
+            <button class="btn btn-primary" onclick="syncLeads()" style="padding:8px 16px; font-size:0.8rem;">
+                <i class="fas fa-sync-alt"></i> Sync
+            </button>
+        </div>
+        <div id="leadsList" class="leads-list">
+            <div class="loading-screen">
+                <div class="spinner"></div>
+                <p>Loading intelligence data...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: SETTINGS -->
+    <div id="tab-settings" class="tab-panel">
+        <div class="setting-row">
+            <div>
+                <h4>Auto-Reply Bot</h4>
+                <p>Enable Olivia to auto-reply on WhatsApp</p>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" checked id="botToggle">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="setting-row">
+            <div>
+                <h4>Voice Response</h4>
+                <p>Speak answers aloud via Text-to-Speech</p>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" checked id="voiceToggle">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="setting-row">
+            <div>
+                <h4>AI Model</h4>
+                <p>Active: <span id="currentModel" style="color:var(--primary)">Groq (Llama 3.3)</span></p>
+            </div>
+            <i class="fas fa-chevron-right" style="color:var(--text-dim)"></i>
+        </div>
+        <div class="setting-row" style="cursor:pointer;" onclick="clearLogs()">
+            <div>
+                <h4 style="color:var(--primary)">Clear All Logs</h4>
+                <p>Permanently delete all chat history</p>
+            </div>
+            <i class="fas fa-trash-alt" style="color:var(--primary)"></i>
+        </div>
+    </div>
+</div>
+
+<!-- BOTTOM NAVIGATION -->
+<nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('assistant', this)">
+        <i class="fas fa-microphone-alt"></i>
+        <span>Assistant</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('leads', this)">
+        <i class="fas fa-users"></i>
+        <span>Leads</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('settings', this)">
+        <i class="fas fa-sliders-h"></i>
+        <span>Settings</span>
+    </button>
+</nav>
+
+<script>
+    let password = new URLSearchParams(window.location.search).get('pass');
+    const aiTextEl = document.getElementById('aiText');
+    const userTextEl = document.getElementById('userText');
+    const modelNames = { groq: 'Groq (Llama 3.3)', gemini: 'Gemini 2.0 Flash', chatgpt: 'ChatGPT (GPT-4o)' };
+
+    // Auth
+    if (!password) {
+        password = prompt('AUTHENTICATION REQUIRED: Enter Password');
+        if (password) window.history.replaceState(null, '', `?pass=${password}`);
+    }
+
+    // Tab switching
+    function switchTab(name, el) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        el.classList.add('active');
+        if (name === 'leads') syncLeads();
+    }
+
+    // Model selector
+    document.getElementById('modelSelector').addEventListener('change', function() {
+        document.getElementById('currentModel').innerText = modelNames[this.value];
+    });
+
+    // Text to Speech
+    function speakText(text) {
+        if (!document.getElementById('voiceToggle').checked) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.pitch = 1.1; utterance.rate = 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const female = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Samantha') || v.name.includes('Karen'));
+        if (female) utterance.voice = female;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    // Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById('micBtn');
+
+    if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+            document.body.classList.add('listening');
+            userTextEl.innerText = 'Listening...';
+            micBtn.innerHTML = '<i class="fas fa-wave-square"></i>';
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            userTextEl.innerText = '"' + transcript + '"';
+            handleQuery(transcript);
+        };
+
+        recognition.onerror = () => {
+            document.body.classList.remove('listening');
+            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            userTextEl.innerText = 'Error. Try again.';
+        };
+
+        recognition.onend = () => {
+            document.body.classList.remove('listening');
+            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        };
+
+        micBtn.onclick = () => recognition.start();
+    } else {
+        micBtn.onclick = () => alert('Voice not supported. Use Chrome.');
+    }
+
+    // Query handler
+    async function handleQuery(query) {
+        aiTextEl.innerText = '...thinking...';
+        const model = document.getElementById('modelSelector').value;
+
+        try {
+            const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}&model=${model}`);
+            const data = await res.json();
+            aiTextEl.innerText = data.answer || 'No response.';
+            speakText(data.answer);
+        } catch (err) {
+            aiTextEl.innerText = 'Connection error. Please try again.';
+        }
+    }
+
+    // Sync leads
+    async function syncLeads() {
+        try {
+            const res = await fetch(`/api/logs?pass=${password}`);
+            if (!res.ok) throw new Error('Unauthorized');
+            const data = await res.json();
+            renderLeads(data);
+        } catch (err) {
+            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p style="color:var(--primary)">Authentication failed.</p></div>';
+        }
+    }
+
+    function renderLeads(data) {
+        const total = Object.keys(data).length;
+        document.getElementById('totalChats').innerText = total;
+
+        const leadKeywords = ['@', '07', '+94', 'name', 'interested', 'price', 'how much'];
+        let leads = 0;
+        let html = '';
+
+        const sorted = Object.keys(data).sort((a, b) => {
+            const lastA = data[a][data[a].length - 1]?.time || 0;
+            const lastB = data[b][data[b].length - 1]?.time || 0;
+            return new Date(lastB) - new Date(lastA);
+        });
+
+        if (sorted.length === 0) {
+            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p>No conversations yet.</p></div>';
+            return;
+        }
+
+        for (const jid of sorted) {
+            const msgs = data[jid];
+            const cleanJid = jid.split('@')[0];
+            const lastMsg = msgs[msgs.length - 1];
+            const lastText = lastMsg?.parts?.[0]?.text || lastMsg?.text || 'No message';
+            const allText = msgs.map(m => (m.parts?.[0]?.text || m.text || '')).join(' ').toLowerCase();
+            const isLead = leadKeywords.some(k => allText.includes(k));
+            if (isLead) leads++;
+
+            html += `
+                <div class="lead-card">
+                    <div class="lead-card-header">
+                        <div class="lead-info">
+                            <div class="lead-avatar"><i class="fas fa-user"></i></div>
+                            <div>
+                                <h4>${cleanJid}</h4>
+                                <small>${msgs.length} messages</small>
+                            </div>
+                        </div>
+                        ${isLead ? '<span class="lead-badge"><i class="fas fa-star"></i> Lead</span>' : ''}
+                    </div>
+                    <div class="lead-preview">${lastText}</div>
                 </div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        let password = new URLSearchParams(window.location.search).get('pass');
-        const aiTextDisplay = document.getElementById('aiText');
-        const userTextDisplay = document.getElementById('userText');
-        const visualizer = document.getElementById('visualizer');
-        const micBtn = document.getElementById('micBtn');
-
-        // Text to Speech
-        function speakText(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = 1.1;
-            utterance.rate = 1.0;
-            
-            // Choose a female voice if available
-            const voices = window.speechSynthesis.getVoices();
-            const femaleVoice = voices.find(voice => voice.name.includes('Female') || voice.name.includes('Google US English'));
-            if (femaleVoice) utterance.voice = femaleVoice;
-            
-            window.speechSynthesis.speak(utterance);
+            `;
         }
 
-        // Speech to Text
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            const recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.lang = 'en-US';
+        document.getElementById('totalLeads').innerText = leads;
+        document.getElementById('leadsList').innerHTML = html;
+    }
 
-            recognition.onstart = () => {
-                visualizer.classList.add('listening');
-                userTextDisplay.innerText = "Listening...";
-                micBtn.innerHTML = '<i class="fas fa-wave-square"></i>';
-            };
+    async function clearLogs() {
+        if (!confirm('Delete ALL chat logs permanently?')) return;
+        try {
+            const res = await fetch(`/api/logs/clear?pass=${password}`, { method: 'POST' });
+            if (res.ok) { alert('Logs cleared!'); syncLeads(); }
+        } catch (err) { alert('Failed to clear logs.'); }
+    }
 
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                userTextDisplay.innerText = transcript;
-                handleUserQuery(transcript);
-            };
-
-            recognition.onerror = (event) => {
-                visualizer.classList.remove('listening');
-                micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            };
-
-            recognition.onend = () => {
-                visualizer.classList.remove('listening');
-                micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            };
-
-            micBtn.onclick = () => {
-                recognition.start();
-            };
-        } else {
-            alert("Your browser does not support voice recognition. Please use Chrome.");
-        }
-
-        // Handle AI Logic
-        async function handleUserQuery(query) {
-            aiTextDisplay.innerText = "...Thinking...";
-            
-            if (!password) {
-                password = prompt("AUTHENTICATION REQUIRED");
-                window.history.replaceState(null, '', `?pass=${password}`);
-            }
-
-            try {
-                const model = document.getElementById('modelSelector').value;
-                const response = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}&model=${model}`);
-                const data = await response.json();
-                
-                aiTextDisplay.innerText = data.answer;
-                speakText(data.answer);
-            } catch (err) {
-                aiTextDisplay.innerText = "I'm having trouble connecting to your server.";
-            }
-        }
-
-        // Sync Leads and Agenda
-        async function syncLeads() {
-            try {
-                const response = await fetch(`/api/logs?pass=${password}`);
-                const data = await response.json();
-                renderAgenda(data);
-            } catch (err) {
-                console.error("Sync failed");
-            }
-        }
-
-        function renderAgenda(data) {
-            const list = document.getElementById('agendaList');
-            list.innerHTML = '';
-            
-            const leadKeywords = ['@', '07', '+94', 'interested', 'website', 'call'];
-            let leads = [];
-
-            for (const jid in data) {
-                const msgs = data[jid];
-                const allText = msgs.map(m => (m.parts && m.parts[0] ? m.parts[0].text : '').toLowerCase()).join(' ');
-                const isLead = leadKeywords.some(k => allText.includes(k));
-                
-                if (isLead) {
-                    leads.push({
-                        jid: jid.split('@')[0],
-                        lastMsg: msgs[msgs.length - 1].parts[0].text,
-                        count: msgs.length
-                    });
-                }
-            }
-
-            if (leads.length === 0) {
-                list.innerHTML = '<li class="agenda-item"><h4>System Idle</h4><span>No urgent leads found today.</span></li>';
-            } else {
-                leads.slice(0, 5).forEach(lead => {
-                    const item = document.createElement('li');
-                    item.className = 'agenda-item';
-                    item.innerHTML = `
-                        <h4>Lead from ${lead.jid}</h4>
-                        <span>Last: "${lead.lastMsg.substring(0, 30)}..."</span>
-                    `;
-                    list.appendChild(item);
-                });
-            }
-        }
-
-        syncLeads();
-    </script>
+    // Init
+    syncLeads();
+    setInterval(syncLeads, 30000);
+    window.speechSynthesis.onvoiceschanged = () => {}; // preload voices
+</script>
 </body>
 </html>
