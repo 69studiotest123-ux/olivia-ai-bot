@@ -865,6 +865,7 @@
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
         errEl.innerText = '';
+        unlockAudio(); // Trigger for Safari early
 
         try {
             const res = await fetch(`/api/logs?pass=${usePw}`);
@@ -971,13 +972,29 @@
     }
 
     // Text to Speech
+    let audioUnlocked = false;
+    function unlockAudio() {
+        if (audioUnlocked) return;
+        // Prime synthesis with silent utterance for Safari/iOS
+        const silent = new SpeechSynthesisUtterance(" ");
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
+        
+        // Resume AudioContext if it exists (for waves)
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        audioUnlocked = true;
+        console.log('Audio engine unlocked for Safari/iOS');
+    }
+
     function speakText(text) {
         if (!document.getElementById('voiceToggle').checked) return;
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.pitch = 1.1; utterance.rate = 1.0;
         const voices = window.speechSynthesis.getVoices();
-        const female = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Samantha') || v.name.includes('Karen'));
+        const female = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Samantha') || v.name.includes('shrikant'));
         if (female) utterance.voice = female;
         window.speechSynthesis.speak(utterance);
     }
@@ -1016,7 +1033,10 @@
             micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
         };
 
-        micBtn.onclick = () => recognition.start();
+        micBtn.onclick = () => {
+            unlockAudio(); // Ensure safari unlock
+            recognition.start();
+        };
     } else {
         micBtn.onclick = () => alert('Voice not supported. Use Chrome.');
     }
