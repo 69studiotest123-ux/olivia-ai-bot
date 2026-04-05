@@ -98,7 +98,7 @@ app.listen(port, '0.0.0.0', () => {
 
 // --- AI SETUP ---
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "empty");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "empty" });
 
 async function getGroqResponse(message, history = []) {
@@ -167,7 +167,7 @@ app.post('/api/assistant/vision', async (req, res) => {
         let answer = '';
 
         if (modelType === 'gemini') {
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             const result = await model.generateContent([
                 systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.'),
                 { inlineData: { data: imageBase64, mimeType: mimeType || 'image/jpeg' } }
@@ -219,7 +219,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         let answer = "";
 
         if (modelType === "gemini") {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const result = await model.generateContent(`${systemPrompt}\n\nUser: ${query}`);
             const response = await result.response;
             answer = response.text();
