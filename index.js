@@ -15,7 +15,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const historyFile = 'history.json';
 const appointmentsFile = 'appointments.json';
+let chatHistory = new Map();
 let appointments = [];
 
 // Load History from File
@@ -50,7 +52,16 @@ const port = process.env.PORT || 3000;
 
 // Serve Static Files
 app.use(express.static('public'));
-app.use(express.json({ limit: '10mb' })); // For image uploads
+app.use(express.json({ limit: '10mb' }));
+
+// --- CORS HEADERS ---
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
 
 // API Endpoint for Logs
 app.get('/api/logs', (req, res) => {
