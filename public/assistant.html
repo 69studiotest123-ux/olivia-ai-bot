@@ -583,6 +583,23 @@
         .appt-item i { color: var(--primary); width: 12px; }
         .appt-phone { color: var(--success); font-weight: 600; text-decoration: none; display: block; margin-top: 5px; font-size: 0.8rem; }
 
+        /* LANGUAGE TOGGLE */
+        .lang-switch {
+            display: flex; gap: 4px; background: rgba(255,255,255,0.05);
+            padding: 4px; border-radius: 12px; border: 1px solid var(--border);
+            margin-bottom: 25px; margin-left: auto; margin-right: auto;
+            width: fit-content;
+        }
+        .lang-opt {
+            padding: 6px 16px; border-radius: 8px; font-size: 0.7rem;
+            font-weight: 700; cursor: pointer; transition: 0.3s;
+            color: var(--text-dim);
+        }
+        .lang-opt.active {
+            background: var(--primary); color: white;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
         @media (max-width: 400px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .template-grid { grid-template-columns: 1fr; }
@@ -655,7 +672,11 @@
 
         <!-- VOICE MODE -->
         <div id="voiceMode">
-            <div class="voice-panel" style="background: transparent; border: none; padding: 40px 0;">
+            <div class="voice-panel" style="background: transparent; border: none; padding: 40px 0; text-align: center;">
+                <div class="lang-switch">
+                    <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
+                    <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
+                </div>
                 <div class="wave-container">
                     <div class="wave-layer"></div>
                     <div class="wave-layer"></div>
@@ -1055,12 +1076,22 @@
     // Speech Recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const micBtn = document.getElementById('micBtn');
+    let recognition;
+    let currentLang = 'en-US';
+
+    function setLang(lang, el) {
+        currentLang = lang;
+        document.querySelectorAll('.lang-opt').forEach(opt => opt.classList.remove('active'));
+        el.classList.add('active');
+        if (recognition) recognition.lang = lang;
+        userTextEl.innerText = lang === 'si-LK' ? 'භාෂාව මාරු කළා (සිංහල)...' : 'Language switched to English...';
+    }
 
     if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
+        recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = 'en-US';
+        recognition.lang = currentLang;
 
         recognition.onstart = () => {
             document.body.classList.add('listening');
