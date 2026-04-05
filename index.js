@@ -1,7 +1,7 @@
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import pino from 'pino';
 import 'dotenv/config';
 import fs from 'fs';
@@ -87,15 +87,51 @@ app.listen(port, '0.0.0.0', () => {
     }
 });
 
-// --- GOOGLE AI SETUP ---
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash", // Known to be found on this connection
-    generationConfig: {
-        maxOutputTokens: 500,
-        temperature: 0.7,
+// --- GROQ AI SETUP ---
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+async function getGroqResponse(message, history = []) {
+    try {
+        const messages = [
+            {
+                role: "system",
+                content: `You are Olivia, the professional AI Assistant for "69 Studio" in Sri Lanka.
+                Your goal is to handle customer inquiries about Web Development, Digital Marketing, and UI/UX with elite professionalism.
+                
+                Tone:
+                - Professional, respectful, and extremely helpful.
+                - Use "Aayubowan" to greet customers.
+                - Respond fluently in English or Sinhala (Singlish) based on the customer's language.
+                - If asked about appointments, provide this link: https://69studio.web.app/book
+                
+                Persona:
+                - You represent "69 Studio" (an elite studio for web solutions).
+                - Keep responses concise but personalized.
+                - Do not use markdown (bold/italic) as it may not display well on all WhatsApp versions.
+                `
+            },
+            ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
+                role: h.role === "bot" ? "assistant" : "user",
+                content: h.parts[0].text
+            })),
+            { role: "user", content: message }
+        ];
+
+        const chatCompletion = await groq.chat.completions.create({
+            messages: messages,
+            model: "llama-3.1-70b-versatile",
+            temperature: 0.7,
+            max_tokens: 1024,
+            top_p: 1,
+            stream: false,
+        });
+
+        return chatCompletion.choices[0].message.content;
+    } catch (error) {
+        console.error("Groq AI Error:", error);
+        return "Sorry, I am having trouble connecting right now. Please try again later.";
     }
-});
+}
 
 async function startBot() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
