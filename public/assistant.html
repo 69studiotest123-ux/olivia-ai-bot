@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
-    <title>Subhash | AI Voice Assistant</title>
+    <title>Olivia | AI Assistant</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -57,15 +57,16 @@
         @keyframes orbFloat { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
 
         .login-logo {
-            width: 90px; height: 90px;
+            width: 100px; height: 100px;
             background: var(--primary);
-            border-radius: 28px;
+            border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: 900; font-size: 2rem; color: white;
+            overflow: hidden;
             box-shadow: 0 0 50px var(--primary-glow);
             margin-bottom: 24px;
             animation: logoPulse 2s ease-in-out infinite;
         }
+        .login-logo img { width: 100%; height: 100%; object-fit: cover; }
         @keyframes logoPulse {
             0%,100% { box-shadow: 0 0 30px var(--primary-glow); transform: scale(1); }
             50% { box-shadow: 0 0 60px var(--primary-glow); transform: scale(1.05); }
@@ -168,12 +169,14 @@
 
         .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .logo-circle {
-            width: 36px; height: 36px; flex-shrink: 0;
+            width: 38px; height: 38px; flex-shrink: 0;
             background: var(--primary); border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 0.85rem; color: #fff;
+            overflow: hidden;
             box-shadow: 0 0 15px var(--primary-glow);
         }
+        .logo-circle img { width: 100%; height: 100%; object-fit: cover; }
+
         .brand h1 { font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
         .brand span { color: var(--primary); }
 
@@ -554,9 +557,9 @@
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
 
-    <div class="login-logo">AI</div>
-    <h1 class="login-title">Subhash <span>AI</span></h1>
-    <p class="login-sub">Your Personal Intelligence Assistant</p>
+    <div class="login-logo"><img src="olivia.png" alt="Olivia AI"></div>
+    <h1 class="login-title">Olivia <span>AI</span></h1>
+    <p class="login-sub">Subhash's Personal Intelligence Assistant</p>
 
     <div class="login-card">
         <label class="pw-label">Access Key</label>
@@ -581,8 +584,8 @@
 
 <header>
     <div class="brand">
-        <div class="logo-circle">AI</div>
-        <h1>Subhash <span>AI</span></h1>
+        <div class="logo-circle"><img src="olivia.png" alt="Olivia"></div>
+        <h1>Olivia <span>AI</span></h1>
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
         <select id="modelSelector" class="model-select">
@@ -869,9 +872,22 @@
         }
     }
 
-    // Auto-login if password is in URL
+    // Auto-login if password is in URL — skip login screen instantly
     if (password) {
-        doLogin(password);
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').classList.add('visible');
+        // Validate in background
+        fetch(`/api/logs?pass=${password}`).then(res => {
+            if (res.status === 403) {
+                // Wrong password — show login screen
+                document.getElementById('mainApp').classList.remove('visible');
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('loginError').innerText = 'Session expired. Please re-enter password.';
+            } else {
+                res.json().then(data => renderLeads(data));
+                setInterval(syncLeads, 30000);
+            }
+        });
     }
 
     // Tab switching
