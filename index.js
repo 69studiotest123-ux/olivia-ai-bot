@@ -84,6 +84,21 @@ app.post('/api/appointments/add', (req, res) => {
     res.json({ success: true, appointment: newAppt });
 });
 
+// GET version for easy testing (allows manual URL entry in browser)
+app.get('/api/appointments/add', (req, res) => {
+    const { pass, name, phone, date, time, service } = req.query;
+    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    
+    const newAppt = { 
+        id: Date.now(),
+        name, phone, date, time, service, 
+        timestamp: new Date().toISOString() 
+    };
+    appointments.unshift(newAppt);
+    saveAppointments();
+    res.send(`<h1>Appointment Added Successfully!</h1><p>Customer: <b>${name}</b></p><p>Go back to your Olivia App's Leads tab to see it.</p>`);
+});
+
 // API Endpoint to Clear Logs
 app.post('/api/logs/clear', (req, res) => {
     const password = req.query.pass;
