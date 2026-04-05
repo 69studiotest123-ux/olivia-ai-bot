@@ -1,4 +1,4 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -90,7 +90,7 @@ app.listen(port, '0.0.0.0', () => {
 // --- GOOGLE AI SETUP ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash", // Updated to the latest stable model
     generationConfig: {
         maxOutputTokens: 500,
         temperature: 0.7,
@@ -98,7 +98,9 @@ const model = genAI.getGenerativeModel({
 });
 
 async function startBot() {
-    const version = [2, 3000, 1036512893];
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`📡 Connecting with WhatsApp v${version.join('.')} (Latest: ${isLatest})`);
+    
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
