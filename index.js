@@ -23,6 +23,14 @@ let chatHistory = new Map();
 let appointments = [];
 let todos = [];
 
+// --- Server-Sent Events (SSE) for Real-Time UI ---
+let streamClients = [];
+function notifyClients() {
+    streamClients.forEach(client => {
+        try { client.write('data: update\n\n'); } catch (e) {}
+    });
+}
+
 // Load History from File
 try {
     if (fs.existsSync(historyFile)) {
@@ -41,12 +49,14 @@ try {
 function saveHistory() {
     try {
         fs.writeFileSync(historyFile, JSON.stringify(Object.fromEntries(chatHistory), null, 2));
+        notifyClients();
     } catch (e) { console.error('History save error:', e); }
 }
 
 function saveAppointments() {
     try {
         fs.writeFileSync(appointmentsFile, JSON.stringify(appointments, null, 2));
+        notifyClients();
     } catch (e) { console.error('Appointments save error:', e); }
 }
 
@@ -60,6 +70,7 @@ try {
 function saveTodos() {
     try {
         fs.writeFileSync(todosFile, JSON.stringify(todos, null, 2));
+        notifyClients();
     } catch (e) { console.error('Todos save error:', e); }
 }
 
@@ -77,6 +88,20 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
+});
+
+// Server-Sent Events Endpoint
+app.get('/api/stream', (req, res) => {
+    const password = req.query.pass;
+    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    streamClients.push(res);
+    req.on('close', () => { streamClients = streamClients.filter(c => c !== res); });
 });
 
 // API Endpoint for Logs

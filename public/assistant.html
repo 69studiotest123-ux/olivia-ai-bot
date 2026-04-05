@@ -972,11 +972,7 @@
             renderLeads(data);
             refreshAppointments();
             loadTodos();
-            setInterval(() => {
-                syncLeads();
-                refreshAppointments();
-                loadTodos();
-            }, 30000); // auto-sync every 30s
+            initSSE();
         } catch(e) {
             errEl.innerText = 'Connection error. Check network.';
             btn.disabled = false;
@@ -1001,13 +997,21 @@
                     refreshAppointments();
                     loadTodos();
                 });
-                setInterval(() => {
-                    syncLeads();
-                    refreshAppointments();
-                    loadTodos();
-                }, 30000);
+                initSSE();
             }
         });
+    }
+
+    function initSSE() {
+        const source = new EventSource(`/api/stream?pass=${password}`);
+        source.onmessage = function(event) {
+            syncLeads();
+            refreshAppointments();
+            loadTodos();
+        };
+        source.onerror = function() {
+            // Auto reconnects natively, but fallback can be implemented if needed
+        };
     }
 
     // Tab switching
