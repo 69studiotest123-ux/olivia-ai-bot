@@ -69,10 +69,16 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/admin.html'));
 });
 
+// Assistant Route
+app.get('/assistant', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/assistant.html'));
+});
+
 app.listen(port, '0.0.0.0', () => {
     const publicUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
     console.log(`Web server listening on port ${port}`);
     console.log(`ADMIN DASHBOARD: ${publicUrl}/admin?pass=${process.env.ADMIN_PASSWORD}`);
+    console.log(`PERSONAL ASSISTANT: ${publicUrl}/assistant?pass=${process.env.ADMIN_PASSWORD}`);
     
     // --- SELF PING TO KEEP ALIVE ON RENDER ---
     if (process.env.RENDER_EXTERNAL_URL) {
@@ -140,6 +146,59 @@ async function getGroqResponse(message, history = []) {
         return "Sorry, I am having trouble connecting right now. Please try again later.";
     }
 }
+
+// Personal Assistant AI Logic
+app.get('/api/assistant/ask', async (req, res) => {
+    const password = req.query.pass;
+    const query = req.query.q;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        // Prepare a summary of current leads for the AI
+        const rawHistory = Object.fromEntries(chatHistory);
+        const leadsSummary = Object.entries(rawHistory).map(([jid, msgs]) => {
+            const cleanJid = jid.split('@')[0];
+            const lastMsg = msgs[msgs.length - 1]?.parts[0]?.text || "No message";
+            return `Lead ${cleanJid}: ${lastMsg}`;
+        }).join('\n');
+
+        const messages = [
+            {
+                role: "system",
+                content: `You are Subhash's loyal and highly efficient AI Personal Assistant. 
+                Your tone is professional, respectful, and proactive.
+                
+                Context:
+                Current Leads from the WhatsApp Bot:
+                ${leadsSummary || "No active leads at the moment."}
+                
+                Instructions:
+                - Answer Subhash's questions directly and naturally.
+                - If he asks what to do, look at the leads and suggest follow-ups.
+                - Keep responses concise as they will be read aloud via Text-to-Speech.
+                - Do not use markdown. Speak like a real human assistant.
+                `
+            },
+            { role: "user", content: query }
+        ];
+
+        const chatCompletion = await groq.chat.completions.create({
+            messages: messages,
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.7,
+            max_tokens: 512,
+        });
+
+        const answer = chatCompletion.choices[0].message.content;
+        res.json({ answer });
+    } catch (error) {
+        console.error("Assistant Error:", error.message);
+        res.status(500).json({ error: 'Failed to get AI response' });
+    }
+});
 
 async function startBot() {
     const { version, isLatest } = await fetchLatestBaileysVersion();

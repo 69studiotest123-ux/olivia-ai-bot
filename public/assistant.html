@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subhash | AI Voice Assistant</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ff4d4d;
+            --primary-glow: rgba(255, 77, 77, 0.3);
+            --bg: #0a0a0c;
+            --card: #121214;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8f9fa;
+            --text-dim: #94a3b8;
+            --accent: #38bdf8;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Animated Background */
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(255, 77, 77, 0.08) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 20px 40px;
+            background: rgba(18, 18, 20, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-circle {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            margin-right: 8px;
+            display: inline-block;
+        }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            padding: 40px;
+            gap: 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* AI VISUALIZER */
+        .visualizer-container {
+            background: var(--card);
+            border-radius: 32px;
+            border: 1px solid var(--border);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .pulse-circle {
+            width: 200px;
+            height: 200px;
+            background: var(--primary);
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 0 50px var(--primary-glow);
+        }
+
+        .pulse-circle i {
+            font-size: 4rem;
+            color: white;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: pulse 2s infinite;
+        }
+
+        .pulse-ring:nth-child(1) { animation-delay: 0s; }
+        .pulse-ring:nth-child(2) { animation-delay: 0.5s; }
+        .pulse-ring:nth-child(3) { animation-delay: 1s; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+
+        .listening .pulse-circle {
+            background: var(--accent);
+            box-shadow: 0 0 50px rgba(56, 189, 248, 0.3);
+        }
+
+        .listening .pulse-ring {
+            background: var(--accent);
+        }
+
+        .transcript {
+            margin-top: 40px;
+            text-align: center;
+            padding: 0 40px;
+            max-width: 600px;
+        }
+
+        .transcript h2 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            min-height: 2.5rem;
+        }
+
+        .transcript p {
+            color: var(--text-dim);
+            font-size: 1rem;
+        }
+
+        /* SIDEBAR (AGENDA) */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .side-card {
+            background: var(--card);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            padding: 25px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .side-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .side-card h3 i { color: var(--primary); }
+
+        .agenda-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .agenda-item {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            transition: 0.3s;
+        }
+
+        .agenda-item:hover {
+            border-color: var(--primary);
+            background: rgba(255, 77, 77, 0.02);
+        }
+
+        .agenda-item h4 {
+            font-size: 0.95rem;
+            margin-bottom: 5px;
+        }
+
+        .agenda-item span {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            display: block;
+        }
+
+        .action-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: 0.3s;
+        }
+
+        .btn:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--primary); }
+        .btn-active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        @media (max-width: 1024px) {
+            main { grid-template-columns: 1fr; overflow-y: auto; }
+            .sidebar { height: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <header>
+        <div class="brand">
+            <div class="logo-circle">S</div>
+            <h1>Subhash <span>AI</span> Assistant</h1>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <span class="status-dot"></span>
+            <span style="font-size: 0.85rem; color: var(--text-dim)">Voice Engine Ready</span>
+        </div>
+    </header>
+
+    <main>
+        <div class="visualizer-container" id="visualizer">
+            <div class="pulse-ring"></div>
+            <div class="pulse-ring"></div>
+            <div class="pulse-ring"></div>
+            <div class="pulse-circle" id="micBtn">
+                <i class="fas fa-microphone"></i>
+            </div>
+            
+            <div class="transcript">
+                <h2 id="aiText">Click the mic and say "Hi"</h2>
+                <p id="userText">Your thoughts will appear here...</p>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="side-card">
+                <h3><i class="fas fa-calendar-check"></i> Today's Summary</h3>
+                <ul class="agenda-list" id="agendaList">
+                    <li class="agenda-item">
+                        <h4>Establish Secure Connection</h4>
+                        <span>Syncing with your intelligence logs...</span>
+                    </li>
+                </ul>
+                
+                <div class="action-btns">
+                    <button class="btn" onclick="speakText('Hello Subhash, I am here to help.')">
+                        <i class="fas fa-volume-up"></i> Test Voice
+                    </button>
+                    <button class="btn" onclick="syncLeads()">
+                        <i class="fas fa-sync"></i> Sync Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let password = new URLSearchParams(window.location.search).get('pass');
+        const aiTextDisplay = document.getElementById('aiText');
+        const userTextDisplay = document.getElementById('userText');
+        const visualizer = document.getElementById('visualizer');
+        const micBtn = document.getElementById('micBtn');
+
+        // Text to Speech
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.pitch = 1.1;
+            utterance.rate = 1.0;
+            
+            // Choose a female voice if available
+            const voices = window.speechSynthesis.getVoices();
+            const femaleVoice = voices.find(voice => voice.name.includes('Female') || voice.name.includes('Google US English'));
+            if (femaleVoice) utterance.voice = femaleVoice;
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Speech to Text
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                visualizer.classList.add('listening');
+                userTextDisplay.innerText = "Listening...";
+                micBtn.innerHTML = '<i class="fas fa-wave-square"></i>';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userTextDisplay.innerText = transcript;
+                handleUserQuery(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                visualizer.classList.remove('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            };
+
+            recognition.onend = () => {
+                visualizer.classList.remove('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            };
+
+            micBtn.onclick = () => {
+                recognition.start();
+            };
+        } else {
+            alert("Your browser does not support voice recognition. Please use Chrome.");
+        }
+
+        // Handle AI Logic
+        async function handleUserQuery(query) {
+            aiTextDisplay.innerText = "...Thinking...";
+            
+            if (!password) {
+                password = prompt("AUTHENTICATION REQUIRED");
+                window.history.replaceState(null, '', `?pass=${password}`);
+            }
+
+            try {
+                // We'll use the existing GROQ logic through a custom endpoint or standard logs
+                // For simplicity now, let's just make it talk back based on logs
+                const response = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                aiTextDisplay.innerText = data.answer;
+                speakText(data.answer);
+            } catch (err) {
+                aiTextDisplay.innerText = "I'm having trouble connecting to your server.";
+            }
+        }
+
+        // Sync Leads and Agenda
+        async function syncLeads() {
+            try {
+                const response = await fetch(`/api/logs?pass=${password}`);
+                const data = await response.json();
+                renderAgenda(data);
+            } catch (err) {
+                console.error("Sync failed");
+            }
+        }
+
+        function renderAgenda(data) {
+            const list = document.getElementById('agendaList');
+            list.innerHTML = '';
+            
+            const leadKeywords = ['@', '07', '+94', 'interested', 'website', 'call'];
+            let leads = [];
+
+            for (const jid in data) {
+                const msgs = data[jid];
+                const allText = msgs.map(m => (m.parts && m.parts[0] ? m.parts[0].text : '').toLowerCase()).join(' ');
+                const isLead = leadKeywords.some(k => allText.includes(k));
+                
+                if (isLead) {
+                    leads.push({
+                        jid: jid.split('@')[0],
+                        lastMsg: msgs[msgs.length - 1].parts[0].text,
+                        count: msgs.length
+                    });
+                }
+            }
+
+            if (leads.length === 0) {
+                list.innerHTML = '<li class="agenda-item"><h4>System Idle</h4><span>No urgent leads found today.</span></li>';
+            } else {
+                leads.slice(0, 5).forEach(lead => {
+                    const item = document.createElement('li');
+                    item.className = 'agenda-item';
+                    item.innerHTML = `
+                        <h4>Lead from ${lead.jid}</h4>
+                        <span>Last: "${lead.lastMsg.substring(0, 30)}..."</span>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+        }
+
+        syncLeads();
+    </script>
+</body>
+</html>
