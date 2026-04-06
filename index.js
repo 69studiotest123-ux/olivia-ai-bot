@@ -106,8 +106,16 @@ app.get('/api/stream', (req, res) => {
     // Send initial keep-alive comment
     res.write(': ok\n\n');
 
+    // Heartbeat to keep connection alive on Render (15s)
+    const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+    }, 15000);
+
     streamClients.push(res);
-    req.on('close', () => { streamClients = streamClients.filter(c => c !== res); });
+    req.on('close', () => { 
+        clearInterval(heartbeat);
+        streamClients = streamClients.filter(c => c !== res); 
+    });
 });
 
 // API: Get Logs
