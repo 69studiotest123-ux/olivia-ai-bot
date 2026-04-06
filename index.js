@@ -100,10 +100,14 @@ app.get('/api/stream', (req, res) => {
     if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
 
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Critical for Render/Nginx streaming
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.flushHeaders();
+
+    // Send initial keep-alive comment
+    res.write(': ok\n\n');
 
     streamClients.push(res);
     req.on('close', () => { streamClients = streamClients.filter(c => c !== res); });
