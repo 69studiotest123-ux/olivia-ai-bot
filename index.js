@@ -137,6 +137,14 @@ try {
     if (fs.existsSync(tokensFile)) {
         pushTokens = JSON.parse(fs.readFileSync(tokensFile, 'utf8'));
     }
+} catch (e) { console.error('Push tokens load error:', e); }
+
+function savePushTokens() {
+    try {
+        fs.writeFileSync(tokensFile, JSON.stringify(pushTokens, null, 2));
+    } catch (e) { console.error('Push tokens save error:', e); }
+}
+
 // Authentication helper
 const checkAuth = (pass) => {
     const masterPass = process.env.ADMIN_PASSWORD || '69studio123';
