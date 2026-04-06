@@ -77,18 +77,22 @@ function saveTodos() {
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serve Static Files
-app.use(express.static('public'));
-app.use(express.json({ limit: '10mb' }));
-
-// --- CORS HEADERS ---
+// --- ROBUST CORS CONFIGURATION ---
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    const origin = req.headers.origin;
+    // Allow any origin for easy debugging or specify your domain
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
 });
+
+app.use(express.json({ limit: '10mb' }));
+
+// --- API ROUTES FIRST (To prevent static file hijacking) ---
 
 // Server-Sent Events Endpoint
 app.get('/api/stream', (req, res) => {
@@ -98,6 +102,7 @@ app.get('/api/stream', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.flushHeaders();
 
     streamClients.push(res);
@@ -107,18 +112,16 @@ app.get('/api/stream', (req, res) => {
 // API Endpoint for Logs
 app.get('/api/logs', (req, res) => {
     const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
-    const logs = Object.fromEntries(chatHistory);
-    res.json(logs);
+    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(Object.fromEntries(chatHistory));
 });
 
 // API: Get Appointments
 app.get('/api/appointments', (req, res) => {
     const password = req.query.pass;
     if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
-    res.json(appointments);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(appointments));
 });
 
 // API: Get Todos
@@ -126,6 +129,34 @@ app.get('/api/todos', (req, res) => {
     const password = req.query.pass;
     if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
     res.json(todos);
+});
+
+const tokensFile = 'push-tokens.json';
+let pushTokens = [];
+
+// Load Push Tokens from File
+try {
+    if (fs.existsSync(tokensFile)) {
+        pushTokens = JSON.parse(fs.readFileSync(tokensFile, 'utf8'));
+    }
+} catch (e) { console.error('Push tokens load error:', e); }
+
+function savePushTokens() {
+    try {
+        fs.writeFileSync(tokensFile, JSON.stringify(pushTokens, null, 2));
+    } catch (e) { console.error('Push tokens save error:', e); }
+}
+
+// API: Save Push Token
+app.post('/api/save-token', (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+    
+    if (!pushTokens.includes(token)) {
+        pushTokens.push(token);
+        savePushTokens();
+    }
+    res.json({ success: true });
 });
 
 // API: Manage Todos (Add, Toggle, Delete)
