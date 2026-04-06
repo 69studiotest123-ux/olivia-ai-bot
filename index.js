@@ -80,10 +80,10 @@ const port = process.env.PORT || 3000;
 // --- ROBUST CORS CONFIGURATION ---
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    // Allow any origin for easy debugging or specify your domain
+    // Explicitly allow your common domains and any other for safety
     res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     if (req.method === 'OPTIONS') return res.sendStatus(200);
