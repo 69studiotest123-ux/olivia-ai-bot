@@ -269,31 +269,50 @@
             position: absolute;
             top: 59%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 14px; height: 4px;
-            background: #d44e4e;
+            width: 15px; height: 3px;
+            background: #1a0505; /* Realistic dark inner mouth */
+            border-bottom: 2px solid #d44e4e; /* Bottom lip */
+            border-top: 1px solid #d44e4e; /* Top lip */
             border-radius: 50%;
             z-index: 10;
             display: none;
-            opacity: 0.7;
-            box-shadow: 0 0 5px rgba(212, 78, 78, 0.5);
+            opacity: 0.85;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .olivia-talking .avatar-mouth {
             display: block;
-            animation: talking-lips 0.2s infinite ease-in-out;
+            /* Simulates different syllables (vowels like A, E, I, O, U) */
+            animation: realistic-lips 1.4s infinite;
         }
 
-        @keyframes talking-lips {
-            0%, 100% { height: 4px; transform: translate(-50%, -50%) scaleX(1); opacity: 0.6; }
-            50% { height: 10px; transform: translate(-50%, -50%) scaleX(1.1); opacity: 0.9; }
+        @keyframes realistic-lips {
+            0%   { height: 3px; width: 16px; transform: translate(-50%, -50%); }
+            12%  { height: 11px; width: 13px; transform: translate(-50%, -50%); } /* A shape */
+            24%  { height: 5px; width: 17px; transform: translate(-50%, -50%); }  /* E shape */
+            36%  { height: 12px; width: 12px; transform: translate(-50%, -50%); }
+            48%  { height: 3px; width: 16px; transform: translate(-50%, -50%); }  /* Closed/M shape */
+            60%  { height: 14px; width: 10px; transform: translate(-50%, -50%); } /* O shape */
+            72%  { height: 6px; width: 15px; transform: translate(-50%, -50%); }
+            85%  { height: 10px; width: 12px; transform: translate(-50%, -50%); }
+            100% { height: 3px; width: 16px; transform: translate(-50%, -50%); }
         }
 
-        /* Pulse entire avatar when talking */
+        /* Pulse and Bob entire avatar when talking */
         .olivia-talking .olivia-avatar-glow {
             transform: scale(1.05);
             border-color: var(--primary);
             box-shadow: 0 0 60px var(--primary-glow);
+            animation: head-bob 2s infinite ease-in-out;
         }
+
+        @keyframes head-bob {
+            0%, 100% { transform: scale(1.05) translateY(0); }
+            25% { transform: scale(1.05) translateY(-2px) rotate(1deg); }
+            50% { transform: scale(1.05) translateY(1px); }
+            75% { transform: scale(1.05) translateY(-1px) rotate(-1deg); }
+        }
+
         body.listening .olivia-avatar-glow { transform: scale(1.1); box-shadow: 0 0 50px var(--primary-glow); }
 
         /* GEMINI THINKING SHIMMER */
@@ -1136,7 +1155,10 @@
         if (!document.getElementById('voiceToggle').checked) return;
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.pitch = 1.1; utterance.rate = 1.0;
+        
+        // Premium "Sick" AI Voice Settings
+        utterance.pitch = 1.05; // Slightly elevated for clarity
+        utterance.rate = 0.95; // Slightly slower for a more dramatic, professional AI tone
         
         const avatar = document.getElementById('avatarContainer');
         utterance.onstart = () => {
@@ -1149,9 +1171,34 @@
             avatar.classList.remove('olivia-talking');
         };
 
-        const voices = window.speechSynthesis.getVoices();
-        const female = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Samantha') || v.name.includes('shrikant'));
-        if (female) utterance.voice = female;
+        let voices = window.speechSynthesis.getVoices();
+        
+        // Priority list of "really sick" premium, high-quality female voices
+        const premiumVoices = [
+            'Microsoft Jenny Online (Natural)',
+            'Microsoft Aria Online (Natural)',
+            'Google UK English Female',
+            'Samantha',
+            'Victoria',
+            'Siri',
+            'Google US English'
+        ];
+
+        let bestVoice = null;
+        for (let pv of premiumVoices) {
+            bestVoice = voices.find(v => v.name.includes(pv));
+            if (bestVoice) break;
+        }
+
+        // Fallback
+        if (!bestVoice) {
+            bestVoice = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Zira'));
+        }
+
+        if (bestVoice) {
+            utterance.voice = bestVoice;
+        }
+        
         window.speechSynthesis.speak(utterance);
     }
 
