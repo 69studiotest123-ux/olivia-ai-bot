@@ -77,14 +77,12 @@ function saveTodos() {
 const app = express();
 const port = process.env.PORT || 3000;
 
-// --- ROBUST CORS CONFIGURATION ---
+// --- UNIVERSAL CORS CONFIGURATION (Safe for PWA/Mobile) ---
 app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    // Explicitly allow your common domains and any other for safety
-    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Credentials', 'false'); // Must be false if origin is *
     
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
