@@ -267,35 +267,30 @@
         /* Talking Lipsync Effect */
         .avatar-mouth {
             position: absolute;
-            top: 59%; left: 50%;
+            top: 58.5%; left: 50.2%; /* Precise calibrated mouth position */
             transform: translate(-50%, -50%);
-            width: 15px; height: 3px;
-            background: #1a0505; /* Realistic dark inner mouth */
-            border-bottom: 2px solid #d44e4e; /* Bottom lip */
-            border-top: 1px solid #d44e4e; /* Top lip */
+            width: 18px; height: 3px;
+            background: #1a0505;
+            border-bottom: 2px solid #ff4d4d;
+            border-top: 1px solid #ff4d4d;
             border-radius: 50%;
-            z-index: 10;
+            z-index: 100;
             display: none;
-            opacity: 0.85;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            opacity: 0.9;
+            box-shadow: 0 0 5px rgba(255, 77, 77, 0.4);
         }
 
         .olivia-talking .avatar-mouth {
             display: block;
-            /* Simulates different syllables (vowels like A, E, I, O, U) */
-            animation: realistic-lips 1.4s infinite;
+            animation: realistic-lips 0.8s infinite ease-in-out;
         }
 
         @keyframes realistic-lips {
-            0%   { height: 3px; width: 16px; transform: translate(-50%, -50%); }
-            12%  { height: 11px; width: 13px; transform: translate(-50%, -50%); } /* A shape */
-            24%  { height: 5px; width: 17px; transform: translate(-50%, -50%); }  /* E shape */
-            36%  { height: 12px; width: 12px; transform: translate(-50%, -50%); }
-            48%  { height: 3px; width: 16px; transform: translate(-50%, -50%); }  /* Closed/M shape */
-            60%  { height: 14px; width: 10px; transform: translate(-50%, -50%); } /* O shape */
-            72%  { height: 6px; width: 15px; transform: translate(-50%, -50%); }
-            85%  { height: 10px; width: 12px; transform: translate(-50%, -50%); }
-            100% { height: 3px; width: 16px; transform: translate(-50%, -50%); }
+            0%, 100% { height: 3px; width: 18px; transform: translate(-50%, -50%); }
+            20%  { height: 12px; width: 15px; transform: translate(-50%, -50%); } /* Wide A/O */
+            40%  { height: 5px; width: 20px; transform: translate(-50%, -50%); }  /* Wide E */
+            60%  { height: 14px; width: 12px; transform: translate(-50%, -50%); } /* Tall O */
+            80%  { height: 8px; width: 16px; transform: translate(-50%, -50%); }  /* Neutral */
         }
 
         /* Pulse and Bob entire avatar when talking */
@@ -1268,8 +1263,8 @@
             const data = await res.json();
             aiTextEl.classList.remove('thinking-shimmer');
             if (data.answer) {
-                await typeText(aiTextEl, data.answer);
-                speakText(data.answer);
+                speakText(data.answer); // Start speaking immediately
+                await typeText(aiTextEl, data.answer); // Type while speaking
             } else {
                 aiTextEl.innerText = 'No response received.';
             }
@@ -1551,6 +1546,7 @@
             const reply = data.answer || 'Sorry, no response.';
             
             typingEl.innerHTML = `<div class="bubble-label">${modelNames[model]}</div><div id="text-${typingId}"></div>`;
+            speakText(reply); // Olivia speaks the response
             await typeText(document.getElementById(`text-${typingId}`), reply, 15);
             
             chatHistory.push({ role: 'ai', text: reply });
