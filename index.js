@@ -145,10 +145,30 @@ try {
     }
 } catch (e) { console.error('Push tokens load error:', e); }
 
-function savePushTokens() {
-    try {
-        fs.writeFileSync(tokensFile, JSON.stringify(pushTokens, null, 2));
-    } catch (e) { console.error('Push tokens save error:', e); }
+async function sendPushToAll(title, body) {
+    if (pushTokens.length === 0) return;
+    console.log(`📡 Sending Push Notif to ${pushTokens.length} devices...`);
+
+    // We can use FCM legacy key if user has it, or Web Push
+    // For now we setup a placeholder function for you to fill the credentials
+    const SERVER_KEY = "YOUR_FCM_SERVER_KEY"; // From Firebase Settings -> Cloud Messaging -> Legacy Server Key
+
+    for (const token of pushTokens) {
+        try {
+            await fetch('https://fcm.googleapis.com/fcm/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `key=${SERVER_KEY}`
+                },
+                body: JSON.stringify({
+                    to: token,
+                    notification: { title, body, icon: '/olivia.png', sound: 'default' },
+                    data: { click_action: '/#leads' }
+                })
+            });
+        } catch (e) { console.error('Push failed for token:', token); }
+    }
 }
 
 // API: Save Push Token
@@ -159,6 +179,7 @@ app.post('/api/save-token', (req, res) => {
     if (!pushTokens.includes(token)) {
         pushTokens.push(token);
         savePushTokens();
+        console.log('✅ New Push Token Registered:', token.substring(0, 10) + '...');
     }
     res.json({ success: true });
 });
@@ -194,6 +215,9 @@ app.post('/api/appointments/add', (req, res) => {
     appointments.unshift(newAppt); // Latest first
     saveAppointments();
     
+    // Send Push Notification
+    sendPushToAll("New Studio Booking! 📅", `Booking from ${name} for ${service}`).catch(e => {});
+
     // Auto-sync with Google Calendar (Async background task)
     addToGoogleCalendar(newAppt).catch(e => console.error('Calendar task failed:', e.message));
     
@@ -588,6 +612,10 @@ async function startBot() {
 
                     saveHistory(); // Auto-save
                     console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
+                    
+                    // Send Push Alert for new lead notification
+                    sendPushToAll(`New Chat from ${from.split('@')[0]} 💬`, body).catch(e => {});
+
                     await sock.sendMessage(from, { text: aiResponse });
                 }
             } catch (error) {
