@@ -79,12 +79,15 @@ const port = process.env.PORT || 3000;
 
 // --- UNIVERSAL CORS CONFIGURATION (Safe for PWA/Mobile) ---
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-    res.header('Access-Control-Allow-Credentials', 'false'); // Must be false if origin is *
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
     next();
 });
 
@@ -108,7 +111,11 @@ app.get('/api/stream', (req, res) => {
 
     // Heartbeat to keep connection alive on Render (15s)
     const heartbeat = setInterval(() => {
-        res.write(': heartbeat\n\n');
+        try {
+            res.write('data: {"heartbeat":true}\n\n');
+        } catch (e) {
+            clearInterval(heartbeat);
+        }
     }, 15000);
 
     streamClients.push(res);
@@ -218,6 +225,7 @@ app.post('/api/todos', (req, res) => {
 
 // API: Add Appointment (External trigger from 69studio website)
 app.post('/api/appointments/add', (req, res) => {
+    console.log('📅 Incoming Booking Request:', req.body);
     const { pass, name, phone, date, time, service } = req.body;
     if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
 
