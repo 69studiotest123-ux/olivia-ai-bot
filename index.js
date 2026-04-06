@@ -94,8 +94,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // Server-Sent Events Endpoint
 app.get('/api/stream', (req, res) => {
-    const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -111,25 +110,22 @@ app.get('/api/stream', (req, res) => {
     req.on('close', () => { streamClients = streamClients.filter(c => c !== res); });
 });
 
-// API Endpoint for Logs
+// API: Get Logs
 app.get('/api/logs', (req, res) => {
-    const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     res.json(Object.fromEntries(chatHistory));
 });
 
 // API: Get Appointments
 app.get('/api/appointments', (req, res) => {
-    const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     res.setHeader('Content-Type', 'application/json');
     res.send(JSON.stringify(appointments));
 });
 
 // API: Get Todos
 app.get('/api/todos', (req, res) => {
-    const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     res.json(todos);
 });
 
@@ -141,7 +137,11 @@ try {
     if (fs.existsSync(tokensFile)) {
         pushTokens = JSON.parse(fs.readFileSync(tokensFile, 'utf8'));
     }
-} catch (e) { console.error('Push tokens load error:', e); }
+// Authentication helper
+const checkAuth = (pass) => {
+    const masterPass = process.env.ADMIN_PASSWORD || '69studio123';
+    return pass === masterPass;
+};
 
 async function sendPushToAll(title, body) {
     if (pushTokens.length === 0) return;
@@ -185,7 +185,7 @@ app.post('/api/save-token', (req, res) => {
 // API: Manage Todos (Add, Toggle, Delete)
 app.post('/api/todos', (req, res) => {
     const { pass, action, text, id, url } = req.body;
-    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
 
     if (action === 'add') {
         const newTodo = { id: Date.now(), text, completed: false, url: url || '' };
@@ -203,7 +203,7 @@ app.post('/api/todos', (req, res) => {
 // API: Add Appointment (External trigger from 69studio website)
 app.post('/api/appointments/add', (req, res) => {
     const { pass, name, phone, date, time, service } = req.body;
-    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
 
     const newAppt = {
         id: Date.now(),
@@ -225,7 +225,7 @@ app.post('/api/appointments/add', (req, res) => {
 // GET version for easy testing (allows manual URL entry in browser)
 app.get('/api/appointments/add', (req, res) => {
     const { pass, name, phone, date, time, service } = req.query;
-    if (pass !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
 
     const newAppt = {
         id: Date.now(),
@@ -244,7 +244,7 @@ app.get('/api/appointments/add', (req, res) => {
 // API Endpoint to Clear Logs
 app.post('/api/logs/clear', (req, res) => {
     const password = req.query.pass;
-    if (password !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: 'Unauthorized' });
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     chatHistory.clear();
     saveHistory();
     res.json({ success: true });
@@ -437,9 +437,7 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/assistant/vision', async (req, res) => {
     const { pass: password, query, imageBase64, mimeType, model: modelType } = req.body;
 
-    if (password !== process.env.ADMIN_PASSWORD) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
     const systemPrompt = `You are Subhash's personal AI assistant. Analyze the image provided and give a concise, helpful response. If asked a specific question about it, answer that. Be professional and brief.`;
 
@@ -479,9 +477,7 @@ app.post('/api/assistant/vision', async (req, res) => {
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType } = req.query;
 
-    if (password !== process.env.ADMIN_PASSWORD) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
         const rawHistory = Object.fromEntries(chatHistory);
