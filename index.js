@@ -20,6 +20,7 @@ const historyFile = 'history.json';
 const appointmentsFile = 'appointments.json';
 const todosFile = 'todos.json';
 const pwaHistoryFile = 'pwa_history.json';
+const memoryFile = 'memories.json';
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
@@ -566,6 +567,41 @@ app.post('/api/assistant/chat/save', (req, res) => {
     res.json({ success: true });
 });
 
+// --- MEMORY ENDPOINTS ---
+
+function loadMemories() {
+    if (!fs.existsSync(memoryFile)) return {};
+    try { return JSON.parse(fs.readFileSync(memoryFile)); }
+    catch (e) { return {}; }
+}
+
+function saveMemories(memories) {
+    fs.writeFileSync(memoryFile, JSON.stringify(memories, null, 2));
+}
+
+app.get('/api/assistant/memory/load', (req, res) => {
+    const { pass: password } = req.query;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    const memories = loadMemories();
+    res.json(memories[password] || []);
+});
+
+app.post('/api/assistant/memory/save', (req, res) => {
+    const { pass: password, memory } = req.body;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+
+    const memories = loadMemories();
+    if (!memories[password]) memories[password] = [];
+    if (!memories[password].includes(memory)) {
+        memories[password].push(memory);
+        // Keep only last 50 memories
+        if (memories[password].length > 50) memories[password].shift();
+    }
+    saveMemories(memories);
+    res.json({ success: true });
+});
+
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem } = req.query;
 
@@ -579,8 +615,13 @@ app.get('/api/assistant/ask', async (req, res) => {
             return `Lead ${cleanJid}: ${lastMsg}`;
         }).join('\n');
 
+        const memories = loadMemories()[password] || [];
+        const memoryContext = memories.length > 0 ? `KEY RECENT MEMORIES ABOUT THE USER:\n- ${memories.join('\n- ')}\n` : "";
+
         const internalSystem = `You are Subhash's loyal and highly efficient AI Personal Assistant named Olivia. 
         Your tone is friendly and concise. You understand both English and Sinhala/Singlish.
+        
+        ${memoryContext}
         
         TOOL INTEGRATION:
         - You have access to specialized tools. Append the tag at the END of your message.
