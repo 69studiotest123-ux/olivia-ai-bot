@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const historyFile = 'history.json';
 const appointmentsFile = 'appointments.json';
 const todosFile = 'todos.json';
+const pwaHistoryFile = 'pwa_history.json';
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
@@ -533,6 +534,36 @@ app.post('/api/assistant/vision', async (req, res) => {
         console.error('Vision Error:', error.message);
         res.status(500).json({ error: 'Vision AI Error: ' + error.message });
     }
+});
+
+// --- PWA CHAT SYNC ENDPOINTS ---
+
+function loadPwaHistory() {
+    if (!fs.existsSync(pwaHistoryFile)) return {};
+    try { return JSON.parse(fs.readFileSync(pwaHistoryFile)); }
+    catch (e) { return {}; }
+}
+
+function savePwaHistory(history) {
+    fs.writeFileSync(pwaHistoryFile, JSON.stringify(history, null, 2));
+}
+
+app.get('/api/assistant/chat/load', (req, res) => {
+    const { pass: password } = req.query;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    const history = loadPwaHistory();
+    res.json(history[password] || []);
+});
+
+app.post('/api/assistant/chat/save', (req, res) => {
+    const { pass: password, messages } = req.body;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+
+    const history = loadPwaHistory();
+    history[password] = messages;
+    savePwaHistory(history);
+    res.json({ success: true });
 });
 
 app.get('/api/assistant/ask', async (req, res) => {
