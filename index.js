@@ -426,7 +426,12 @@ async function getGroqResponse(message, history = []) {
                 - If second message is "I am Aruna": "Nice to meet you Aruna! I'll let Subhash know you contacted soon. Anything else I can help with?"
                 
                 Tool Integration:
-                - If you need to remind Subhash to do something, or the user asks to add a todo list task, add this EXACT tag in your message: [ADD_TODO: task description].
+                - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
+                - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [GET_WEATHER: location]
+                - [GET_NEWS], [GET_XCHANGE: base | target], [START_FOCUS: duration], [GET_BATTERY]
+                - [GEN_QR: text], [GEN_PASS], [START_BREATHE], [GET_WISDOM], [GET_WIKI: topic]
+                - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
+                - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -531,7 +536,7 @@ app.post('/api/assistant/vision', async (req, res) => {
 });
 
 app.get('/api/assistant/ask', async (req, res) => {
-    const { pass: password, q: query, model: modelType } = req.query;
+    const { pass: password, q: query, model: modelType, system: customSystem } = req.query;
 
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
@@ -543,18 +548,25 @@ app.get('/api/assistant/ask', async (req, res) => {
             return `Lead ${cleanJid}: ${lastMsg}`;
         }).join('\n');
 
-        const systemPrompt = `You are Subhash's loyal and highly efficient AI Personal Assistant named Olivia. 
+        const internalSystem = `You are Subhash's loyal and highly efficient AI Personal Assistant named Olivia. 
         Your tone is friendly and concise. You understand both English and Sinhala/Singlish.
+        
+        TOOL INTEGRATION:
+        - You have access to specialized tools. Append the tag at the END of your message.
+        - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [GET_WEATHER: location]
+        - [GET_NEWS], [GET_XCHANGE: base | target], [START_FOCUS: duration], [GET_BATTERY]
+        - [GEN_QR: text], [GEN_PASS], [START_BREATHE], [GET_WISDOM], [GET_WIKI: topic]
+        - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
+        - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
+
         CRITICAL INSTRUCTIONS: 
         1. Answer the user directly based on their prompt.
         2. KEEP IT VERY CONCISE (1-2 sentences maximum). Do not use bold or markdown.
         3. Only mention the following recent leads *if* the user explicitly asks about leads or updates:
         ${leadsSummary ? leadsSummary.substring(0, 500) : "No active leads."}
-        
-        TOOL INTEGRATION:
-        - If Subhash asks you to remind him of a task, or add a task to his to-do list, add this EXACT tag in your message: [ADD_TODO: task description].
-        Example: "I've added that to your list! [ADD_TODO: Read email]"
         `;
+
+        const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
 
         let answer = "";
 
