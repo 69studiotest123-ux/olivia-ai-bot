@@ -603,7 +603,7 @@ app.post('/api/assistant/memory/save', (req, res) => {
 });
 
 app.get('/api/assistant/ask', async (req, res) => {
-    const { pass: password, q: query, model: modelType, system: customSystem } = req.query;
+    const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
 
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
@@ -640,11 +640,28 @@ app.get('/api/assistant/ask', async (req, res) => {
 
         const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
 
+        let history = [];
+        if (historyRaw) {
+            try { 
+                const parsed = JSON.parse(decodeURIComponent(historyRaw));
+                history = parsed.slice(-6).map(h => ({
+                    role: h.role === 'ai' || h.role === 'model' ? 'assistant' : 'user',
+                    content: h.text || ""
+                }));
+            } catch (e) { console.error('History parse error:', e); }
+        }
+
         let answer = "";
 
         if (modelType === "gemini") {
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const result = await model.generateContent(`${systemPrompt}\n\nUser: ${query}`);
+            const chat = model.startChat({
+                history: history.map(h => ({
+                    role: h.role === "assistant" ? "model" : "user",
+                    parts: [{ text: h.content }]
+                }))
+            });
+            const result = await chat.sendMessage(`${systemPrompt}\n\nUser: ${query}`);
             const response = await result.response;
             answer = response.text();
         } else if (modelType === "chatgpt") {
@@ -652,6 +669,7 @@ app.get('/api/assistant/ask', async (req, res) => {
                 model: "gpt-4o",
                 messages: [
                     { role: "system", content: systemPrompt },
+                    ...history,
                     { role: "user", content: query }
                 ],
             });
@@ -660,6 +678,7 @@ app.get('/api/assistant/ask', async (req, res) => {
             const chatCompletion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },
+                    ...history,
                     { role: "user", content: query }
                 ],
                 model: "llama-3.3-70b-versatile",
