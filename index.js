@@ -170,25 +170,57 @@ async function sendPushToAll(title, body) {
     if (pushTokens.length === 0) return;
     console.log(`📡 Sending Push Notif to ${pushTokens.length} devices...`);
 
-    // We can use FCM legacy key if user has it, or Web Push
-    // For now we setup a placeholder function for you to fill the credentials
-    const SERVER_KEY = "YOUR_FCM_SERVER_KEY"; // From Firebase Settings -> Cloud Messaging -> Legacy Server Key
+    if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+        console.warn('⚠️ Google credentials missing for Push Notif. Add them to .env.');
+        return;
+    }
 
-    for (const token of pushTokens) {
-        try {
-            await fetch('https://fcm.googleapis.com/fcm/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `key=${SERVER_KEY}`
-                },
-                body: JSON.stringify({
-                    to: token,
-                    notification: { title, body, icon: '/olivia.png', sound: 'default' },
-                    data: { click_action: '/#leads' }
-                })
-            });
-        } catch (e) { console.error('Push failed for token:', token); }
+    try {
+        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+            privateKey = privateKey.substring(1, privateKey.length - 1);
+        }
+        privateKey = privateKey.replace(/\\n/g, '\n');
+
+        const auth = new google.auth.JWT({
+            email: process.env.GOOGLE_CLIENT_EMAIL,
+            key: privateKey,
+            scopes: ['https://www.googleapis.com/auth/firebase.messaging']
+        });
+
+        // Get OAuth2 Access Token for HTTP v1 API
+        const tokens = await auth.authorize();
+        const accessToken = tokens.access_token;
+        const projectId = process.env.FIREBASE_PROJECT_ID || "olivia-ai-7e3f5";
+
+        for (const token of pushTokens) {
+            try {
+                const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        message: {
+                            token: token,
+                            notification: { title, body }
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    console.error('Push failed for token:', token, data.error.message);
+                } else {
+                    console.log('✅ Push sent successfully to:', token.substring(0, 10) + '...');
+                }
+            } catch (e) { 
+                console.error('Network error during push for token:', token, e.message); 
+            }
+        }
+    } catch (authError) {
+        console.error('Failed to authenticate with Google for push notifications:', authError.message);
     }
 }
 
