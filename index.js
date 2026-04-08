@@ -547,6 +547,7 @@ function loadPwaHistory() {
 
 function savePwaHistory(history) {
     fs.writeFileSync(pwaHistoryFile, JSON.stringify(history, null, 2));
+    notifyClients();
 }
 
 app.get('/api/assistant/chat/load', (req, res) => {
@@ -616,26 +617,29 @@ app.get('/api/assistant/ask', async (req, res) => {
         }).join('\n');
 
         const memories = loadMemories()[password] || [];
-        const memoryContext = memories.length > 0 ? `KEY RECENT MEMORIES ABOUT THE USER:\n- ${memories.join('\n- ')}\n` : "";
-
-        const internalSystem = `You are Subhash's loyal and highly efficient AI Personal Assistant named Olivia. 
-        Your tone is friendly and concise. You understand both English and Sinhala/Singlish.
+        const memoryContext = memories.length > 0 ? `KEY RECENT MEMORIES ABOUT SUBHASH:\n${memories.join('\n')}` : "No specific memories yet.";
         
+        const internalSystem = `You are Subhash's loyal, smart and charming AI Personal Assistant named Olivia. 
+        Your boss and creator is Subhash. NEVER ask for his name or purpose. 
+        NEVER provide appointment links (that is for WhatsApp leads).
+        
+        CONTEXT FROM RECENT WHATSAPP LEADS:
+        ${leadsSummary || "No active leads."}
+
         ${memoryContext}
         
-        TOOL INTEGRATION:
-        - You have access to specialized tools. Append the tag at the END of your message.
+        TOOL INTEGRATION (STRICT):
         - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [GET_WEATHER: location]
         - [GET_NEWS], [GET_XCHANGE: base | target], [START_FOCUS: duration], [GET_BATTERY]
         - [GEN_QR: text], [GEN_PASS], [START_BREATHE], [GET_WISDOM], [GET_WIKI: topic]
         - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
         - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
+        - [GEN_CONTENT: type | topic], [TRANSLATE: text | lang], [WELLNESS_CHECK], [SAVE_MEMORY: fact]
 
         CRITICAL INSTRUCTIONS: 
-        1. Answer the user directly based on their prompt.
-        2. KEEP IT VERY CONCISE (1-2 sentences maximum). Do not use bold or markdown.
-        3. Only mention the following recent leads *if* the user explicitly asks about leads or updates:
-        ${leadsSummary ? leadsSummary.substring(0, 500) : "No active leads."}
+        1. Answer Subhash directly. Be witty, efficient and charming.
+        2. KEEP IT CONCISE (1-3 sentences max).
+        3. Use subtle emojis. Output tool tags at the VERY END.
         `;
 
         const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
