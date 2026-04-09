@@ -798,8 +798,9 @@ async function startBot() {
         } else if (connection === 'open') {
             waConnectionStatus = 'connected';
             notifyClients('status');
-            console.log('--- ✅ BOT IS READY! YOUR AI IS NOW ACTIVE ---');
-            console.log(`Verified as: ${sock.user.name} (${sock.user.id.split(':')[0]})`);
+            const botName = sock.user.name || 'Bot';
+            console.log(`--- ✅ BOT IS READY! YOUR AI IS NOW ACTIVE ---`);
+            console.log(`Verified as: ${botName} (${sock.user.id.split(':')[0]})`);
         } else {
             // Probably connecting...
             waConnectionStatus = 'connecting';
@@ -878,28 +879,42 @@ async function startBot() {
                     }
                     const history = chatHistory.get(from);
 
-                    // --- IMMEDIATE PUSH ALERT ---
-                    const pushTitle = `WhatsApp: ${from.split('@')[0]} 💬`;
-                    const pushBody = body.length > 100 ? body.substring(0, 100) + '...' : body;
-                    console.log(`📡 Triggering Push Alert for ${from.split('@')[0]}...`);
-                    sendPushToAll(pushTitle, pushBody).catch(e => {
-                        console.error('❌ Push Alert Failed for WhatsApp message:', e.message);
-                    });
-
-                    // Get AI Response using Groq
-                    let aiResponse = await getGroqResponse(body, history);
-                    aiResponse = processAiResponseForTodos(aiResponse);
-
-                    // Save to history format
+                    // --- IMMEDIATE HISTORY SAVE & SYNC ---
+                    // Save user message to history BEFORE AI thinking starts
                     history.push({
                         role: "user",
                         parts: [{ text: body }],
                         time: new Date().toISOString()
                     });
+                    saveHistory(); // This triggers SSE 'update' alert to PWA instantly
+                    console.log(`💾 Lead captured & PWA notified for ${from.split('@')[0]}`);
+
+                    // --- IMMEDIATE PUSH ALERT ---
+                    const pushTitle = `WhatsApp: ${from.split('@')[0]} 💬`;
+                    const pushBody = body.length > 80 ? body.substring(0, 80) + '...' : body;
+                    
+                    try {
+                        console.log(`📡 Triggering Push Alert for ${from.split('@')[0]}...`);
+                        sendPushToAll(pushTitle, pushBody).catch(e => {
+                            console.error('❌ Push Alert Failed:', e.message);
+                        });
+                    } catch (pushErr) {
+                        console.error('❌ Push System Error:', pushErr.message);
+                    }
+
+                    // Get AI Response using Groq
+                    let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
 
-                    // Save to history format
-
+                    // Add AI reply to history
+                    history.push({
+                        role: "model",
+                        parts: [{ text: aiResponse }],
+                        time: new Date().toISOString()
+                    });
+                    saveHistory(); // Save again with AI response
+                    
+                    console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
                     await sock.sendMessage(from, { text: aiResponse });
                 }
             } catch (error) {
