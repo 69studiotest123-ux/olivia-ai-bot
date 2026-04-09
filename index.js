@@ -16,14 +16,27 @@ import { google } from 'googleapis';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const historyFile = 'history.json';
+const historyFile = path.join(__dirname, 'history.json');
 const appointmentsFile = 'appointments.json';
 const todosFile = 'todos.json';
 const pwaHistoryFile = 'pwa_history.json';
 const memoryFile = 'memories.json';
+const tokensFile = path.join(__dirname, 'push-tokens.json');
+const settingsFile = path.join(__dirname, 'settings.json');
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
+let pushTokens = [];
+let globalSettings = { autoReply: true };
+
+// Load Settings
+if (fs.existsSync(settingsFile)) {
+    try { globalSettings = JSON.parse(fs.readFileSync(settingsFile)); } catch (e) {}
+}
+
+function saveSettings() {
+    try { fs.writeFileSync(settingsFile, JSON.stringify(globalSettings, null, 2)); } catch (e) {}
+}
 
 // --- Server-Sent Events (SSE) for Real-Time UI ---
 let streamClients = [];
@@ -134,6 +147,19 @@ app.get('/api/stream', (req, res) => {
 app.get('/api/logs', (req, res) => {
     if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     res.json(Object.fromEntries(chatHistory));
+});
+
+// API: Settings
+app.get('/api/settings', (req, res) => {
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(globalSettings);
+});
+
+app.post('/api/settings', (req, res) => {
+    if (!checkAuth(req.body.pass)) return res.status(403).json({ error: 'Unauthorized' });
+    globalSettings = { ...globalSettings, ...req.body.settings };
+    saveSettings();
+    res.json({ success: true, settings: globalSettings });
 });
 
 // DEBUG: Raw History (Temporary for troubleshooting)
@@ -922,7 +948,12 @@ async function startBot() {
                     saveHistory(); // Save again with AI response
                     
                     console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
-                    await sock.sendMessage(from, { text: aiResponse });
+                    
+                    if (globalSettings.autoReply) {
+                        await sock.sendMessage(from, { text: aiResponse });
+                    } else {
+                        console.log(`🔇 Auto-reply is DISABLED. Message logged but not sent.`);
+                    }
                 }
             } catch (error) {
                 console.error('AI Error:', error.message);
