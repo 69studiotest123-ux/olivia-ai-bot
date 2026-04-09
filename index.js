@@ -193,9 +193,6 @@ app.get('/api/todos', (req, res) => {
     res.json(todos);
 });
 
-const tokensFile = 'push-tokens.json';
-let pushTokens = [];
-
 // Load Push Tokens from File
 try {
     if (fs.existsSync(tokensFile)) {
