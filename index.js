@@ -12,7 +12,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
-import { ElevenLabsClient } from "elevenlabs";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -707,6 +707,13 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(homeRegex, '');
 
+    // 4. IFTTT
+    const iftttRegex = /\[IFTTT_TRIGGER:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let iMatch;
+    while ((iMatch = iftttRegex.exec(aiText)) !== null) {
+        const res = await triggerIFTTT(iMatch[1], iMatch[2]);
+        finalOutput += `\n\n[PROTOCOL ACTIVATED: ${res}]`;
+    }
     finalOutput = finalOutput.replace(iftttRegex, '');
 
     // 5. Google Calendar Briefing
@@ -818,6 +825,7 @@ app.post('/api/chat', async (req, res) => {
 
         // Process via Groq
         let aiResponse = await getGroqResponse(message, history);
+        aiResponse = await processAiTools(aiResponse, userId);
         aiResponse = processAiResponseForTodos(aiResponse);
 
         // Keep history for conversational flow
@@ -1074,6 +1082,7 @@ app.get('/api/assistant/ask', async (req, res) => {
             answer = chatCompletion.choices[0].message.content;
         }
 
+        answer = await processAiTools(answer, "PWA_CLIENT");
         answer = processAiResponseForTodos(answer);
         res.json({ answer });
     } catch (error) {
