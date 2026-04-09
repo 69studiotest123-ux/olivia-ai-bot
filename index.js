@@ -944,7 +944,6 @@ async function startBot() {
                            msg.message.viewOnceMessageV2?.message || 
                            msg.message;
 
-        const from = msg.key.remoteJid;
         let body = (msgContent.conversation || msgContent.extendedTextMessage?.text || msgContent.imageMessage?.caption);
 
         // --- VOICE MESSAGE HANDLING ---
