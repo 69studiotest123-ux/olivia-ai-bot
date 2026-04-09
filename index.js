@@ -521,6 +521,105 @@ function processAiResponseForBookings(aiText, jid) {
     return aiText.replace(bookRegex, '').trim();
 }
 
+/**
+ * JARVIS Global Integration Tools
+ */
+async function getWeather(city) {
+    const key = process.env.OPENWEATHER_API_KEY;
+    if (!key) return "Weather system offline. Service key missing, Sir.";
+    try {
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${key}&units=metric`);
+        const data = await res.json();
+        if (data.cod !== 200) return `Cannot localize weather for ${city}, Sir.`;
+        return `Current weather in ${city}: ${data.weather[0].description}, Temp: ${data.main.temp}°C, Humidity: ${data.main.humidity}%`;
+    } catch (e) { return "Weather downlink error, Sir."; }
+}
+
+async function getNews(topic = 'world') {
+    const key = process.env.NEWS_API_KEY;
+    if (!key) return "Global intel offline. API key missing, Sir.";
+    try {
+        const res = await fetch(`https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&pageSize=3&apiKey=${key}`);
+        const data = await res.json();
+        if (!data.articles?.length) return `No recent intel found for ${topic}, Sir.`;
+        return data.articles.map(a => `- ${a.title}`).join('\n');
+    } catch (e) { return "Intel briefing error, Sir."; }
+}
+
+async function homeAssistantAction(entity, command) {
+    const url = process.env.HOME_ASSISTANT_URL;
+    const token = process.env.HOME_ASSISTANT_TOKEN;
+    if (!url || !token) return "Home systems offline. Sync keys missing, Sir.";
+    try {
+        const domain = entity.split('.')[0];
+        const res = await fetch(`${url}/api/services/${domain}/${command}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity_id: entity })
+        });
+        return res.ok ? `Command ${command} sent to ${entity}, Sir.` : "Execution failed on Home Core.";
+    } catch (e) { return "Home link error, Sir."; }
+}
+
+async function triggerIFTTT(event, value) {
+    const key = process.env.IFTTT_WEBHOOK_KEY;
+    if (!key) return "IFTTT protocols offline. Webhook key missing, Sir.";
+    try {
+        const res = await fetch(`https://maker.ifttt.com/trigger/${event}/with/key/${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value1: value })
+        });
+        return res.ok ? `Automation protocol ${event} triggered, Sir.` : "IFTTT rejected the signal.";
+    } catch (e) { return "IFTTT uplink error, Sir."; }
+}
+
+/**
+ * MASTER TOOL PARSER
+ */
+async function processAiTools(aiText, jid) {
+    if (!aiText) return aiText;
+    let finalOutput = aiText;
+
+    // 1. Weather
+    const weatherRegex = /\[GET_WEATHER:\s*(.+?)\]/gi;
+    let wMatch;
+    while ((wMatch = weatherRegex.exec(aiText)) !== null) {
+        const info = await getWeather(wMatch[1]);
+        finalOutput += `\n\n[SYSTEM INTEL: ${info}]`;
+    }
+    finalOutput = finalOutput.replace(weatherRegex, '');
+
+    // 2. News
+    const newsRegex = /\[GET_NEWS(?::\s*(.+?))?\]/gi;
+    let nMatch;
+    while ((nMatch = newsRegex.exec(aiText)) !== null) {
+        const intel = await getNews(nMatch[1]);
+        finalOutput += `\n\n[GLOBAL BRIEFING: ${intel}]`;
+    }
+    finalOutput = finalOutput.replace(newsRegex, '');
+
+    // 3. Home Assistant
+    const homeRegex = /\[HOME_ACTION:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let hMatch;
+    while ((hMatch = homeRegex.exec(aiText)) !== null) {
+        const res = await homeAssistantAction(hMatch[1], hMatch[2]);
+        finalOutput += `\n\n[HOME CORE: ${res}]`;
+    }
+    finalOutput = finalOutput.replace(homeRegex, '');
+
+    // 4. IFTTT
+    const iftttRegex = /\[IFTTT_TRIGGER:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let iMatch;
+    while ((iMatch = iftttRegex.exec(aiText)) !== null) {
+        const res = await triggerIFTTT(iMatch[1], iMatch[2]);
+        finalOutput += `\n\n[PROTOCOL ACTIVATED: ${res}]`;
+    }
+    finalOutput = finalOutput.replace(iftttRegex, '');
+
+    return finalOutput.trim();
+}
+
 async function getGroqResponse(message, history = []) {
     try {
         const messages = [
@@ -546,9 +645,13 @@ async function getGroqResponse(message, history = []) {
                 
                 Tool Integration:
                 - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
-                - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [ADD_TODO: task]
+                - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
+                - [GET_WEATHER: City] - Get real-time weather.
+                - [GET_NEWS: Topic] - Fetch latest international briefings.
+                - [HOME_ACTION: entity_id | command] - Control smart devices (e.g., light.living_room | turn_on).
+                - [IFTTT_TRIGGER: EventName | Data] - Trigger webhooks.
                 - [BOOK_APPT: Name | Date | Time | Service] - Formalize a booking request.
-                - [GET_NEWS], [GET_XCHANGE: base | target], [CALC: expression], [WEB_SEARCH: query]
+                - [CALC: expression], [WEB_SEARCH: query]
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -1015,6 +1118,7 @@ async function startBot() {
                     let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
                     aiResponse = processAiResponseForBookings(aiResponse, from);
+                    aiResponse = await processAiTools(aiResponse, from);
 
                     // Add AI reply to history
                     history.push({

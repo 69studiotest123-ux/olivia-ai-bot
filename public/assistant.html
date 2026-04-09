@@ -202,7 +202,8 @@
         }
         .btn-destructive:hover { background: var(--danger); color: white; }
 
-        .sys-ticker { font-family: 'Orbitron', sans-serif; font-size: 0.5rem; color: var(--primary); opacity: 0.5; overflow: hidden; white-space: nowrap; margin-bottom: 10px; }
+        .sys-ticker { font-family: 'Orbitron', sans-serif; font-size: 0.5rem; color: var(--primary); opacity: 0.5; overflow: hidden; white-space: nowrap; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .sys-weather { color: var(--text-dim); }
     </style>
 </head>
 <body>
@@ -239,7 +240,10 @@
         </header>
 
         <div class="container">
-            <div class="sys-ticker" id="ticker">INITIALIZING SYSTEM ENGINES... [OK] | LINK STATUS: SECURE... [OK] | SYNCING DATABASE... [OK]</div>
+            <div class="sys-ticker">
+                <div id="tickerText">INITIALIZING SYSTEM ENGINES... [OK] | LINK STATUS: SECURE... [OK] | SYNCING DATABASE... [OK]</div>
+                <div id="weatherDisplay" class="sys-weather">LOCATING...</div>
+            </div>
 
             <!-- Assistant Tab -->
             <div id="tab-assistant" class="tab-panel active">
@@ -568,6 +572,15 @@
                 const el = document.getElementById('waStatus');
                 el.className = 'status-pill status-' + data.status;
                 document.getElementById('waStatusText').innerText = data.status.toUpperCase();
+                
+                // Fetch simple weather for the ticker
+                if (password) {
+                    const q = "Colomobo"; // Default or detect location
+                    const weatherRes = await fetch(`/api/assistant/ask?pass=${password}&q=get%20weather%20in%20colombo`);
+                    const weatherData = await weatherRes.json();
+                    const match = weatherData.answer.match(/\[SYSTEM INTEL: (.+?)\]/);
+                    if (match) document.getElementById('weatherDisplay').innerText = match[1].replace(/Current weather in .+: /, '').toUpperCase();
+                }
             } catch(e) {}
         }
 
