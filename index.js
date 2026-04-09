@@ -563,7 +563,7 @@ app.post('/api/assistant/vision', async (req, res) => {
         let answer = '';
 
         if (modelType === 'gemini') {
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const result = await model.generateContent([
                 systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.'),
                 { inlineData: { data: imageBase64, mimeType: mimeType || 'image/jpeg' } }
@@ -665,7 +665,7 @@ app.post('/api/assistant/vision', async (req, res) => {
     if (!image) return res.status(400).json({ error: 'Image data missing' });
 
     try {
-        const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const genModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
         // Prepare image data for Gemini
         const imageParts = [
@@ -750,7 +750,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         let answer = "";
 
         if (modelType === "gemini") {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const chat = model.startChat({
                 history: history.map(h => ({
                     role: h.role === "assistant" ? "model" : "user",
@@ -856,7 +856,7 @@ async function startBot() {
             try {
                 const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
                 if (imageBuffer) {
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                     const result = await model.generateContent([
                         "Look at this image sent by a WhatsApp user. Describe what you see concisely and respond as Olivia.",
                         { inlineData: { data: imageBuffer.toString('base64'), mimeType: "image/jpeg" } }
