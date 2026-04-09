@@ -802,11 +802,18 @@ async function startBot() {
 
         if (!msg || !msg.message || msg.key.fromMe) return;
 
+        // --- IMPROVED MESSAGE UNWRAPPING ---
+        // Handle viewOnce, ephemeral, etc.
+        const msgContent = msg.message.ephemeralMessage?.message || 
+                           msg.message.viewOnceMessage?.message || 
+                           msg.message.viewOnceMessageV2?.message || 
+                           msg.message;
+
         const from = msg.key.remoteJid;
-        let body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
+        let body = (msgContent.conversation || msgContent.extendedTextMessage?.text || msgContent.imageMessage?.caption);
 
         // --- VOICE MESSAGE HANDLING ---
-        if (msg.message.audioMessage && !body) {
+        if (msgContent.audioMessage && !body) {
             console.log(`🎤 Received voice message from ${from}. Transcribing...`);
             try {
                 const buffer = await downloadMediaMessage(
@@ -829,10 +836,13 @@ async function startBot() {
                 fs.unlinkSync(tempFilename); // Cleanup
             } catch (vError) {
                 console.error('❌ Voice Transcribe Error:', vError.message);
+                if (vError.message.includes('media key')) {
+                    console.log('💡 Note: This can happen with expired or unsupported voice messages.');
+                }
             }
         } else if (!body) {
             // Log other media types briefly
-            const type = Object.keys(msg.message || {})[0];
+            const type = Object.keys(msgContent || {})[0];
             if (type !== 'protocolMessage' && type !== 'senderKeyDistributionMessage') {
                 console.log(`📎 Received ${type} from ${from}. Skipping text processing.`);
             }
