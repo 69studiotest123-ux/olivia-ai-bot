@@ -12,13 +12,6 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import * as googleTTS from 'google-tts-api';
-import cron from 'node-cron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -393,54 +386,6 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "no_key" });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "no_key");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "no_key" });
 
-// --- VOICE MESSAGE TRANSCRIPTION (Groq Whisper) ---
-async function transcribeAudio(audioBuffer) {
-    const tempPath = path.join(__dirname, `temp_voice_${Date.now()}.ogg`);
-    try {
-        fs.writeFileSync(tempPath, audioBuffer);
-        const transcription = await groq.audio.transcriptions.create({
-            file: fs.createReadStream(tempPath),
-            model: 'whisper-large-v3',
-            language: 'si', // Sinhala - also works with English auto-detect
-        });
-        return transcription.text || '';
-    } catch (error) {
-        console.error('Voice Transcription Error:', error.message);
-        return null;
-    } finally {
-        // Cleanup temp file
-        try { fs.unlinkSync(tempPath); } catch (e) {}
-    }
-}
-
-// --- VOICE REPLY (Text-to-Speech) ---
-async function generateVoiceReply(text) {
-    try {
-        const url = googleTTS.getAudioUrl(text, {
-            lang: 'en-US',
-            slow: false,
-            host: 'https://translate.google.com',
-        });
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        return Buffer.from(response.data);
-    } catch (e) {
-        console.error('TTS Error:', e.message);
-        return null;
-    }
-}
-
-// --- LINK SUMMARIZER ---
-async function summarizeUrl(url) {
-    try {
-        const response = await axios.get(url, { timeout: 5000 });
-        const $ = cheerio.load(response.data);
-        const text = $('body').text().replace(/\s+/g, ' ').substring(0, 2000);
-        return text;
-    } catch (e) {
-        return null;
-    }
-}
-
 function processAiResponseForTodos(aiText) {
     if (!aiText) return aiText;
     const todoRegex = /\[ADD_TODO:\s*(.+?)\]/gi;
@@ -563,7 +508,7 @@ app.post('/api/assistant/vision', async (req, res) => {
         let answer = '';
 
         if (modelType === 'gemini') {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             const result = await model.generateContent([
                 systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.'),
                 { inlineData: { data: imageBase64, mimeType: mimeType || 'image/jpeg' } }
@@ -665,7 +610,7 @@ app.post('/api/assistant/vision', async (req, res) => {
     if (!image) return res.status(400).json({ error: 'Image data missing' });
 
     try {
-        const genModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         
         // Prepare image data for Gemini
         const imageParts = [
@@ -750,7 +695,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         let answer = "";
 
         if (modelType === "gemini") {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const chat = model.startChat({
                 history: history.map(h => ({
                     role: h.role === "assistant" ? "model" : "user",
@@ -832,134 +777,70 @@ async function startBot() {
 
         const from = msg.key.remoteJid;
         let body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
-        let isVoiceMessage = false;
-        let contextInfo = "";
 
         // --- VOICE MESSAGE HANDLING ---
-        const audioMsg = msg.message.audioMessage;
-        if (!body && audioMsg) {
+        if (msg.message.audioMessage && !body) {
+            console.log(`🎤 Received voice message from ${from}. Transcribing...`);
             try {
-                const audioBuffer = await downloadMediaMessage(msg, 'buffer', {});
-                if (audioBuffer) {
-                    const transcribedText = await transcribeAudio(audioBuffer);
-                    if (transcribedText) {
-                        body = transcribedText;
-                        isVoiceMessage = true;
-                    }
-                }
-            } catch (e) { console.error('Voice Error:', e); }
-        }
-
-        // --- IMAGE ANALYSIS (Smart Fallback) ---
-        const imageMsg = msg.message.imageMessage;
-        if (imageMsg) {
-            try {
-                const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
-                if (imageBuffer) {
-                    let visionSuccess = false;
-                    const modelsToTry = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-2.0-flash"];
-                    
-                    for (const modelName of modelsToTry) {
-                        try {
-                            const model = genAI.getGenerativeModel({ model: modelName });
-                            const result = await model.generateContent([
-                                "Describe this image concisely as Olivia, Subhash's assistant.",
-                                { inlineData: { data: imageBuffer.toString('base64'), mimeType: "image/jpeg" } }
-                            ]);
-                            contextInfo += ` [IMAGE_ANALYSIS: ${result.response.text()}]`;
-                            visionSuccess = true;
-                            break; // Success!
-                        } catch (modelErr) {
-                            console.error(`Vision Fallback (${modelName}):`, modelErr.message);
-                        }
-                    }
-                    if (!visionSuccess) contextInfo += " [IMAGE_ANALYSIS: Photo received but AI Vision is temporarily busy/unavailable]";
-                }
-            } catch (e) { console.error('Vision Error:', e.message); }
-        }
-
-        // --- DOCUMENT/PDF HANDLING ---
-        const docMsg = msg.message.documentMessage;
-        if (docMsg && docMsg.mimetype === 'application/pdf') {
-            try {
-                const docBuffer = await downloadMediaMessage(msg, 'buffer', {});
-                const data = await pdf(docBuffer);
-                contextInfo += ` [PDF_CONTENT: ${data.text.substring(0, 1000)}]`;
-                if (!body) body = "I sent you a PDF document. Please read it.";
-            } catch (e) { console.error('PDF Error:', e); }
-        }
-
-        // --- LOCATION HANDLING ---
-        const locMsg = msg.message.locationMessage || msg.message.liveLocationMessage;
-        if (locMsg) {
-            contextInfo += ` [LOCATION: Latitude ${locMsg.degreesLatitude}, Longitude ${locMsg.degreesLongitude}]`;
-            if (!body) body = "I shared my location with you.";
-        }
-
-        // --- LINK SUMMARIZER ---
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const urls = body?.match(urlRegex);
-        if (urls && urls.length > 0) {
-            const pageText = await summarizeUrl(urls[0]);
-            if (pageText) contextInfo += ` [WEBPAGE_CONTENT from ${urls[0]}: ${pageText.substring(0, 1000)}]`;
+                const buffer = await downloadMediaMessage(
+                    msg,
+                    'buffer',
+                    {},
+                    { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                );
+                
+                const tempFilename = `temp_${Date.now()}.ogg`;
+                fs.writeFileSync(tempFilename, buffer);
+                
+                const transcription = await groq.audio.transcriptions.create({
+                    file: fs.createReadStream(tempFilename),
+                    model: 'whisper-large-v3-turbo',
+                });
+                
+                body = transcription.text;
+                console.log(`📝 Transcribed: ${body}`);
+                fs.unlinkSync(tempFilename); // Cleanup
+            } catch (vError) {
+                console.error('❌ Voice Transcribe Error:', vError.message);
+            }
+        } else if (!body) {
+            // Log other media types briefly
+            const type = Object.keys(msg.message || {})[0];
+            if (type !== 'protocolMessage' && type !== 'senderKeyDistributionMessage') {
+                console.log(`📎 Received ${type} from ${from}. Skipping text processing.`);
+            }
         }
 
         if (body) {
-            const fullPrompt = `${body}${contextInfo}`;
+            console.log(`📩 New message from ${from}: ${body}`);
             try {
+                // Ensure we handle both user JIDs and LID (Linked ID)
                 if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
-                    if (!chatHistory.has(from)) chatHistory.set(from, []);
+                    if (!chatHistory.has(from)) {
+                        chatHistory.set(from, []);
+                        console.log(`🆕 Registered new contact: ${from}`);
+                    }
                     const history = chatHistory.get(from);
 
-                    let aiResponse = await getGroqResponse(fullPrompt, history);
+                    // Get AI Response using Groq
+                    let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
 
-                    history.push({ role: "user", parts: [{ text: isVoiceMessage ? `[Voice] ${body}` : body }], time: new Date().toISOString() });
-                    history.push({ role: "model", parts: [{ text: aiResponse }], time: new Date().toISOString() });
-                    if (history.length > 20) history.shift();
+                    // Save to history format
+                    history.push({
+                        role: "user",
+                        parts: [{ text: body }],
+                        time: new Date().toISOString()
+                    });
+                    console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
                     
-                    chatHistory.get(from).lastInboundTime = Date.now();
-                    saveHistory();
+                    // Send Push Alert for new lead notification
+                    sendPushToAll(`New Chat from ${from.split('@')[0]} 💬`, body).catch(e => {});
 
-                    const pushLabel = isVoiceMessage ? `🎤 Voice from ${from.split('@')[0]}` : `New Chat from ${from.split('@')[0]} 💬`;
-                    sendPushToAll(pushLabel, body).catch(e => {});
-
-                    // Should we reply with Voice? Yes if user sent voice, or randomly to feel real.
-                    if (isVoiceMessage || Math.random() > 0.8) {
-                        const voiceBuffer = await generateVoiceReply(aiResponse);
-                        if (voiceBuffer) {
-                            await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mp4', ptt: true });
-                        } else {
-                            await sock.sendMessage(from, { text: aiResponse });
-                        }
-                    } else {
-                        await sock.sendMessage(from, { text: aiResponse });
-                    }
+                    await sock.sendMessage(from, { text: aiResponse });
                 }
-            } catch (error) { console.error('AI Error:', error.message); }
-        }
-    });
-
-    // --- SMART FOLLOW-UP (CRON) ---
-    cron.schedule('0 * * * *', async () => { // Every hour
-        console.log('Running Smart Follow-up Check...');
-        const now = Date.now();
-        for (const [from, history] of chatHistory.entries()) {
-            if (from.endsWith('@g.us')) continue;
-            
-            const lastTime = history.lastInboundTime || 0;
-            const diffHours = (now - lastTime) / (1000 * 60 * 60);
-
-            // Follow up after 24 hours if no reply and they haven't booked
-            if (diffHours >= 24 && diffHours < 25) {
-                const hasBooked = appointments.some(a => from.includes(a.phone?.replace(/\D/g, '')) || history.some(h => h.parts[0].text.includes('appointments.html')));
-                
-                if (!hasBooked) {
-                    const followUp = "Hi! I was just checking in to see if you had any other questions or if you'd like to book an appointment? 😊 https://69studiobysubash.online/appointments.html";
-                    await sock.sendMessage(from, { text: followUp });
-                    history.push({ role: "model", parts: [{ text: followUp }], time: new Date().toISOString() });
-                    saveHistory();
-                }
+            } catch (error) {
+                console.error('AI Error:', error.message);
             }
         }
     });

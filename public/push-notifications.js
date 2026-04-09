@@ -11,7 +11,8 @@ const firebaseConfig = {
 };
 
 // VAPID Key from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-const VAPID_KEY = "YOUR_VAPID_PUBLIC_KEY";
+// IMPORTANT: You MUST replace this with your actual VAPID public key for notifications to work!
+const VAPID_KEY = "YOUR_VAPID_PUBLIC_KEY"; 
 
 // Initialize Service Worker
 if ('serviceWorker' in navigator) {
