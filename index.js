@@ -1,4 +1,4 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion, downloadMediaMessage } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import Groq from 'groq-sdk';
@@ -386,6 +386,26 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "no_key" });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "no_key");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "no_key" });
 
+// --- VOICE MESSAGE TRANSCRIPTION (Groq Whisper) ---
+async function transcribeAudio(audioBuffer) {
+    const tempPath = path.join(__dirname, `temp_voice_${Date.now()}.ogg`);
+    try {
+        fs.writeFileSync(tempPath, audioBuffer);
+        const transcription = await groq.audio.transcriptions.create({
+            file: fs.createReadStream(tempPath),
+            model: 'whisper-large-v3',
+            language: 'si', // Sinhala - also works with English auto-detect
+        });
+        return transcription.text || '';
+    } catch (error) {
+        console.error('Voice Transcription Error:', error.message);
+        return null;
+    } finally {
+        // Cleanup temp file
+        try { fs.unlinkSync(tempPath); } catch (e) {}
+    }
+}
+
 function processAiResponseForTodos(aiText) {
     if (!aiText) return aiText;
     const todoRegex = /\[ADD_TODO:\s*(.+?)\]/gi;
@@ -603,6 +623,39 @@ app.post('/api/assistant/memory/save', (req, res) => {
     res.json({ success: true });
 });
 
+// API: Vision Assistant (Image Analysis)
+app.post('/api/assistant/vision', async (req, res) => {
+    const { pass: password, image, q, model: modelType } = req.body;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!image) return res.status(400).json({ error: 'Image data missing' });
+
+    try {
+        const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        
+        // Prepare image data for Gemini
+        const imageParts = [
+            {
+                inlineData: {
+                    data: image.split(',')[1], // Remove metadata prefix if present
+                    mimeType: "image/jpeg"
+                }
+            }
+        ];
+
+        const prompt = q || "Look at this image. What do you see? Be concise and witty as Olivia, Subhash's assistant.";
+        const systemAddon = "You are Olivia. Answer directly to Subhash. Mention unique details you see.";
+
+        const result = await genModel.generateContent([systemAddon + "\n" + prompt, ...imageParts]);
+        const response = await result.response;
+        const answer = response.text();
+
+        res.json({ answer });
+    } catch (error) {
+        console.error("Vision Error:", error.message);
+        res.status(500).json({ error: 'Vision AI Error: ' + error.message });
+    }
+});
+
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
 
@@ -635,6 +688,10 @@ app.get('/api/assistant/ask', async (req, res) => {
         - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
         - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
         - [GEN_CONTENT: type | topic], [TRANSLATE: text | lang], [WELLNESS_CHECK], [SAVE_MEMORY: fact]
+        - [GEN_IMAGE: simple description], [TRACK_EXPENSE: amount | desc], [DAILY_BRIEFING]
+        - [SEND_EMAIL: to | subject | body], [CHECK_SITE: url], [READ_WEBPAGE: url], [GEN_MAPS: location]
+        - [SHARE_CONTENT: title | text], [VIBRATE_PHONE], [ADD_EVENT: title | date | duration]
+        - [CHANGE_THEME: hex_color], [CELEBRATE], [LOCK_APP]
 
         CRITICAL INSTRUCTIONS: 
         1. Answer Subhash directly. Be witty, efficient and charming.
@@ -739,10 +796,49 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
-        const body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
+        let body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
+        let isVoiceMessage = false;
+
+        // --- VOICE MESSAGE HANDLING ---
+        const audioMsg = msg.message.audioMessage;
+        if (!body && audioMsg) {
+            try {
+                console.log(`🎤 Voice message received from ${from} (${audioMsg.seconds}s, ptt: ${audioMsg.ptt})`);
+                
+                // Download the voice note audio
+                const audioBuffer = await downloadMediaMessage(msg, 'buffer', {});
+                
+                if (audioBuffer && audioBuffer.length > 0) {
+                    console.log(`📥 Audio downloaded: ${audioBuffer.length} bytes. Transcribing...`);
+                    const transcribedText = await transcribeAudio(audioBuffer);
+                    
+                    if (transcribedText && transcribedText.trim().length > 0) {
+                        body = transcribedText.trim();
+                        isVoiceMessage = true;
+                        console.log(`✅ Voice transcribed: "${body}"`);
+                    } else {
+                        console.log('⚠️ Voice transcription returned empty text.');
+                        // Still reply to let user know
+                        if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
+                            await sock.sendMessage(from, { text: "Sorry, I couldn't understand that voice message. Could you type it out or try again? 🎤" });
+                        }
+                        return;
+                    }
+                } else {
+                    console.error('❌ Failed to download voice audio - empty buffer');
+                    return;
+                }
+            } catch (voiceError) {
+                console.error('❌ Voice message processing error:', voiceError.message);
+                if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
+                    await sock.sendMessage(from, { text: "Sorry, I had trouble processing your voice message. Could you try again or type it out? 😊" });
+                }
+                return;
+            }
+        }
 
         if (body) {
-            console.log(`Received message from ${from}: ${body}`);
+            console.log(`${isVoiceMessage ? '🎤 [Voice]' : '💬 [Text]'} Message from ${from}: ${body}`);
             try {
                 if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
                     if (!chatHistory.has(from)) chatHistory.set(from, []);
@@ -755,7 +851,7 @@ async function startBot() {
                     // Save to history format compatible with our Map
                     history.push({
                         role: "user",
-                        parts: [{ text: body }],
+                        parts: [{ text: isVoiceMessage ? `[Voice Message] ${body}` : body }],
                         time: new Date().toISOString()
                     });
                     history.push({
@@ -771,7 +867,8 @@ async function startBot() {
                     console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
                     
                     // Send Push Alert for new lead notification
-                    sendPushToAll(`New Chat from ${from.split('@')[0]} 💬`, body).catch(e => {});
+                    const pushLabel = isVoiceMessage ? `🎤 Voice from ${from.split('@')[0]}` : `New Chat from ${from.split('@')[0]} 💬`;
+                    sendPushToAll(pushLabel, body).catch(e => {});
 
                     await sock.sendMessage(from, { text: aiResponse });
                 }
