@@ -47,25 +47,37 @@ self.addEventListener('fetch', (event) => {
 // ===== PUSH NOTIFICATIONS HANDLING =====
 
 self.addEventListener('push', (event) => {
+  let data = {};
   if (event.data) {
-    const data = event.data.json();
-    const options = {
-      body: data.body || 'New message from Olivia',
-      icon: '/olivia.png',
-      badge: '/olivia.png',
-      vibrate: [100, 50, 100],
-      data: {
-        url: data.url || '/assistant.html'
-      },
-      actions: [
-        { action: 'open', title: 'Open App', icon: '/olivia.png' }
-      ]
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'Olivia AI', options)
-    );
+    try {
+      data = event.data.json();
+      // If FCM sends a standard notification block, it might be nested
+      if (data.notification) {
+        data.title = data.notification.title;
+        data.body = data.notification.body;
+      }
+    } catch (e) {
+      console.warn('Push payload not JSON, using as text');
+      data = { body: event.data.text() };
+    }
   }
+
+  const options = {
+    body: data.body || 'New message from Olivia',
+    icon: '/olivia.png',
+    badge: '/olivia.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/assistant.html'
+    },
+    actions: [
+      { action: 'open', title: 'Open App', icon: '/olivia.png' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Olivia AI', options)
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

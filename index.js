@@ -230,8 +230,11 @@ async function sendPushToAll(title, body) {
                     body: JSON.stringify({
                         message: {
                             token: token,
-                            // Use 'data' instead of 'notification' so sw.js push listener can parse it
-                            data: { title, body }
+                            // Use BOTH notification (for OS) and data (for sw.js)
+                            notification: { title, body },
+                            data: { title, body },
+                            android: { priority: "high" },
+                            apns: { payload: { aps: { sound: "default" } } }
                         }
                     })
                 });
