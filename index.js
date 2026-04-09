@@ -850,30 +850,30 @@ async function startBot() {
             } catch (e) { console.error('Voice Error:', e); }
         }
 
-        // --- IMAGE ANALYSIS ---
+        // --- IMAGE ANALYSIS (Smart Fallback) ---
         const imageMsg = msg.message.imageMessage;
         if (imageMsg) {
             try {
                 const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
                 if (imageBuffer) {
-                    const response = await openai.chat.completions.create({
-                        model: "gpt-4o-mini",
-                        messages: [
-                            {
-                                role: "user",
-                                content: [
-                                    { type: "text", text: "Describe what you see in this image sent by a WhatsApp user. Be concise and respond as Olivia." },
-                                    {
-                                        type: "image_url",
-                                        image_url: {
-                                            url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`,
-                                        },
-                                    },
-                                ],
-                            },
-                        ],
-                    });
-                    contextInfo += ` [IMAGE_ANALYSIS: ${response.choices[0].message.content}]`;
+                    let visionSuccess = false;
+                    const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash"];
+                    
+                    for (const modelName of modelsToTry) {
+                        try {
+                            const model = genAI.getGenerativeModel({ model: modelName });
+                            const result = await model.generateContent([
+                                "Describe this image concisely as Olivia, Subhash's assistant.",
+                                { inlineData: { data: imageBuffer.toString('base64'), mimeType: "image/jpeg" } }
+                            ]);
+                            contextInfo += ` [IMAGE_ANALYSIS: ${result.response.text()}]`;
+                            visionSuccess = true;
+                            break; // Success!
+                        } catch (modelErr) {
+                            console.error(`Vision Fallback (${modelName}):`, modelErr.message);
+                        }
+                    }
+                    if (!visionSuccess) contextInfo += " [IMAGE_ANALYSIS: Photo received but AI Vision is temporarily busy/unavailable]";
                 }
             } catch (e) { console.error('Vision Error:', e.message); }
         }
