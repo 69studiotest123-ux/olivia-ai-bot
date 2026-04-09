@@ -859,6 +859,14 @@ async function startBot() {
                     }
                     const history = chatHistory.get(from);
 
+                    // --- IMMEDIATE PUSH ALERT ---
+                    const pushTitle = `WhatsApp: ${from.split('@')[0]} 💬`;
+                    const pushBody = body.length > 100 ? body.substring(0, 100) + '...' : body;
+                    console.log(`📡 Triggering Push Alert for ${from.split('@')[0]}...`);
+                    sendPushToAll(pushTitle, pushBody).catch(e => {
+                        console.error('❌ Push Alert Failed for WhatsApp message:', e.message);
+                    });
+
                     // Get AI Response using Groq
                     let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
@@ -869,10 +877,9 @@ async function startBot() {
                         parts: [{ text: body }],
                         time: new Date().toISOString()
                     });
-                    console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
-                    
-                    // Send Push Alert for new lead notification
-                    sendPushToAll(`New Chat from ${from.split('@')[0]} 💬`, body).catch(e => {});
+                    aiResponse = processAiResponseForTodos(aiResponse);
+
+                    // Save to history format
 
                     await sock.sendMessage(from, { text: aiResponse });
                 }
