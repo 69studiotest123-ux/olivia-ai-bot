@@ -856,14 +856,26 @@ async function startBot() {
             try {
                 const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
                 if (imageBuffer) {
-                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                    const result = await model.generateContent([
-                        "Look at this image sent by a WhatsApp user. Describe what you see concisely and respond as Olivia.",
-                        { inlineData: { data: imageBuffer.toString('base64'), mimeType: "image/jpeg" } }
-                    ]);
-                    contextInfo += ` [IMAGE_ANALYSIS: ${result.response.text()}]`;
+                    const response = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: "Describe what you see in this image sent by a WhatsApp user. Be concise and respond as Olivia." },
+                                    {
+                                        type: "image_url",
+                                        image_url: {
+                                            url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    });
+                    contextInfo += ` [IMAGE_ANALYSIS: ${response.choices[0].message.content}]`;
                 }
-            } catch (e) { console.error('Vision Error:', e); }
+            } catch (e) { console.error('Vision Error:', e.message); }
         }
 
         // --- DOCUMENT/PDF HANDLING ---
