@@ -302,11 +302,21 @@
                     </div>
                     <div class="settings-item">
                         <div class="settings-info">
-                            <h4>VOCAL SYNTHESIS</h4>
-                            <p>AI audio projection through local hardware</p>
+                            <h4>VOICE QUALITY</h4>
+                            <p>Toggle between Standard and Premium ElevenLabs synthesis</p>
                         </div>
                         <label class="switch">
-                            <input type="checkbox" id="voiceToggle" onchange="toggleVoice()">
+                            <input type="checkbox" id="voiceModeToggle" onchange="toggleVoiceMode()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-item">
+                        <div class="settings-info">
+                            <h4>BEHAVIORAL TONE</h4>
+                            <p>Toggle between Professional and Friendly personality</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="personalityToggle" onchange="togglePersonality()">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -352,6 +362,8 @@
                     
                     document.getElementById('autoReplyToggle').checked = settings.autoReply;
                     document.getElementById('autoConfirmToggle').checked = settings.autoConfirmBookings || false;
+                    document.getElementById('voiceModeToggle').checked = settings.voiceMode === 'elevenlabs';
+                    document.getElementById('personalityToggle').checked = settings.personality === 'friendly';
                     document.getElementById('voiceToggle').checked = voiceEnabled;
                     
                     document.getElementById('loginScreen').style.opacity = '0';
@@ -397,8 +409,53 @@
             localStorage.setItem('olivia_voice', voiceEnabled);
         }
 
-        function speakText(text) {
+        async function toggleVoiceMode() {
+            const isPremium = document.getElementById('voiceModeToggle').checked;
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, settings: { voiceMode: isPremium ? 'elevenlabs' : 'browser' } })
+                });
+            } catch(e) {}
+        }
+
+        async function togglePersonality() {
+            const isFriendly = document.getElementById('personalityToggle').checked;
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, settings: { personality: isFriendly ? 'friendly' : 'sophisticated' } })
+                });
+            } catch(e) {}
+        }
+
+        async function speakText(text) {
             if(!voiceEnabled) return;
+
+            // Check if ElevenLabs is enabled in settings
+            const settingsRes = await fetch(`/api/settings?pass=${password}`);
+            const settings = await settingsRes.json();
+
+            if (settings.voiceMode === 'elevenlabs') {
+                try {
+                    const res = await fetch('/api/assistant/speak', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pass: password, text: text })
+                    });
+                    if (res.status === 200) {
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const audio = new Audio(url);
+                        audio.play();
+                        return;
+                    }
+                } catch (e) { console.error('Premium Voice Error:', e); }
+            }
+
+            // Fallback to Browser TTS
             const synth = window.speechSynthesis;
             const msg = new SpeechSynthesisUtterance(text);
             msg.rate = 1.0;

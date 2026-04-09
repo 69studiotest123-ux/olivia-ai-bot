@@ -12,6 +12,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
+import { ElevenLabsClient } from "elevenlabs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,11 +24,17 @@ const pwaHistoryFile = 'pwa_history.json';
 const memoryFile = 'memories.json';
 const tokensFile = path.join(__dirname, 'push-tokens.json');
 const settingsFile = path.join(__dirname, 'settings.json');
+const prefsFile = 'preferences.json';
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
 let pushTokens = [];
-let globalSettings = { autoReply: true };
+let preferences = {};
+let globalSettings = { 
+    autoReply: true, 
+    voiceMode: 'browser', // 'browser' or 'elevenlabs'
+    personality: 'sophisticated' // 'sophisticated' or 'friendly'
+};
 const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
 // Load Settings
@@ -92,6 +99,28 @@ function saveTodos() {
         notifyClients();
     } catch (e) { console.error('Todos save error:', e); }
 }
+
+// --- PREFERENCE VAULT ---
+if (fs.existsSync(prefsFile)) {
+    try { preferences = JSON.parse(fs.readFileSync(prefsFile)); } catch (e) {}
+}
+
+const trendsFile = 'trends.json';
+let trendsData = { cars: [], design: [], lastUpdate: null };
+if (fs.existsSync(trendsFile)) {
+    try { trendsData = JSON.parse(fs.readFileSync(trendsFile)); } catch (e) {}
+}
+
+function saveTrends() {
+    try { fs.writeFileSync(trendsFile, JSON.stringify(trendsData, null, 2)); } catch (e) {}
+}
+
+function savePrefs() {
+    try { fs.writeFileSync(prefsFile, JSON.stringify(preferences, null, 2)); } catch (e) {}
+}
+
+// --- ELEVENLABS CLIENT ---
+const xiClient = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -401,6 +430,54 @@ app.get('/assistant', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/assistant.html'));
 });
 
+/**
+ * GOOGLE CALENDAR HELPER
+ */
+async function getTodayEvents() {
+    try {
+        const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+        const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        const calendarId = process.env.GOOGLE_CALENDAR_ID;
+
+        if (!clientEmail || !privateKey || !calendarId) return [];
+
+        const auth = new google.auth.JWT(clientEmail, null, privateKey, ['https://www.googleapis.com/auth/calendar.readonly']);
+        const calendar = google.calendar({ version: 'v3', auth });
+        
+        const start = new Date();
+        start.setHours(0,0,0,0);
+        const end = new Date();
+        end.setHours(23,59,59,999);
+
+        const res = await calendar.events.list({
+            calendarId: calendarId,
+            timeMin: start.toISOString(),
+            timeMax: end.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+
+        return res.data.items.map(e => `${e.summary} (${new Date(e.start.dateTime || e.start.date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})`);
+    } catch (e) {
+        console.error('Calendar Fetch Error:', e.message);
+        return [];
+    }
+}
+
+/**
+ * BUSY MODE DETECTION
+ */
+async function isSystemBusy() {
+    const events = await getTodayEvents();
+    const now = new Date();
+    return events.some(e => {
+        const timeStr = e.match(/\((.+?)\)/)?.[1];
+        if (!timeStr) return false;
+        // Simple logic: if an event started in the last 30 mins or starts in the next 30 mins, we are "busy"
+        return false; // Stub: Real parsing would require more logic
+    });
+}
+
 // --- GOOGLE CALENDAR LOGIC ---
 async function addToGoogleCalendar(appt) {
     if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
@@ -574,12 +651,34 @@ async function triggerIFTTT(event, value) {
     } catch (e) { return "IFTTT uplink error, Sir."; }
 }
 
+async function executeDesktopCmd(app) {
+    // SECURITY WARNING: This ONLY works if Olivia is running on your local machine.
+    // It will not work on Render.com.
+    const { exec } = await import('child_process');
+    return new Promise((resolve) => {
+        exec(`start ${app}`, (error) => {
+            if (error) resolve(`Failed to execute protocol for ${app}, Sir. Check local environment.`);
+            else resolve(`Protocol ${app} executed successfully on the host machine, Sir.`);
+        });
+    });
+}
+
 /**
  * MASTER TOOL PARSER
  */
 async function processAiTools(aiText, jid) {
     if (!aiText) return aiText;
     let finalOutput = aiText;
+
+    // 0. Preferences
+    const prefRegex = /\[SAVE_PREF:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let pMatch;
+    while ((pMatch = prefRegex.exec(aiText)) !== null) {
+        preferences[pMatch[1].trim().toLowerCase()] = pMatch[2].trim();
+        savePrefs();
+        finalOutput += `\n\n[VAULT UPDATED: ${pMatch[1]} learned, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(prefRegex, '');
 
     // 1. Weather
     const weatherRegex = /\[GET_WEATHER:\s*(.+?)\]/gi;
@@ -608,50 +707,78 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(homeRegex, '');
 
-    // 4. IFTTT
-    const iftttRegex = /\[IFTTT_TRIGGER:\s*(.+?)\s*\|\s*(.+?)\]/gi;
-    let iMatch;
-    while ((iMatch = iftttRegex.exec(aiText)) !== null) {
-        const res = await triggerIFTTT(iMatch[1], iMatch[2]);
-        finalOutput += `\n\n[PROTOCOL ACTIVATED: ${res}]`;
-    }
     finalOutput = finalOutput.replace(iftttRegex, '');
+
+    // 5. Google Calendar Briefing
+    const gCalRegex = /\[GET_CALENDAR\]/gi;
+    if (gCalRegex.test(aiText)) {
+        try {
+            if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+                const events = await getTodayEvents(); 
+                finalOutput += `\n\n[CALENDAR BRIEFING: ${events.length > 0 ? events.join(', ') : 'No events today, Sir.'}]`;
+            } else {
+                finalOutput += `\n\n[CALENDAR: Connection pending. Sir, please authorize Google Sync.]`;
+            }
+        } catch (e) { finalOutput += `\n\n[CALENDAR: Downlink error.]`; }
+    }
+    finalOutput = finalOutput.replace(gCalRegex, '');
+
+    // 6. Gmail Briefing
+    const gMailRegex = /\[GET_EMAILS\]/gi;
+    if (gMailRegex.test(aiText)) {
+        finalOutput += `\n\n[MAIL INTEL: Syncing with Gmail core... Feature currently in sandbox mode, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(gMailRegex, '');
+
+    // 7. Trends Intel
+    const trendsRegex = /\[GET_TRENDS\]/gi;
+    if (trendsRegex.test(aiText)) {
+        const last = trendsData.lastUpdate ? new Date(trendsData.lastUpdate).toLocaleTimeString() : 'Never';
+        finalOutput += `\n\n[TRENDS INTEL: Last updated at ${last}. Cars: ${trendsData.cars.length} updates. Design: ${trendsData.design.length} updates.]`;
+    }
+    // 8. Desktop Control
+    const deskRegex = /\[OPEN_APP:\s*(.+?)\]/gi;
+    let dMatch;
+    while ((dMatch = deskRegex.exec(aiText)) !== null) {
+        const res = await executeDesktopCmd(dMatch[1]);
+        finalOutput += `\n\n[HOST COMMAND: ${res}]`;
+    }
+    finalOutput = finalOutput.replace(deskRegex, '');
 
     return finalOutput.trim();
 }
 
 async function getGroqResponse(message, history = []) {
     try {
+        const tone = globalSettings.personality === 'friendly' 
+            ? "Warm, helpful, and friendly. Use a casual but respectful tone." 
+            : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
+
         const messages = [
             {
                 role: "system",
                 content: `Role: You are Olivia, Subhash's highly sophisticated personal AI assistant. 
-                Tone: Professional, witty, and exceptionally intelligent. You act as a digital butler.
-                Addressing: Always address Subhash as "Sir" or "Sir Subhash". Be respectful but confident.
+                Tone: ${tone}
+                Addressing: Always address Subhash as "Sir" or "Sir Subhash".
                 
-                Language Isolation Rules (STRICT):
-                - Detect the language of the user's message.
-                - Use English for English queries, and Singlish for Sinhala/Singlish queries.
-                - NEVER MIX English and Singlish in the same message.
+                Preference Vault:
+                - You MUST remember Subhash's favorites (colors, food, hobbies).
+                - Use [SAVE_PREF: category | value] to store a preference.
+                - Current Preferences: ${JSON.stringify(preferences)}
 
-                Conversation Flow (CRITICAL):
-                - FIRST REPLY: Greet the user with sophistication, introduce yourself as Subhash's personal system, ask for their name and purpose, and provide the link for formal scheduling: https://69studiobysubash.online/appointments.html
-                - SUBSEQUENT REPLIES: Focus exclusively on the briefing or conversation. Be extremely concise (Max 2 sentences).
-                
-                Guidelines:
-                - Never use Sinhala script.
-                - Never mention "69 Studio".
-                - Maintain a futuristic, helpful demeanor.
+                Health & Habits Tracking:
+                - Remind Subhash to drink water or take breaks if the conversation is long or late.
+                - Use [REMIND_HEALTH: msg] for health nudges.
+
+                Language Isolation Rules (STRICT):
+                - Use English for English, Singlish for Singlish. Never mix.
                 
                 Tool Integration:
-                - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
                 - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
-                - [GET_WEATHER: City] - Get real-time weather.
-                - [GET_NEWS: Topic] - Fetch latest international briefings.
-                - [HOME_ACTION: entity_id | command] - Control smart devices (e.g., light.living_room | turn_on).
-                - [IFTTT_TRIGGER: EventName | Data] - Trigger webhooks.
-                - [BOOK_APPT: Name | Date | Time | Service] - Formalize a booking request.
-                - [CALC: expression], [WEB_SEARCH: query]
+                - [SAVE_PREF: category | value], [GET_CALENDAR], [GET_EMAILS], [GET_TRENDS]
+                - [GET_WEATHER: City], [GET_NEWS: Topic], [OPEN_APP: Name]
+                - [HOME_ACTION: entity | command], [IFTTT_TRIGGER: event | data]
+                - [BOOK_APPT: Name | Date | Time | Service]
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -954,6 +1081,44 @@ app.get('/api/assistant/ask', async (req, res) => {
         res.status(500).json({ error: 'AI Error: ' + error.message });
     }
 });
+
+app.post('/api/assistant/speak', async (req, res) => {
+    const { text, pass: password } = req.body;
+    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!text) return res.status(400).json({ error: 'Text is required' });
+
+    try {
+        if (globalSettings.voiceMode === 'elevenlabs' && process.env.ELEVENLABS_API_KEY) {
+            const audio = await xiClient.generate({
+                voice: process.env.ELEVENLABS_VOICE_ID || "nPczCjzI2devNBz1zWPC",
+                text: text,
+                model_id: "eleven_multilingual_v2",
+            });
+            res.setHeader('Content-Type', 'audio/mpeg');
+            audio.pipe(res);
+        } else {
+            res.status(204).send(); // Fallback to browser TTS
+        }
+    } catch (e) {
+        console.error('ElevenLabs Error:', e.message);
+        res.status(500).json({ error: 'Voice synthesis failed' });
+    }
+});
+
+// --- TREND MONITORING BACKGROUND JOB ---
+async function monitorTrends() {
+    console.log('📡 JARVIS: Updating Global Trend Intel...');
+    const carNews = await getNews('Luxury Cars 2026');
+    const designNews = await getNews('Graphic Design Trends');
+    
+    trendsData.cars = carNews.split('\n').filter(l => l.startsWith('- '));
+    trendsData.design = designNews.split('\n').filter(l => l.startsWith('- '));
+    trendsData.lastUpdate = new Date().toISOString();
+    saveTrends();
+}
+
+// Update trends ogni 6 ore
+setInterval(monitorTrends, 6 * 60 * 60 * 1000);
 
 async function startBot() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
