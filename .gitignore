@@ -1,0 +1,9 @@
+node_modules/
+.env
+.firebase/
+.puppeteer-cache/
+auth_info_baileys/
+.wwebjs_auth/
+dist/
+build/
+*.log
