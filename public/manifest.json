@@ -2,7 +2,7 @@
   "name": "Olivia AI Assistant",
   "short_name": "Olivia",
   "description": "Smart AI Personal Assistant for Subhash",
-  "start_url": "/assistant",
+  "start_url": "/assistant.html",
   "display": "standalone",
   "background_color": "#0a0a0c",
   "theme_color": "#0a0a0c",
