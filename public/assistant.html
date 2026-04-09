@@ -12,6 +12,9 @@
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="manifest" href="manifest.json">
 
+    <!-- Push Notifications Script (Critical Fix) -->
+    <script src="push-notifications.js" defer></script>
+
     <style>
         :root {
             --primary: #ff4d4d;
@@ -78,13 +81,17 @@
         .nav-item { color: var(--text-dim); text-align: center; cursor: pointer; background: none; border: none; }
         .nav-item.active { color: var(--primary); }
         .nav-item i { font-size: 1.2rem; display: block; }
-        .nav-item span { font-size: 0.6rem; text-transform: uppercase; }
+        .nav-item span { font-size: 0.65rem; text-transform: uppercase; }
+
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .sync-btn { background: rgba(255,255,255,0.05); color: var(--primary); border: 1px solid var(--border); padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .sync-btn:active { transform: scale(0.95); }
 
         /* Leads Styling */
         .lead-card { background: var(--card); border-radius: 20px; border: 1px solid var(--border); margin-bottom: 15px; padding: 15px; }
         .lead-info { display: flex; align-items: center; gap: 12px; }
         .lead-avatar { width: 40px; height: 40px; background: #1e1e22; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-        .lead-preview { font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; }
+        .lead-preview { font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .model-select { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.7rem; }
     </style>
@@ -95,8 +102,8 @@
             <h1>Olivia <span>AI</span></h1>
             <p style="margin-bottom: 20px; color: var(--text-dim);">Enter Access Key</p>
             <input type="password" id="pwInput" class="pw-input" placeholder="Password...">
-            <button class="login-btn" onclick="doLogin()">Enter</button>
-            <p id="loginError" style="color: var(--primary); margin-top: 10px; text-align: center;"></p>
+            <button class="login-btn" onclick="doLogin()">Enter App</button>
+            <p id="loginError" style="color: var(--primary); margin-top: 10px; text-align: center; font-size: 0.8rem;"></p>
         </div>
     </div>
 
@@ -117,19 +124,24 @@
 
         <div class="container">
             <div id="tab-leads" class="tab-panel active">
-                <h2 style="margin-bottom: 15px;">Chat Leads</h2>
-                <div id="leadsList">Loading leads...</div>
+                <div class="section-header">
+                    <h2>Chat Leads</h2>
+                    <button class="sync-btn" onclick="syncLeads()"><i class="fas fa-sync-alt"></i> Sync</button>
+                </div>
+                <div id="leadsList">Loading conversations...</div>
             </div>
             <div id="tab-assistant" class="tab-panel">
-                <h2>Assistant</h2>
-                <div id="chatMessages" style="height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
+                <div class="section-header">
+                    <h2>Assistant</h2>
+                </div>
+                <div id="chatMessages" style="height: 400px; overflow-y: auto; margin-bottom: 20px; background: var(--card); border-radius: 15px; padding: 15px; border: 1px solid var(--border);"></div>
                 <input type="text" id="chatInput" style="width: 100%; padding: 15px; background: var(--card); border: 1px solid var(--border); border-radius: 15px; color: white;" placeholder="Ask Olivia..." onkeydown="if(event.key==='Enter') sendChat()">
             </div>
         </div>
 
         <nav class="bottom-nav">
-            <button class="nav-item active" onclick="switchTab('leads', this)"><i class="fas fa-users"></i><span>Leads</span></button>
-            <button class="nav-item" onclick="switchTab('assistant', this)"><i class="fas fa-robot"></i><span>Olivia</span></button>
+            <button class="nav-item active" id="nav-leads" onclick="switchTab('leads', this)"><i class="fas fa-users"></i><span>Leads</span></button>
+            <button class="nav-item" id="nav-assistant" onclick="switchTab('assistant', this)"><i class="fas fa-robot"></i><span>Olivia</span></button>
             <button class="nav-item"><i class="fas fa-calendar"></i><span>Events</span></button>
         </nav>
     </div>
@@ -141,10 +153,8 @@
         async function doLogin() {
             const inp = document.getElementById('pwInput');
             const pw = (inp && inp.value) ? inp.value.trim() : password;
-            
             if(!pw) return;
 
-            console.log('Attempting login...');
             try {
                 const res = await fetch(`/api/logs?pass=${pw}`);
                 if(res.ok) {
@@ -155,39 +165,49 @@
                     syncLeads();
                     initSSE();
                     updateStatusUI();
+                    // Polling Fallback (every 60s)
+                    setInterval(syncLeads, 60000);
                 } else {
-                    if(document.getElementById('loginError')) 
-                        document.getElementById('loginError').innerText = 'Invalid password';
+                    if(document.getElementById('loginError')) document.getElementById('loginError').innerText = 'Invalid access key';
                 }
-            } catch(e) {
-                console.error('Login error:', e);
-            }
+            } catch(e) { console.error('Login error:', e); }
         }
 
         async function syncLeads() {
-            const res = await fetch(`/api/logs?pass=${password}`);
-            const data = await res.json();
-            const list = document.getElementById('leadsList');
-            let html = '';
-            Object.keys(data).forEach(jid => {
-                const msgs = data[jid];
-                const last = msgs[msgs.length-1]?.parts?.[0]?.text || msgs[msgs.length-1]?.text || '';
-                html += `
-                    <div class="lead-card">
-                        <div class="lead-info">
-                            <div class="lead-avatar"><i class="fas fa-user"></i></div>
-                            <div><b>${jid.split('@')[0]}</b></div>
+            if(!password) return;
+            try {
+                const res = await fetch(`/api/logs?pass=${password}`);
+                if(!res.ok) return;
+                const data = await res.json();
+                const list = document.getElementById('leadsList');
+                let html = '';
+                Object.keys(data).sort((a,b)=>{
+                    const lastA = data[a][data[a].length-1]?.time || 0;
+                    const lastB = data[b][data[b].length-1]?.time || 0;
+                    return new Date(lastB) - new Date(lastA);
+                }).forEach(jid => {
+                    const msgs = data[jid];
+                    const lastMsg = msgs[msgs.length-1];
+                    const text = lastMsg?.parts?.[0]?.text || lastMsg?.text || 'No text';
+                    html += `
+                        <div class="lead-card">
+                            <div class="lead-info">
+                                <div class="lead-avatar"><i class="fas fa-user"></i></div>
+                                <div><b>${jid.split('@')[0]}</b><br><small style="color:var(--text-dim)">${msgs.length} messages</small></div>
+                            </div>
+                            <div class="lead-preview">${text}</div>
                         </div>
-                        <div class="lead-preview">${last}</div>
-                    </div>
-                `;
-            });
-            list.innerHTML = html || 'No chats yet.';
+                    `;
+                });
+                list.innerHTML = html || 'No active chats found.';
+            } catch(e) { console.error('Sync error:', e); }
         }
 
         async function updateStatusUI() {
+            if(!password) return;
             try {
                 const res = await fetch(`/api/status?pass=${password}`);
+                if(!res.ok) return;
                 const data = await res.json();
                 const el = document.getElementById('waStatus');
                 const txt = document.getElementById('waStatusText');
@@ -198,16 +218,15 @@
 
         function initSSE() {
             if(!password) return;
-            console.log('Initializing SSE...');
+            console.log('Connecting to SSE stream...');
             const source = new EventSource(`/api/stream?pass=${password}`);
-            source.onopen = () => console.log('✅ SSE Connected');
             source.onmessage = (e) => {
-                console.log('📩 SSE Received:', e.data);
-                if(e.data.includes('update')) syncLeads();
-                if(e.data.includes('status')) updateStatusUI();
+                const data = e.data;
+                if(data.includes('update')) syncLeads();
+                if(data.includes('status')) updateStatusUI();
             };
             source.onerror = (e) => {
-                console.error('❌ SSE Error:', e);
+                console.error('SSE connection lost. Reconnecting...');
             };
         }
 
@@ -216,6 +235,25 @@
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             btn.classList.add('active');
+            if(tab === 'leads') syncLeads();
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const q = input.value.trim();
+            if(!q) return;
+            input.value = '';
+
+            const msgContainer = document.getElementById('chatMessages');
+            msgContainer.innerHTML += `<div style="text-align:right; margin-bottom:10px;"><span style="background:var(--primary); padding:8px 12px; border-radius:12px; color:white; display:inline-block;">${q}</span></div>`;
+            
+            try {
+                const model = document.getElementById('modelSelector').value;
+                const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(q)}&model=${model}`);
+                const data = await res.json();
+                msgContainer.innerHTML += `<div style="text-align:left; margin-bottom:10px;"><span style="background:var(--card); border:1px solid var(--border); padding:8px 12px; border-radius:12px; display:inline-block;">${data.answer}</span></div>`;
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            } catch(e) { console.error('Chat error:', e); }
         }
 
         if(password) doLogin();
