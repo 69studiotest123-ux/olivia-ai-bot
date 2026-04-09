@@ -1,100 +1,42 @@
-const CACHE_NAME = 'olivia-pwa-cache-v1';
-const ASSETS_TO_CACHE = [
+importScripts('/firebase-messaging-sw.js');
+
+const CACHE_NAME = 'olivia-cache-v6';
+const ASSETS = [
   '/',
-  '/assistant.html',
-  '/manifest.json',
+  '/index.html',
   '/olivia.png',
   '/apple-touch-icon.png',
-  'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+  '/manifest.json',
+  '/push-notifications.js'
 ];
 
-// Install Event - Caching basic assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate Event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch Event - Serve from cache if available
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
-});
-
-// ===== PUSH NOTIFICATIONS HANDLING =====
-
-self.addEventListener('push', (event) => {
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-      // If FCM sends a standard notification block, it might be nested
-      if (data.notification) {
-        data.title = data.notification.title;
-        data.body = data.notification.body;
-      }
-    } catch (e) {
-      console.warn('Push payload not JSON, using as text');
-      data = { body: event.data.text() };
-    }
-  }
-
-  const options = {
-    body: data.body || 'New message from Olivia',
-    icon: '/olivia.png',
-    badge: '/olivia.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: data.url || '/assistant.html'
-    },
-    actions: [
-      { action: 'open', title: 'Open App', icon: '/olivia.png' }
-    ]
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Olivia AI', options)
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const urlToOpen = event.notification.data.url;
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
+    caches.match(event.request)
+      .then((response) => {
+        return response || fetch(event.request);
+      })
   );
 });

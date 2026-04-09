@@ -11,7 +11,7 @@ const firebaseConfig = {
 };
 
 // VAPID Key from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-const VAPID_KEY = "dieU6nz0KO5p_UMJ9PC9AQZvHfCsg5mrW-ESBsrIRJY"; 
+const VAPID_KEY = "BIzXkE3Ej2WX86ttki_rpNvQwCyk7cKsw0fvoIxL7NzU2P_RGaLZFkLhfX2AZ8CPgG8zsrXooH-RjI_Czp7TbjY";
 
 // Initialize Service Worker
 if ('serviceWorker' in navigator) {
@@ -105,10 +105,21 @@ async function setupFCM() {
     const messaging = firebase.messaging();
 
     // Get Token
+    const registration = await navigator.serviceWorker.ready;
+    let currentToken;
+    try {
+      currentToken = await messaging.getToken({ 
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration 
+      });
+    } catch (tokenError) {
+      console.error('Failed to get FCM token. Please ensure VAPID_KEY is correctly set.', tokenError);
+      return;
+    }
 
-    const currentToken = await messaging.getToken({ vapidKey: VAPID_KEY });
     if (currentToken) {
-      console.log('✅ FCM Token Registered:', currentToken);
+      console.log('FCM Token:', currentToken);
+      // TODO: Send this token to your server to save it for the user
       saveTokenToServer(currentToken);
     } else {
       console.warn('No registration token available. Request permission to generate one.');
@@ -140,23 +151,24 @@ function loadScript(src) {
   });
 }
 
+const PUSH_API_BASE = 'https://whatsapp-ai-bot-3-gin3.onrender.com';
+
 function saveTokenToServer(token) {
-  // Replace with your API call
-  fetch('/api/save-token', {
+  fetch(`${PUSH_API_BASE}/api/save-token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: token })
-  }).then(res => console.log('Token saved to server'))
-    .catch(err => console.error('Failed to save token:', err));
+  }).then(res => console.log('Token saved to Render backend'))
+    .catch(err => console.error('Failed to save token to Render:', err));
 }
 
 // Trigger prompt after login or after a short delay
 window.addEventListener('load', () => {
-  // If permission already granted, auto-re-register token with server (critical for server restarts)
   if (Notification.permission === 'granted') {
+    // Already granted, initialize FCM immediately
     setupFCM();
   } else {
-    // Check if we should show prompt (e.g., after 5 seconds)
-    setTimeout(showNotificationPrompt, 5000);
+    // Show prompt almost immediately
+    setTimeout(showNotificationPrompt, 1000);
   }
 });
