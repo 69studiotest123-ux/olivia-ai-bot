@@ -28,6 +28,7 @@ let appointments = [];
 let todos = [];
 let pushTokens = [];
 let globalSettings = { autoReply: true };
+const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
 // Load Settings
 if (fs.existsSync(settingsFile)) {
@@ -916,9 +917,25 @@ async function startBot() {
             const from = msg.key.remoteJid;
             const isMe = msg.key.fromMe;
             console.log(`🔔 Raw Message from ${from} (fromMe: ${isMe})`);
+            
+            // --- DETECT MANUAL INTERVENTION ---
+            if (isMe) {
+                adminMuteMap.set(from, Date.now());
+                console.log(`🔇 Manual reply detected by Admin. Olivia is now MUTED for ${from} for 30 minutes.`);
+            }
         }
 
         if (!msg || !msg.message || msg.key.fromMe) return;
+
+        const from = msg.key.remoteJid;
+        
+        // --- CHECK MUTE STATUS ---
+        const lastManual = adminMuteMap.get(from);
+        if (lastManual && (Date.now() - lastManual) < 30 * 60 * 1000) {
+            const remaining = Math.round((30 * 60 * 1000 - (Date.now() - lastManual)) / 60000);
+            console.log(`⏳ Skip auto-reply for ${from}. Manual override active for ${remaining} more mins.`);
+            return;
+        }
 
         // --- IMPROVED MESSAGE UNWRAPPING ---
         // Handle viewOnce, ephemeral, etc.
