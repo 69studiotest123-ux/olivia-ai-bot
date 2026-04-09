@@ -190,8 +190,11 @@ const checkAuth = (pass) => {
 };
 
 async function sendPushToAll(title, body) {
-    if (pushTokens.length === 0) return;
-    console.log(`📡 Sending Push Notif to ${pushTokens.length} devices...`);
+    if (pushTokens.length === 0) {
+        console.log('📡 No push tokens found. User needs to refresh the PWA to register.');
+        return;
+    }
+    console.log(`📡 Attempting to send Push Notif to ${pushTokens.length} devices...`);
 
     if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
         console.warn('⚠️ Google credentials missing for Push Notif. Add them to .env.');
@@ -227,7 +230,8 @@ async function sendPushToAll(title, body) {
                     body: JSON.stringify({
                         message: {
                             token: token,
-                            notification: { title, body }
+                            // Use 'data' instead of 'notification' so sw.js push listener can parse it
+                            data: { title, body }
                         }
                     })
                 });
