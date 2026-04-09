@@ -11,8 +11,7 @@ const firebaseConfig = {
 };
 
 // VAPID Key from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-// IMPORTANT: You MUST replace this with your actual VAPID public key for notifications to work!
-const VAPID_KEY = "YOUR_VAPID_PUBLIC_KEY"; 
+const VAPID_KEY = "dieU6nz0KO5p_UMJ9PC9AQZvHfCsg5mrW-ESBsrIRJY"; 
 
 // Initialize Service Worker
 if ('serviceWorker' in navigator) {
@@ -106,10 +105,10 @@ async function setupFCM() {
     const messaging = firebase.messaging();
 
     // Get Token
+
     const currentToken = await messaging.getToken({ vapidKey: VAPID_KEY });
     if (currentToken) {
-      console.log('FCM Token:', currentToken);
-      // TODO: Send this token to your server to save it for the user
+      console.log('✅ FCM Token Registered:', currentToken);
       saveTokenToServer(currentToken);
     } else {
       console.warn('No registration token available. Request permission to generate one.');
