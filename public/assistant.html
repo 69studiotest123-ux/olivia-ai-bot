@@ -139,18 +139,28 @@
         if(!password) password = localStorage.getItem('olivia_pass');
 
         async function doLogin() {
-            const pw = document.getElementById('pwInput').value;
-            const res = await fetch(`/api/logs?pass=${pw}`);
-            if(res.ok) {
-                password = pw;
-                localStorage.setItem('olivia_pass', pw);
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('mainApp').classList.add('visible');
-                syncLeads();
-                initSSE();
-                updateStatusUI();
-            } else {
-                document.getElementById('loginError').innerText = 'Wrong password';
+            const inp = document.getElementById('pwInput');
+            const pw = (inp && inp.value) ? inp.value.trim() : password;
+            
+            if(!pw) return;
+
+            console.log('Attempting login...');
+            try {
+                const res = await fetch(`/api/logs?pass=${pw}`);
+                if(res.ok) {
+                    password = pw;
+                    localStorage.setItem('olivia_pass', pw);
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('mainApp').classList.add('visible');
+                    syncLeads();
+                    initSSE();
+                    updateStatusUI();
+                } else {
+                    if(document.getElementById('loginError')) 
+                        document.getElementById('loginError').innerText = 'Invalid password';
+                }
+            } catch(e) {
+                console.error('Login error:', e);
             }
         }
 
@@ -187,10 +197,17 @@
         }
 
         function initSSE() {
+            if(!password) return;
+            console.log('Initializing SSE...');
             const source = new EventSource(`/api/stream?pass=${password}`);
+            source.onopen = () => console.log('✅ SSE Connected');
             source.onmessage = (e) => {
-                if(e.data === 'update') syncLeads();
-                if(e.data === 'status') updateStatusUI();
+                console.log('📩 SSE Received:', e.data);
+                if(e.data.includes('update')) syncLeads();
+                if(e.data.includes('status')) updateStatusUI();
+            };
+            source.onerror = (e) => {
+                console.error('❌ SSE Error:', e);
             };
         }
 
