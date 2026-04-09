@@ -12,7 +12,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import pdf from 'pdf-parse';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import * as googleTTS from 'google-tts-api';
