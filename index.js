@@ -857,7 +857,7 @@ async function startBot() {
                 const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
                 if (imageBuffer) {
                     let visionSuccess = false;
-                    const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash"];
+                    const modelsToTry = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-2.0-flash"];
                     
                     for (const modelName of modelsToTry) {
                         try {
