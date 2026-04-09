@@ -12,6 +12,11 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import * as googleTTS from 'google-tts-api';
+import cron from 'node-cron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -403,6 +408,34 @@ async function transcribeAudio(audioBuffer) {
     } finally {
         // Cleanup temp file
         try { fs.unlinkSync(tempPath); } catch (e) {}
+    }
+}
+
+// --- VOICE REPLY (Text-to-Speech) ---
+async function generateVoiceReply(text) {
+    try {
+        const url = googleTTS.getAudioUrl(text, {
+            lang: 'en-US',
+            slow: false,
+            host: 'https://translate.google.com',
+        });
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        return Buffer.from(response.data);
+    } catch (e) {
+        console.error('TTS Error:', e.message);
+        return null;
+    }
+}
+
+// --- LINK SUMMARIZER ---
+async function summarizeUrl(url) {
+    try {
+        const response = await axios.get(url, { timeout: 5000 });
+        const $ = cheerio.load(response.data);
+        const text = $('body').text().replace(/\s+/g, ' ').substring(0, 2000);
+        return text;
+    } catch (e) {
+        return null;
     }
 }
 
@@ -798,82 +831,121 @@ async function startBot() {
         const from = msg.key.remoteJid;
         let body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
         let isVoiceMessage = false;
+        let contextInfo = "";
 
         // --- VOICE MESSAGE HANDLING ---
         const audioMsg = msg.message.audioMessage;
         if (!body && audioMsg) {
             try {
-                console.log(`🎤 Voice message received from ${from} (${audioMsg.seconds}s, ptt: ${audioMsg.ptt})`);
-                
-                // Download the voice note audio
                 const audioBuffer = await downloadMediaMessage(msg, 'buffer', {});
-                
-                if (audioBuffer && audioBuffer.length > 0) {
-                    console.log(`📥 Audio downloaded: ${audioBuffer.length} bytes. Transcribing...`);
+                if (audioBuffer) {
                     const transcribedText = await transcribeAudio(audioBuffer);
-                    
-                    if (transcribedText && transcribedText.trim().length > 0) {
-                        body = transcribedText.trim();
+                    if (transcribedText) {
+                        body = transcribedText;
                         isVoiceMessage = true;
-                        console.log(`✅ Voice transcribed: "${body}"`);
-                    } else {
-                        console.log('⚠️ Voice transcription returned empty text.');
-                        // Still reply to let user know
-                        if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
-                            await sock.sendMessage(from, { text: "Sorry, I couldn't understand that voice message. Could you type it out or try again? 🎤" });
-                        }
-                        return;
                     }
-                } else {
-                    console.error('❌ Failed to download voice audio - empty buffer');
-                    return;
                 }
-            } catch (voiceError) {
-                console.error('❌ Voice message processing error:', voiceError.message);
-                if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
-                    await sock.sendMessage(from, { text: "Sorry, I had trouble processing your voice message. Could you try again or type it out? 😊" });
+            } catch (e) { console.error('Voice Error:', e); }
+        }
+
+        // --- IMAGE ANALYSIS ---
+        const imageMsg = msg.message.imageMessage;
+        if (imageMsg) {
+            try {
+                const imageBuffer = await downloadMediaMessage(msg, 'buffer', {});
+                if (imageBuffer) {
+                    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                    const result = await model.generateContent([
+                        "Look at this image sent by a WhatsApp user. Describe what you see concisely and respond as Olivia.",
+                        { inlineData: { data: imageBuffer.toString('base64'), mimeType: "image/jpeg" } }
+                    ]);
+                    contextInfo += ` [IMAGE_ANALYSIS: ${result.response.text()}]`;
                 }
-                return;
-            }
+            } catch (e) { console.error('Vision Error:', e); }
+        }
+
+        // --- DOCUMENT/PDF HANDLING ---
+        const docMsg = msg.message.documentMessage;
+        if (docMsg && docMsg.mimetype === 'application/pdf') {
+            try {
+                const docBuffer = await downloadMediaMessage(msg, 'buffer', {});
+                const data = await pdf(docBuffer);
+                contextInfo += ` [PDF_CONTENT: ${data.text.substring(0, 1000)}]`;
+                if (!body) body = "I sent you a PDF document. Please read it.";
+            } catch (e) { console.error('PDF Error:', e); }
+        }
+
+        // --- LOCATION HANDLING ---
+        const locMsg = msg.message.locationMessage || msg.message.liveLocationMessage;
+        if (locMsg) {
+            contextInfo += ` [LOCATION: Latitude ${locMsg.degreesLatitude}, Longitude ${locMsg.degreesLongitude}]`;
+            if (!body) body = "I shared my location with you.";
+        }
+
+        // --- LINK SUMMARIZER ---
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = body?.match(urlRegex);
+        if (urls && urls.length > 0) {
+            const pageText = await summarizeUrl(urls[0]);
+            if (pageText) contextInfo += ` [WEBPAGE_CONTENT from ${urls[0]}: ${pageText.substring(0, 1000)}]`;
         }
 
         if (body) {
-            console.log(`${isVoiceMessage ? '🎤 [Voice]' : '💬 [Text]'} Message from ${from}: ${body}`);
+            const fullPrompt = `${body}${contextInfo}`;
             try {
                 if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
                     if (!chatHistory.has(from)) chatHistory.set(from, []);
                     const history = chatHistory.get(from);
 
-                    // Get AI Response using Groq
-                    let aiResponse = await getGroqResponse(body, history);
+                    let aiResponse = await getGroqResponse(fullPrompt, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
 
-                    // Save to history format compatible with our Map
-                    history.push({
-                        role: "user",
-                        parts: [{ text: isVoiceMessage ? `[Voice Message] ${body}` : body }],
-                        time: new Date().toISOString()
-                    });
-                    history.push({
-                        role: "model",
-                        parts: [{ text: aiResponse }],
-                        time: new Date().toISOString()
-                    });
-
-                    // Keep only last 20 messages for persistence
+                    history.push({ role: "user", parts: [{ text: isVoiceMessage ? `[Voice] ${body}` : body }], time: new Date().toISOString() });
+                    history.push({ role: "model", parts: [{ text: aiResponse }], time: new Date().toISOString() });
                     if (history.length > 20) history.shift();
-
-                    saveHistory(); // Auto-save
-                    console.log(`AI Assistant Replying to ${from}: ${aiResponse}`);
                     
-                    // Send Push Alert for new lead notification
+                    chatHistory.get(from).lastInboundTime = Date.now();
+                    saveHistory();
+
                     const pushLabel = isVoiceMessage ? `🎤 Voice from ${from.split('@')[0]}` : `New Chat from ${from.split('@')[0]} 💬`;
                     sendPushToAll(pushLabel, body).catch(e => {});
 
-                    await sock.sendMessage(from, { text: aiResponse });
+                    // Should we reply with Voice? Yes if user sent voice, or randomly to feel real.
+                    if (isVoiceMessage || Math.random() > 0.8) {
+                        const voiceBuffer = await generateVoiceReply(aiResponse);
+                        if (voiceBuffer) {
+                            await sock.sendMessage(from, { audio: voiceBuffer, mimetype: 'audio/mp4', ptt: true });
+                        } else {
+                            await sock.sendMessage(from, { text: aiResponse });
+                        }
+                    } else {
+                        await sock.sendMessage(from, { text: aiResponse });
+                    }
                 }
-            } catch (error) {
-                console.error('AI Error:', error.message);
+            } catch (error) { console.error('AI Error:', error.message); }
+        }
+    });
+
+    // --- SMART FOLLOW-UP (CRON) ---
+    cron.schedule('0 * * * *', async () => { // Every hour
+        console.log('Running Smart Follow-up Check...');
+        const now = Date.now();
+        for (const [from, history] of chatHistory.entries()) {
+            if (from.endsWith('@g.us')) continue;
+            
+            const lastTime = history.lastInboundTime || 0;
+            const diffHours = (now - lastTime) / (1000 * 60 * 60);
+
+            // Follow up after 24 hours if no reply and they haven't booked
+            if (diffHours >= 24 && diffHours < 25) {
+                const hasBooked = appointments.some(a => from.includes(a.phone?.replace(/\D/g, '')) || history.some(h => h.parts[0].text.includes('appointments.html')));
+                
+                if (!hasBooked) {
+                    const followUp = "Hi! I was just checking in to see if you had any other questions or if you'd like to book an appointment? 😊 https://69studiobysubash.online/appointments.html";
+                    await sock.sendMessage(from, { text: followUp });
+                    history.push({ role: "model", parts: [{ text: followUp }], time: new Date().toISOString() });
+                    saveHistory();
+                }
             }
         }
     });
