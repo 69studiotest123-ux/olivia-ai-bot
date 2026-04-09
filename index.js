@@ -790,13 +790,17 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
+    sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0];
+
         // DEBUG: Log ALL incoming events for visibility
-        if (m.type === 'notify') {
+        if (m.type === 'notify' && msg) {
+            const from = msg.key.remoteJid;
             const isMe = msg.key.fromMe;
             console.log(`🔔 Raw Message from ${from} (fromMe: ${isMe})`);
         }
 
-        if (!msg.message || msg.key.fromMe) return;
+        if (!msg || !msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
         let body = (msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption);
