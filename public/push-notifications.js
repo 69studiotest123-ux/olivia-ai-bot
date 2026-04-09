@@ -152,6 +152,11 @@ function saveTokenToServer(token) {
 
 // Trigger prompt after login or after a short delay
 window.addEventListener('load', () => {
-  // Check if we should show prompt (e.g., after 5 seconds or after certain action)
-  setTimeout(showNotificationPrompt, 5000);
+  // If permission already granted, auto-re-register token with server (critical for server restarts)
+  if (Notification.permission === 'granted') {
+    setupFCM();
+  } else {
+    // Check if we should show prompt (e.g., after 5 seconds)
+    setTimeout(showNotificationPrompt, 5000);
+  }
 });
