@@ -162,6 +162,37 @@ app.post('/api/settings', (req, res) => {
     res.json({ success: true, settings: globalSettings });
 });
 
+// API: Get Appointments
+app.get('/api/appointments', (req, res) => {
+    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(appointments);
+});
+
+app.post('/api/appointments/confirm', async (req, res) => {
+    const { pass, id } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+
+    const appt = appointments.find(a => a.id == id);
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+    appt.status = 'confirmed';
+    saveAppointments();
+    
+    // Trigger Sync to Google Calendar
+    await addToGoogleCalendar(appt);
+    
+    res.json({ success: true, appointment: appt });
+});
+
+app.post('/api/appointments/delete', (req, res) => {
+    const { pass, id } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+
+    appointments = appointments.filter(a => a.id != id);
+    saveAppointments();
+    res.json({ success: true });
+});
+
 // DEBUG: Raw History (Temporary for troubleshooting)
 app.get('/api/debug/history', (req, res) => {
     res.json({
@@ -450,6 +481,45 @@ function processAiResponseForTodos(aiText) {
     return aiText.replace(todoRegex, '').trim();
 }
 
+/**
+ * Parses [BOOK_APPT: Name | Date | Time | Service]
+ */
+function processAiResponseForBookings(aiText, jid) {
+    if (!aiText) return aiText;
+    const bookRegex = /\[BOOK_APPT:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let match;
+    let addedCount = 0;
+
+    while ((match = bookRegex.exec(aiText)) !== null) {
+        const appt = {
+            id: Date.now() + Math.random(),
+            name: match[1].trim(),
+            date: match[2].trim(),
+            time: match[3].trim(),
+            service: match[4].trim(),
+            phone: jid.split('@')[0],
+            status: globalSettings.autoConfirmBookings ? 'confirmed' : 'pending',
+            jid: jid,
+            createdAt: new Date().toISOString()
+        };
+        
+        appointments.unshift(appt);
+        addedCount++;
+
+        // If auto-confirm is on, sync to Google Calendar immediately
+        if (globalSettings.autoConfirmBookings) {
+            addToGoogleCalendar(appt);
+        }
+    }
+
+    if (addedCount > 0) {
+        saveAppointments();
+        notifyClients('appointment');
+    }
+
+    return aiText.replace(bookRegex, '').trim();
+}
+
 async function getGroqResponse(message, history = []) {
     try {
         const messages = [
@@ -480,11 +550,9 @@ async function getGroqResponse(message, history = []) {
                 
                 Tool Integration:
                 - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
-                - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [GET_WEATHER: location]
-                - [GET_NEWS], [GET_XCHANGE: base | target], [START_FOCUS: duration], [GET_BATTERY]
-                - [GEN_QR: text], [GEN_PASS], [START_BREATHE], [GET_WISDOM], [GET_WIKI: topic]
-                - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
-                - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
+                - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [ADD_TODO: task]
+                - [BOOK_APPT: Name | Date | Time | Service] - Use this when a user gives their name, date (YYYY-MM-DD), time, and service they want to book.
+                - [GET_NEWS], [GET_XCHANGE: base | target], [CALC: expression], [WEB_SEARCH: query]
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -935,6 +1003,7 @@ async function startBot() {
                     // Get AI Response using Groq
                     let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
+                    aiResponse = processAiResponseForBookings(aiResponse, from);
 
                     // Add AI reply to history
                     history.push({
