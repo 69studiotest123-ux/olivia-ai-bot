@@ -51,6 +51,7 @@ try {
 function saveHistory() {
     try {
         fs.writeFileSync(historyFile, JSON.stringify(Object.fromEntries(chatHistory), null, 2));
+        console.log(`💾 History successfully saved to ${historyFile}`);
         notifyClients();
     } catch (e) { console.error('History save error:', e); }
 }
@@ -131,6 +132,15 @@ app.get('/api/stream', (req, res) => {
 app.get('/api/logs', (req, res) => {
     if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
     res.json(Object.fromEntries(chatHistory));
+});
+
+// DEBUG: Raw History (Temporary for troubleshooting)
+app.get('/api/debug/history', (req, res) => {
+    res.json({
+        totalChats: chatHistory.size,
+        historyKeys: Array.from(chatHistory.keys()),
+        raw: Object.fromEntries(chatHistory)
+    });
 });
 
 // API: Get Appointments
@@ -762,17 +772,30 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (new Boom(lastDisconnect?.error)).output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startBot();
+            const code = (new Boom(lastDisconnect?.error)).output?.statusCode;
+            console.log(`❌ Connection Closed. Reason: ${code}`);
+            
+            const shouldReconnect = code !== DisconnectReason.loggedOut;
+            if (shouldReconnect) {
+                console.log('🔄 Reconnecting...');
+                startBot();
+            } else {
+                console.log('🚪 Logged out. Delete auth_info_baileys and scan again.');
+            }
         } else if (connection === 'open') {
-            console.log('--- BOT IS READY! YOUR AI IS NOW ACTIVE ---');
+            console.log('--- ✅ BOT IS READY! YOUR AI IS NOW ACTIVE ---');
+            console.log(`Verified as: ${sock.user.name} (${sock.user.id.split(':')[0]})`);
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('messages.upsert', async (m) => {
-        const msg = m.messages[0];
+        // DEBUG: Log ALL incoming events for visibility
+        if (m.type === 'notify') {
+            const isMe = msg.key.fromMe;
+            console.log(`🔔 Raw Message from ${from} (fromMe: ${isMe})`);
+        }
+
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
