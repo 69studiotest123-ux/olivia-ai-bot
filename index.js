@@ -120,7 +120,9 @@ function savePrefs() {
 }
 
 // --- ELEVENLABS CLIENT ---
-const xiClient = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+const xiClient = process.env.ELEVENLABS_API_KEY 
+    ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }) 
+    : null;
 
 const app = express();
 const port = process.env.PORT || 3000;
