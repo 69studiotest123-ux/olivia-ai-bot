@@ -27,9 +27,11 @@ let todos = [];
 
 // --- Server-Sent Events (SSE) for Real-Time UI ---
 let streamClients = [];
-function notifyClients() {
+let waConnectionStatus = 'disconnected'; // Current WhatsApp connection status
+
+function notifyClients(type = 'update') {
     streamClients.forEach(client => {
-        try { client.write('data: update\n\n'); } catch (e) {}
+        try { client.write(`data: ${type}\n\n`); } catch (e) {}
     });
 }
 
@@ -140,6 +142,15 @@ app.get('/api/debug/history', (req, res) => {
         totalChats: chatHistory.size,
         historyKeys: Array.from(chatHistory.keys()),
         raw: Object.fromEntries(chatHistory)
+    });
+});
+
+// API: Get Bot Status
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: waConnectionStatus,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -772,6 +783,8 @@ async function startBot() {
         }
 
         if (connection === 'close') {
+            waConnectionStatus = 'disconnected';
+            notifyClients('status');
             const code = (new Boom(lastDisconnect?.error)).output?.statusCode;
             console.log(`❌ Connection Closed. Reason: ${code}`);
             
@@ -783,8 +796,14 @@ async function startBot() {
                 console.log('🚪 Logged out. Delete auth_info_baileys and scan again.');
             }
         } else if (connection === 'open') {
+            waConnectionStatus = 'connected';
+            notifyClients('status');
             console.log('--- ✅ BOT IS READY! YOUR AI IS NOW ACTIVE ---');
             console.log(`Verified as: ${sock.user.name} (${sock.user.id.split(':')[0]})`);
+        } else {
+            // Probably connecting...
+            waConnectionStatus = 'connecting';
+            notifyClients('status');
         }
     });
 

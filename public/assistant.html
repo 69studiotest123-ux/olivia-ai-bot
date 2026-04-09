@@ -10,16 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="manifest" href="manifest.json">
-    
-    <!-- iOS PWA Specific Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Olivia">
-    <meta name="format-detection" content="telephone=no">
-    
-    <script src="push-notifications.js" defer></script>
+
     <style>
         :root {
             --primary: #ff4d4d;
@@ -34,1604 +26,182 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
             font-family: 'Outfit', sans-serif;
             background: var(--bg);
             color: var(--text-main);
-            line-height: 1.6;
             overflow-x: hidden;
             padding-bottom: 80px;
         }
 
-        /* ====== LOGIN SCREEN ====== */
+        /* Status Pill */
+        .status-pill {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.05);
+            padding: 4px 10px; border-radius: 20px;
+            font-size: 0.65rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
+        .status-connected .status-dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-disconnected .status-dot { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .status-connecting .status-dot { background: #f59e0b; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Login Screen */
         #loginScreen {
-            position: fixed; inset: 0;
-            background: var(--bg);
-            z-index: 9999;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            padding: 30px;
-            transition: opacity 0.6s ease;
+            position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        #loginScreen.hidden {
-            opacity: 0; pointer-events: none;
-        }
+        .login-card { background: var(--card); padding: 32px; border-radius: 28px; border: 1px solid var(--border); width: 90%; max-width: 380px; }
+        .pw-input { width: 100%; padding: 16px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 16px; color: white; margin-bottom: 20px; outline: none; }
+        .login-btn { width: 100%; padding: 16px; background: var(--primary); border: none; border-radius: 16px; color: white; font-weight: 700; cursor: pointer; }
 
-        /* Animated background orbs */
-        .orb {
-            position: absolute; border-radius: 50%;
-            filter: blur(80px); pointer-events: none;
-        }
-        .orb-1 { width: 300px; height: 300px; background: rgba(255,77,77,0.12); top: -100px; left: -80px; animation: orbFloat 8s ease-in-out infinite; }
-        .orb-2 { width: 200px; height: 200px; background: rgba(56,189,248,0.07); bottom: -50px; right: -50px; animation: orbFloat 10s ease-in-out infinite 2s; }
-        @keyframes orbFloat { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
-
-        .login-logo {
-            width: 110px; height: 110px;
-            background: transparent;
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
-            margin-bottom: 24px;
-            animation: logoPulse 2s ease-in-out infinite;
-        }
-        .login-logo img { width: 100%; height: 100%; object-fit: cover; }
-        @keyframes logoPulse {
-            0%,100% { box-shadow: 0 0 30px var(--primary-glow); transform: scale(1); }
-            50% { box-shadow: 0 0 60px var(--primary-glow); transform: scale(1.05); }
-        }
-
-        .login-title {
-            font-size: 1.8rem; font-weight: 700;
-            margin-bottom: 6px; text-align: center;
-        }
-        .login-title span { color: var(--primary); }
-        .login-sub {
-            font-size: 0.9rem; color: var(--text-dim);
-            margin-bottom: 40px; text-align: center;
-        }
-
-        .login-card {
-            background: rgba(18,18,20,0.9);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-radius: 28px;
-            padding: 32px;
-            width: 100%; max-width: 380px;
-        }
-
-        .pw-label {
-            font-size: 0.75rem; text-transform: uppercase;
-            letter-spacing: 1.5px; color: var(--text-dim);
-            margin-bottom: 10px; display: block;
-        }
-
-        .pw-wrapper {
-            position: relative; margin-bottom: 20px;
-        }
-        .pw-input {
-            width: 100%; padding: 16px 50px 16px 20px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            color: var(--text-main); font-family: inherit;
-            font-size: 1rem; outline: none; transition: 0.3s;
-            letter-spacing: 3px;
-        }
-        .pw-input:focus { border-color: var(--primary); background: rgba(255,77,77,0.05); }
-        .pw-input.shake { animation: shake 0.4s ease; border-color: var(--primary) !important; }
-        @keyframes shake {
-            0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)}
-        }
-        .pw-toggle {
-            position: absolute; right: 16px; top: 50%;
-            transform: translateY(-50%);
-            background: none; border: none;
-            color: var(--text-dim); cursor: pointer;
-            font-size: 1rem;
-        }
-
-        .login-btn {
-            width: 100%; padding: 16px;
-            background: var(--primary);
-            border: none; border-radius: 16px;
-            color: white; font-family: inherit;
-            font-size: 1rem; font-weight: 700;
-            cursor: pointer; transition: 0.3s;
-            box-shadow: 0 8px 24px var(--primary-glow);
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
-        .login-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
-        .login-btn:active { transform: scale(0.98); }
-        .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-
-        .login-error {
-            font-size: 0.8rem; color: var(--primary);
-            text-align: center; margin-top: 14px;
-            min-height: 1.2rem;
-        }
-
-        /* Main app hidden until login */
         #mainApp { display: none; }
         #mainApp.visible { display: block; }
-        .bottom-nav-wrap { display: none; }
-        .bottom-nav-wrap.visible { display: flex; }
 
-        /* Notification Badge */
-        .nav-badge {
-            position: absolute; top: 8px; right: 28%;
-            width: 8px; height: 8px; background: #ff3b30;
-            border-radius: 50%; border: 2px solid var(--bg);
-            display: none; z-index: 10;
-        }
-
-        /* BACKGROUND GLOW */
-        .bg-glow {
-            position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: radial-gradient(circle at 50% 0%, rgba(255, 77, 77, 0.05) 0%, transparent 50%);
-            z-index: -1; pointer-events: none;
-        }
-
-        /* HEADER */
         header {
-            padding: 12px 16px;
-            background: rgba(18, 18, 20, 0.9);
-            backdrop-filter: blur(20px);
-            border-bottom: 2px solid var(--border);
-            position: sticky; top: 0; z-index: 1000;
+            padding: 12px 16px; background: rgba(18, 18, 20, 0.9); backdrop-filter: blur(20px);
+            border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 1000;
             display: flex; justify-content: space-between; align-items: center;
-            gap: 10px;
         }
-
-        .brand { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-        .logo-circle {
-            width: 42px; height: 42px; flex-shrink: 0;
-            background: transparent; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
-        }
-        .logo-circle img { width: 100%; height: 100%; object-fit: cover; }
-
-        .brand h1 { font-size: 1rem; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; font-weight: 700; }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand h1 { font-size: 1rem; text-transform: uppercase; }
         .brand span { color: var(--primary); }
 
-        @media (max-width: 480px) {
-            .logo-circle { width: 44px; height: 44px; }
-            .brand h1 { font-size: 0.95rem; }
-        }
-
-        /* MODEL SELECTOR */
-        .model-select {
-            background: var(--card); color: var(--text-main);
-            border: 1px solid var(--border);
-            padding: 7px 10px; border-radius: 10px;
-            font-family: inherit; font-size: 0.75rem;
-            cursor: pointer; outline: none; transition: 0.3s;
-            max-width: 130px;
-        }
-        .model-select:hover { border-color: var(--primary); }
-
-        /* STATUS DOT */
-        .status-dot {
-            width: 8px; height: 8px;
-            background: var(--success); border-radius: 50%;
-            box-shadow: 0 0 10px var(--success);
-            display: inline-block; margin-right: 6px;
-            animation: blink 2s infinite;
-        }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-        /* CONTAINER */
-        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
-
-        /* VOICE PANEL */
-        .voice-panel {
-            background: var(--card);
-            border-radius: 28px; border: 1px solid var(--border);
-            padding: 50px 30px;
-            display: flex; flex-direction: column;
-            align-items: center; text-align: center;
-            margin-bottom: 25px;
-            position: relative; overflow: hidden;
-        }
-
-        .voice-panel::before {
-            content: '';
-            position: absolute; top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--primary), transparent);
-        }
-
-        /* GEMINI WAVE ANIMATION */
-        .wave-container {
-            position: relative; width: 220px; height: 220px;
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 40px;
-        }
-        .wave-layer {
-            position: absolute; inset: 0;
-            border: 2px solid var(--primary);
-            border-radius: 50%; opacity: 0;
-            animation: geminiWave 3s cubic-bezier(0.36, 0.11, 0.89, 0.32) infinite;
-        }
-        .wave-layer:nth-child(1) { animation-delay: 0s; }
-        .wave-layer:nth-child(2) { animation-delay: 1s; }
-        .wave-layer:nth-child(3) { animation-delay: 2s; }
-        @keyframes geminiWave {
-            0% { transform: scale(0.8); opacity: 0.8; }
-            100% { transform: scale(1.6); opacity: 0; border-width: 1px; }
-        }
-
-        .olivia-avatar-glow {
-            width: 150px; height: 150px; border-radius: 50%;
-            object-fit: cover; border: 4px solid var(--border);
-            box-shadow: 0 0 40px rgba(255, 77, 77, 0.4);
-            position: relative; z-index: 2;
-            transition: 0.3s;
-        }
-
-        /* Talking Lipsync Effect */
-        .avatar-mouth {
-            position: absolute;
-            top: 58.5%; left: 50.2%; /* Precise calibrated mouth position */
-            transform: translate(-50%, -50%);
-            width: 18px; height: 3px;
-            background: #1a0505;
-            border-bottom: 2px solid #ff4d4d;
-            border-top: 1px solid #ff4d4d;
-            border-radius: 50%;
-            z-index: 100;
-            display: none;
-            opacity: 0.9;
-            box-shadow: 0 0 5px rgba(255, 77, 77, 0.4);
-        }
-
-        .olivia-talking .avatar-mouth {
-            display: block;
-            animation: realistic-lips 0.8s infinite ease-in-out;
-        }
-
-        @keyframes realistic-lips {
-            0%, 100% { height: 3px; width: 18px; transform: translate(-50%, -50%); }
-            20%  { height: 12px; width: 15px; transform: translate(-50%, -50%); } /* Wide A/O */
-            40%  { height: 5px; width: 20px; transform: translate(-50%, -50%); }  /* Wide E */
-            60%  { height: 14px; width: 12px; transform: translate(-50%, -50%); } /* Tall O */
-            80%  { height: 8px; width: 16px; transform: translate(-50%, -50%); }  /* Neutral */
-        }
-
-        /* Pulse and Bob entire avatar when talking */
-        .olivia-talking .olivia-avatar-glow {
-            transform: scale(1.05);
-            border-color: var(--primary);
-            box-shadow: 0 0 60px var(--primary-glow);
-            animation: head-bob 2s infinite ease-in-out;
-        }
-
-        @keyframes head-bob {
-            0%, 100% { transform: scale(1.05) translateY(0); }
-            25% { transform: scale(1.05) translateY(-2px) rotate(1deg); }
-            50% { transform: scale(1.05) translateY(1px); }
-            75% { transform: scale(1.05) translateY(-1px) rotate(-1deg); }
-        }
-
-        body.listening .olivia-avatar-glow { transform: scale(1.1); box-shadow: 0 0 50px var(--primary-glow); }
-
-        /* GEMINI THINKING SHIMMER */
-        .thinking-shimmer {
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer { 0%{background-position: 200% 0;} 100%{background-position: -200% 0;} }
-
-        #micBtn {
-            position: absolute; bottom: -10px; right: 20px;
-            width: 50px; height: 50px;
-            background: var(--primary); border-radius: 50%;
-            border: none; cursor: pointer; color: white;
-            font-size: 1.2rem; z-index: 10;
-            box-shadow: 0 4px 15px var(--primary-glow);
-            display: flex; align-items: center; justify-content: center;
-            transition: 0.3s;
-        }
-        #micBtn:active { transform: scale(0.9); }
-        #micBtn:hover { transform: scale(1.05); filter: brightness(1.2); }
-        #micBtn:active { transform: scale(0.95); }
-
-        /* Listening state */
-        body.listening .pulse-ring { background: var(--accent); }
-        body.listening #micBtn { background: var(--accent); box-shadow: 0 0 40px rgba(56,189,248,0.4); }
-
-        .voice-text h2 {
-            font-size: 1.3rem; font-weight: 600;
-            min-height: 2rem; margin-bottom: 8px;
-            transition: 0.3s;
-        }
-        .voice-text p { font-size: 0.9rem; color: var(--text-dim); }
-
-        /* STATS */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px; margin-bottom: 20px;
-        }
-        .stat-box {
-            background: var(--card); padding: 12px 10px;
-            border-radius: 16px; border: 1px solid var(--border);
-            transition: 0.3s cubic-bezier(0.4,0,0.2,1);
-            text-align: center;
-        }
-        .stat-box:hover { border-color: var(--primary); transform: translateY(-3px); }
-        .stat-box i { font-size: 1rem; color: var(--primary); margin-bottom: 6px; display: block; }
-        .stat-box h3 { color: var(--text-dim); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stat-box p { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
-
-        /* LEADS SECTION */
-        .section-title {
-            font-size: 0.8rem; text-transform: uppercase;
-            letter-spacing: 2px; color: var(--text-dim);
-            margin-bottom: 15px;
-            display: flex; align-items: center; gap: 10px;
-        }
-        .section-title::after {
-            content: ''; flex: 1; height: 1px; background: var(--border);
-        }
-
-        .leads-list { display: flex; flex-direction: column; gap: 15px; }
-
-        .lead-card {
-            background: var(--card); border-radius: 20px;
-            border: 1px solid var(--border); overflow: hidden;
-            animation: fadeIn 0.5s ease forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .lead-card-header {
-            padding: 16px 20px;
-            background: rgba(255,255,255,0.02);
-            border-bottom: 1px solid var(--border);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .lead-info { display: flex; align-items: center; gap: 12px; }
-        .lead-avatar {
-            width: 38px; height: 38px;
-            background: #1e1e22; border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--accent);
-        }
-        .lead-info h4 { font-size: 0.95rem; font-weight: 600; }
-        .lead-info small { color: var(--text-dim); font-size: 0.75rem; }
-        .lead-badge {
-            background: rgba(16, 185, 129, 0.1); color: var(--success);
-            padding: 3px 10px; border-radius: 100px; font-size: 0.7rem;
-            font-weight: 700; text-transform: uppercase;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        .lead-preview {
-            padding: 14px 20px; font-size: 0.85rem;
-            color: var(--text-dim);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-
-        /* CHAT MODE */
-        .mode-tabs {
-            display: flex; gap: 8px; margin-bottom: 20px;
-        }
-        .mode-tab {
-            flex: 1; padding: 10px; border-radius: 12px;
-            border: 1px solid var(--border); background: transparent;
-            color: var(--text-dim); font-family: inherit; font-size: 0.8rem;
-            cursor: pointer; font-weight: 600; transition: 0.2s;
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-        .mode-tab.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px var(--primary-glow); }
-
-        .chat-window {
-            background: var(--card); border-radius: 24px;
-            border: 1px solid var(--border);
-            margin-bottom: 20px; overflow: hidden;
-        }
-        .chat-messages {
-            height: 400px; overflow-y: auto;
-            padding: 24px; display: flex;
-            flex-direction: column; gap: 16px;
-            scroll-behavior: smooth;
-        }
-        .chat-bubble {
-            max-width: 88%; padding: 14px 18px;
-            border-radius: 20px; font-size: 0.95rem;
-            line-height: 1.6; animation: slideUp 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
-            position: relative;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .bubble-user {
-            align-self: flex-end;
-            background: linear-gradient(135deg, var(--primary), #d43d3d);
-            color: white;
-            border-bottom-right-radius: 4px;
-            box-shadow: 0 4px 15px var(--primary-glow);
-        }
-        .bubble-ai {
-            align-self: flex-start;
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            border-bottom-left-radius: 4px;
-            border: 1px solid var(--border);
-        }
-        .bubble-label {
-            font-size: 0.65rem; color: var(--primary);
-            font-weight: 700; letter-spacing: 1px;
-            margin-bottom: 5px; text-transform: uppercase;
-        }
-        .chat-input-bar {
-            display: flex; gap: 12px; padding: 12px 16px;
-            background: #1e1e22; border-radius: 100px;
-            border: 1px solid var(--border);
-            margin: 0 20px 20px; align-items: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        }
-        .chat-input-bar input {
-            flex: 1; background: transparent;
-            border: none; outline: none;
-            color: var(--text-main); font-family: inherit;
-            font-size: 0.95rem;
-        }
-        .chat-input-bar input::placeholder { color: var(--text-dim); }
-
-        .send-btn, .photo-btn {
-            width: 42px; height: 42px; border-radius: 50%;
-            border: none; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: 0.2s; flex-shrink: 0;
-        }
-        .send-btn { background: var(--primary); color: white; box-shadow: 0 4px 10px var(--primary-glow); }
-        .photo-btn { background: rgba(255,255,255,0.05); color: var(--accent); }
-        .send-btn:hover { transform: scale(1.1); }
-        .photo-btn:hover { background: rgba(56,189,248,0.1); transform: scale(1.1); }
-
-        .bubble-img { max-width: 100%; border-radius: 12px; margin-bottom: 6px; display: block; }
-
-        /* BUTTONS */
-        .actions { display: flex; gap: 12px; }
-        .btn {
-            padding: 10px 20px; border-radius: 12px; font-weight: 700;
-            cursor: pointer; border: none; transition: 0.3s;
-            display: flex; align-items: center; gap: 8px;
-            font-family: inherit; font-size: 0.85rem;
-        }
-        .btn-primary { background: var(--primary); color: white; box-shadow: 0 8px 16px var(--primary-glow); }
-        .btn-ghost { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); }
-        .btn:hover { transform: scale(1.03); filter: brightness(1.1); }
-
-        /* BOTTOM NAVIGATION */
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(18, 18, 20, 0.95);
-            backdrop-filter: blur(20px);
-            border-top: 1px solid var(--border);
-            display: flex; justify-content: space-around;
-            padding: 10px 0 20px;
-            z-index: 999;
-        }
-        .nav-item {
-            display: flex; flex-direction: column; align-items: center;
-            gap: 4px; cursor: pointer; padding: 8px 20px;
-            border-radius: 12px; transition: 0.2s;
-            color: var(--text-dim);
-            border: none; background: transparent; font-family: inherit;
-        }
-        .nav-item i { font-size: 1.2rem; }
-        .nav-item span { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .nav-item.active { color: var(--primary); }
-        .nav-item:hover { background: rgba(255,255,255,0.04); }
-
-        /* TABS */
+        .container { padding: 20px; }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
 
-        /* SCROLLBAR */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid var(--border); }
+        .nav-item { color: var(--text-dim); text-align: center; cursor: pointer; background: none; border: none; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item i { font-size: 1.2rem; display: block; }
+        .nav-item span { font-size: 0.6rem; text-transform: uppercase; }
 
-        /* LOADING */
-        .loading-screen {
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            padding: 60px; color: var(--text-dim); text-align: center;
-        }
-        .spinner {
-            width: 36px; height: 36px;
-            border: 3px solid rgba(255,77,77,0.1);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 16px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Leads Styling */
+        .lead-card { background: var(--card); border-radius: 20px; border: 1px solid var(--border); margin-bottom: 15px; padding: 15px; }
+        .lead-info { display: flex; align-items: center; gap: 12px; }
+        .lead-avatar { width: 40px; height: 40px; background: #1e1e22; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .lead-preview { font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; }
 
-        /* Settings tab */
-        .setting-row {
-            background: var(--card); border-radius: 16px;
-            border: 1px solid var(--border);
-            padding: 18px 20px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 12px;
-        }
-        .setting-row h4 { font-size: 0.9rem; margin-bottom: 2px; }
-        .setting-row p { font-size: 0.75rem; color: var(--text-dim); }
-
-        /* Toggle Switch */
-        .toggle { position: relative; width: 48px; height: 26px; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle-slider {
-            position: absolute; cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #2e2e32; border-radius: 26px; transition: 0.3s;
-        }
-        .toggle-slider:before {
-            content: ''; position: absolute;
-            width: 20px; height: 20px;
-            left: 3px; bottom: 3px;
-            background: white; border-radius: 50%; transition: 0.3s;
-        }
-        input:checked + .toggle-slider { background: var(--primary); }
-        input:checked + .toggle-slider:before { transform: translateX(22px); }
-
-        /* Quick Reply Templates */
-        .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 25px; }
-        .template-chip {
-            background: var(--card); border: 1px solid var(--border);
-            border-radius: 14px; padding: 14px; cursor: pointer;
-            transition: 0.2s; text-align: left;
-        }
-        .template-chip:hover { border-color: var(--primary); background: rgba(255,77,77,0.05); }
-        .template-chip .chip-lang { font-size: 0.65rem; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-        .template-chip .chip-text { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
-        .template-chip .chip-copy { font-size: 0.7rem; color: var(--accent); margin-top: 8px; display: flex; align-items: center; gap: 4px; }
-
-        /* Broadcast */
-        .broadcast-box {
-            background: var(--card); border-radius: 20px;
-            border: 1px solid var(--border); padding: 20px; margin-bottom: 15px;
-        }
-        .broadcast-box textarea {
-            width: 100%; background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border); border-radius: 12px;
-            color: var(--text-main); font-family: inherit; font-size: 0.9rem;
-            padding: 14px; resize: none; outline: none; line-height: 1.5;
-        }
-        .broadcast-box textarea:focus { border-color: var(--primary); }
-
-        /* Analytics */
-        .analytics-row {
-            background: var(--card); border-radius: 16px;
-            border: 1px solid var(--border); padding: 16px 20px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 10px;
-        }
-        .analytics-row .label { font-size: 0.85rem; color: var(--text-dim); }
-        .analytics-row .value { font-size: 1.4rem; font-weight: 700; color: var(--primary); }
-        .bar-row { margin-top: 5px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
-        .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 1s ease; }
-
-        /* APPOINTMENTS */
-        .appt-card {
-            background: rgba(255,255,255,0.03); border-radius: 16px;
-            padding: 15px; border: 1px solid var(--border);
-            margin-bottom: 10px; transition: 0.2s;
-        }
-        .appt-card:hover { border-color: var(--primary); background: rgba(255,255,255,0.05); }
-        .appt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-        .appt-name { font-weight: 700; color: var(--text-main); font-size: 0.95rem; }
-        .appt-service { background: rgba(56,189,248,0.15); color: var(--accent); padding: 3px 8px; border-radius: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
-        .appt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .appt-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-dim); }
-        .appt-item i { color: var(--primary); width: 12px; }
-        .appt-phone { color: var(--success); font-weight: 600; text-decoration: none; display: block; margin-top: 5px; font-size: 0.8rem; }
-
-        /* TO-DO LIST */
-        .todo-item {
-            background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border);
-            padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;
-            transition: 0.2s; margin-bottom: 8px;
-        }
-        .todo-item:hover { border-color: var(--primary); }
-        .todo-item.completed .todo-text { text-decoration: line-through; opacity: 0.5; }
-        .todo-text { flex: 1; font-size: 0.9rem; cursor: pointer; margin: 0 10px; }
-        .todo-del { color: #ef4444; cursor: pointer; background: none; border: none; font-size: 1rem; padding: 5px; opacity: 0.8; transition: 0.2s; }
-        .todo-del:hover { opacity: 1; transform: scale(1.1); }
-
-        /* LANGUAGE TOGGLE */
-        .lang-switch {
-            display: flex; gap: 4px; background: rgba(255,255,255,0.05);
-            padding: 4px; border-radius: 12px; border: 1px solid var(--border);
-            margin-bottom: 25px; margin-left: auto; margin-right: auto;
-            width: fit-content;
-        }
-        .lang-opt {
-            padding: 6px 16px; border-radius: 8px; font-size: 0.7rem;
-            font-weight: 700; cursor: pointer; transition: 0.3s;
-            color: var(--text-dim);
-        }
-        .lang-opt.active {
-            background: var(--primary); color: white;
-            box-shadow: 0 4px 12px var(--primary-glow);
-        }
-
-        @media (max-width: 400px) {
-            .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 15px; }
-            .template-grid { grid-template-columns: 1fr; }
-            .voice-panel { padding: 35px 20px; }
-            #micBtn { width: 110px; height: 110px; font-size: 2rem; }
-            .pulse-ring { width: 110px; height: 110px; }
-        }
+        .model-select { background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.7rem; }
     </style>
 </head>
 <body>
-
-<!-- ===== LOGIN SCREEN ===== -->
-<div id="loginScreen">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-
-    <div class="login-logo"><img src="olivia.png" alt="Olivia AI"></div>
-    <h1 class="login-title">Olivia <span>AI</span></h1>
-    <p class="login-sub">Subhash's Personal Intelligence Assistant</p>
-
-    <div class="login-card">
-        <label class="pw-label">Access Key</label>
-        <div class="pw-wrapper">
-            <input type="password" class="pw-input" id="pwInput"
-                placeholder="Enter password..."
-                onkeydown="if(event.key==='Enter') doLogin()">
-            <button class="pw-toggle" onclick="togglePw()" tabindex="-1">
-                <i class="fas fa-eye" id="pwEyeIcon"></i>
-            </button>
-        </div>
-        <button class="login-btn" id="loginBtn" onclick="doLogin()">
-            <i class="fas fa-unlock-alt"></i> Enter
-        </button>
-        <p class="login-error" id="loginError"></p>
-    </div>
-</div>
-
-<!-- ===== MAIN APP ===== -->
-<div id="mainApp">
-<div class="bg-glow"></div>
-
-<header>
-    <div class="brand">
-        <div class="logo-circle"><img src="olivia.png" alt="Olivia"></div>
-        <h1>Olivia <span>AI</span></h1>
-    </div>
-    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-        <select id="modelSelector" class="model-select">
-            <option value="groq">⚡ Groq</option>
-            <option value="gemini">✨ Gemini</option>
-            <option value="chatgpt">🧠 GPT-4o</option>
-        </select>
-        <span class="status-dot" style="flex-shrink:0;"></span>
-    </div>
-</header>
-
-<div class="container">
-    <!-- TAB: ASSISTANT -->
-    <div id="tab-assistant" class="tab-panel active">
-
-        <!-- Mode Switcher -->
-        <div class="mode-tabs">
-            <button class="mode-tab active" id="modeVoiceBtn" onclick="setMode('voice')">
-                <i class="fas fa-microphone"></i> Voice
-            </button>
-            <button class="mode-tab" id="modeChatBtn" onclick="setMode('chat')">
-                <i class="fas fa-comment-dots"></i> Text Chat
-            </button>
-        </div>
-
-        <!-- VOICE MODE -->
-        <div id="voiceMode">
-            <div class="voice-panel" style="background: transparent; border: none; padding: 40px 0; text-align: center;">
-                <div class="lang-switch">
-                    <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
-                    <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
-                </div>
-                <div class="wave-container" id="avatarContainer">
-                    <div class="wave-layer"></div>
-                    <div class="wave-layer"></div>
-                    <div class="wave-layer"></div>
-                    <img src="olivia.png" class="olivia-avatar-glow" alt="Olivia">
-                    <div class="avatar-mouth"></div>
-                    <button id="micBtn"><i class="fas fa-microphone"></i></button>
-                </div>
-                <div class="voice-text">
-                    <h2 id="aiText" style="font-size: 1.5rem; letter-spacing: -0.5px;">I'm listening...</h2>
-                    <p id="userText" style="opacity: 0.6; font-size: 1rem;">Tap the red dot or speak now.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- CHAT MODE -->
-        <div id="chatMode" style="display:none;">
-            <div class="chat-window">
-                <div class="chat-messages" id="chatMessages">
-                    <div class="chat-bubble bubble-ai">
-                        <div class="bubble-label">Olivia AI</div>
-                        Hi! I'm Olivia, Subhash's assistant. How can I help you today? 😊
-                    </div>
-                </div>
-                <div class="chat-input-bar">
-                    <button class="photo-btn" onclick="document.getElementById('photoInput').click()" title="Attach Photo">
-                        <i class="fas fa-camera"></i>
-                    </button>
-                    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
-                    <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChat()">
-                    <button class="send-btn" onclick="sendChat()">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-box">
-                <i class="fas fa-users"></i>
-                <h3>Leads</h3>
-                <p id="totalLeads">0</p>
-            </div>
-            <div class="stat-box">
-                <i class="fas fa-comments"></i>
-                <h3>Chats</h3>
-                <p id="totalChats">0</p>
-            </div>
-            <div class="stat-box">
-                <i class="fas fa-bolt"></i>
-                <h3>Status</h3>
-                <p style="color: var(--success); font-size: 0.8rem;">LIVE</p>
-            </div>
+    <div id="loginScreen">
+        <div class="login-card">
+            <h1>Olivia <span>AI</span></h1>
+            <p style="margin-bottom: 20px; color: var(--text-dim);">Enter Access Key</p>
+            <input type="password" id="pwInput" class="pw-input" placeholder="Password...">
+            <button class="login-btn" onclick="doLogin()">Enter</button>
+            <p id="loginError" style="color: var(--primary); margin-top: 10px; text-align: center;"></p>
         </div>
     </div>
 
-    <!-- TAB: LEADS -->
-    <div id="tab-leads" class="tab-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <p class="section-title" style="margin:0; color:var(--primary); font-size:0.75rem; font-weight:700;">69 STUDIO BOOKINGS (<span id="totalAppts">0</span>)</p>
-            <button class="btn btn-ghost" onclick="refreshAppointments()" style="padding:6px 12px; font-size:0.7rem;">
-                <i class="fas fa-sync-alt"></i> Sync
-            </button>
-        </div>
-        
-        <div id="appointmentsList" style="max-height: 250px; overflow-y: auto; margin-bottom: 25px; padding-right:5px;">
-            <div class="loading-screen"><p>Syncing website bookings...</p></div>
-        </div>
+    <div id="mainApp">
+        <header>
+            <div class="brand">
+                <h1>Olivia <span>AI</span></h1>
+            </div>
+            <div class="status-pill status-disconnected" id="waStatus">
+                <div class="status-dot"></div>
+                <span id="waStatusText">OFFLINE</span>
+            </div>
+            <select id="modelSelector" class="model-select">
+                <option value="groq">Groq</option>
+                <option value="gemini">Gemini</option>
+            </select>
+        </header>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <p class="section-title" style="margin:0; font-size:0.75rem; font-weight:700;">WHATSAPP LEADS (<span id="totalLeads">0</span>)</p>
-            <button class="btn btn-primary" onclick="syncLeads()" style="padding:6px 12px; font-size:0.7rem;">
-                <i class="fas fa-sync-alt"></i> Sync Logs
-            </button>
-        </div>
-        <input type="text" class="search-bar" id="leadSearch" placeholder="🔍 Search logs..." oninput="filterLeads()" style="margin-bottom:15px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; color:white; width:100%; padding:10px;">
-        
-        <div id="leadsList" class="leads-list">
-            <div class="loading-screen">
-                <p>Loading chat intelligence...</p>
+        <div class="container">
+            <div id="tab-leads" class="tab-panel active">
+                <h2 style="margin-bottom: 15px;">Chat Leads</h2>
+                <div id="leadsList">Loading leads...</div>
+            </div>
+            <div id="tab-assistant" class="tab-panel">
+                <h2>Assistant</h2>
+                <div id="chatMessages" style="height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
+                <input type="text" id="chatInput" style="width: 100%; padding: 15px; background: var(--card); border: 1px solid var(--border); border-radius: 15px; color: white;" placeholder="Ask Olivia..." onkeydown="if(event.key==='Enter') sendChat()">
             </div>
         </div>
+
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchTab('leads', this)"><i class="fas fa-users"></i><span>Leads</span></button>
+            <button class="nav-item" onclick="switchTab('assistant', this)"><i class="fas fa-robot"></i><span>Olivia</span></button>
+            <button class="nav-item"><i class="fas fa-calendar"></i><span>Events</span></button>
+        </nav>
     </div>
 
-    <!-- TAB: SETTINGS -->
-    <div id="tab-settings" class="tab-panel">
-        <div class="setting-row">
-            <div>
-                <h4>Auto-Reply Bot</h4>
-                <p>Enable Olivia to auto-reply on WhatsApp</p>
-            </div>
-            <label class="toggle">
-                <input type="checkbox" checked id="botToggle">
-                <span class="toggle-slider"></span>
-            </label>
-        </div>
-        <div class="setting-row">
-            <div>
-                <h4>Voice Response</h4>
-                <p>Speak answers aloud via Text-to-Speech</p>
-            </div>
-            <label class="toggle">
-                <input type="checkbox" checked id="voiceToggle">
-                <span class="toggle-slider"></span>
-            </label>
-        </div>
-        <div class="setting-row">
-            <div>
-                <h4>AI Model</h4>
-                <p>Active: <span id="currentModel" style="color:var(--primary)">Groq (Llama 3.3)</span></p>
-            </div>
-            <i class="fas fa-chevron-right" style="color:var(--text-dim)"></i>
-        </div>
-        <div class="setting-row" style="cursor:pointer;" onclick="clearLogs()">
-            <div>
-                <h4 style="color:var(--primary)">Clear All Logs</h4>
-                <p>Permanently delete all chat history</p>
-            </div>
-            <i class="fas fa-trash-alt" style="color:var(--primary)"></i>
-        </div>
-    </div>    <!-- TAB: MORE (Tasks + Reports + Broadcast) -->
-    <div id="tab-more" class="tab-panel">
+    <script>
+        let password = new URLSearchParams(window.location.search).get('pass');
+        if(!password) password = localStorage.getItem('olivia_pass');
 
-        <!-- TASKS / TODO LIST -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <p class="section-title" style="margin:0;">My Tasks</p>
-            <button class="btn btn-ghost" onclick="loadTodos()" style="padding:4px 8px; font-size:0.7rem;"><i class="fas fa-sync-alt"></i></button>
-        </div>
-        <div class="todo-container" style="margin-bottom:25px;">
-            <div style="display:flex; gap:8px; margin-bottom:12px;">
-                <input type="text" id="newTodoInput" placeholder="Add a new task..." style="flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; color:white; padding:10px 14px; font-family:inherit; outline:none;" onkeydown="if(event.key==='Enter') addTodo()">
-                <button class="btn btn-primary" onclick="addTodo()" style="padding:10px 16px;"><i class="fas fa-plus"></i></button>
-            </div>
-            <div id="todoList">
-                <div class="loading-screen" style="padding:20px;"><p>Loading tasks...</p></div>
-            </div>
-        </div>
-
-        <!-- ANALYTICS -->
-        <p class="section-title">Analytics</p>
-        <div class="analytics-row">
-            <div>
-                <div class="label">Total Conversations</div>
-                <div class="bar-row"><div class="bar-fill" id="barChats" style="width:0%"></div></div>
-            </div>
-            <div class="value" id="analyticsChats">0</div>
-        </div>
-        <div class="analytics-row">
-            <div>
-                <div class="label">High-Value Leads</div>
-                <div class="bar-row"><div class="bar-fill" id="barLeads" style="width:0%; background:var(--success)"></div></div>
-            </div>
-            <div class="value" id="analyticsLeads" style="color:var(--success)">0</div>
-        </div>
-        <div class="analytics-row">
-            <div>
-                <div class="label">Bot Response Rate</div>
-                <div class="bar-row"><div class="bar-fill" id="barRate" style="width:95%; background:var(--accent)"></div></div>
-            </div>
-            <div class="value" style="color:var(--accent)">95%</div>
-        </div>
-
-        <!-- QUICK REPLY TEMPLATES -->
-        <p class="section-title" style="margin-top:25px;">Quick Reply Templates</p>
-        <div class="template-grid">
-            <div class="template-chip" onclick="copyTemplate('Hi! Thanks for reaching out. Subhash is currently busy but will be in touch soon. 😊')">
-                <div class="chip-lang">🇬🇧 English</div>
-                <div class="chip-text">Hi! Thanks for reaching out. Subhash will be in touch soon.</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-            <div class="template-chip" onclick="copyTemplate('Ayubowan! Subhash me welawe busy, ekai mama oyata reply kale. Monawadu one da? 😊')">
-                <div class="chip-lang">🇱🇰 Singlish</div>
-                <div class="chip-text">Ayubowan! Subhash busy, monawadu one da?</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-            <div class="template-chip" onclick="copyTemplate('For appointments, please visit: https://69studiobysubash.online/appointments.html ✨')">
-                <div class="chip-lang">📅 Appointment</div>
-                <div class="chip-text">Appointment link for booking sessions.</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-            <div class="template-chip" onclick="copyTemplate('Subhash gena details dannata oyata schedule ekak hadanna puluwanda? https://69studiobysubash.online/appointments.html')">
-                <div class="chip-lang">🇱🇰 Appointment</div>
-                <div class="chip-text">Sinhala appointment message with link.</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-            <div class="template-chip" onclick="copyTemplate('Thank you for your patience! We\'ll follow up with you shortly. 🙏')">
-                <div class="chip-lang">🇬🇧 Follow Up</div>
-                <div class="chip-text">Polite follow-up message for pending leads.</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-            <div class="template-chip" onclick="copyTemplate('Oyage message ekata reply karanna late una nisa samawenna. Dan Subhash oyata sambandha vevvi. 🙏')">
-                <div class="chip-lang">🇱🇰 Apology</div>
-                <div class="chip-text">Sinhala apology for late reply.</div>
-                <div class="chip-copy"><i class="fas fa-copy"></i> Copy</div>
-            </div>
-        </div>
-
-        <!-- BROADCAST MESSAGE -->
-        <p class="section-title">Compose Broadcast</p>
-        <div class="broadcast-box">
-            <textarea id="broadcastMsg" rows="4" placeholder="Type a message to send to all leads..."></textarea>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-                <button class="btn btn-ghost" style="flex:1;" onclick="previewBroadcast()">
-                    <i class="fas fa-eye"></i> Preview
-                </button>
-                <button class="btn btn-primary" style="flex:1;" onclick="copyBroadcast()">
-                    <i class="fas fa-copy"></i> Copy Message
-                </button>
-            </div>
-            <p id="broadcastStatus" style="font-size:0.75rem; color:var(--success); margin-top:10px; text-align:center;"></p>
-        </div>
-    </div>
-
-</div>
-
-<!-- BOTTOM NAVIGATION -->
-<nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('assistant', this)">
-        <i class="fas fa-microphone-alt"></i>
-        <span>Assistant</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('leads', this); document.getElementById('leadsBadge').style.display='none';">
-        <div class="nav-badge" id="leadsBadge"></div>
-        <i class="fas fa-users"></i>
-        <span>Leads</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('more', this)">
-        <i class="fas fa-th-large"></i>
-        <span>Tasks</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('settings', this)">
-        <i class="fas fa-sliders-h"></i>
-        <span>Settings</span>
-    </button>
-</nav>
-</div><!-- end #mainApp -->
-
-<script>
-    let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
-    const aiTextEl = document.getElementById('aiText');
-    const userTextEl = document.getElementById('userText');
-    const modelNames = { groq: 'Groq (Llama 3.3)', gemini: 'Gemini 2.0 Flash', chatgpt: 'ChatGPT (GPT-4o)' };
-
-    function togglePw() {
-        const inp = document.getElementById('pwInput');
-        const icon = document.getElementById('pwEyeIcon');
-        if (inp.type === 'password') { inp.type = 'text'; icon.className = 'fas fa-eye-slash'; }
-        else { inp.type = 'password'; icon.className = 'fas fa-eye'; }
-    }
-
-    async function doLogin(pw) {
-        const inp = document.getElementById('pwInput');
-        const errEl = document.getElementById('loginError');
-        const btn = document.getElementById('loginBtn');
-        const usePw = pw || inp.value.trim();
-        if (!usePw) { inp.classList.add('shake'); setTimeout(()=>inp.classList.remove('shake'),500); errEl.innerText='Please enter a password.'; return; }
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-        errEl.innerText = '';
-        unlockAudio(); // Trigger for Safari early
-
-        try {
-            const res = await fetch(`/api/logs?pass=${usePw}`);
-            if (res.status === 403) {
-                inp.classList.add('shake');
-                setTimeout(()=>inp.classList.remove('shake'),500);
-                errEl.innerText = 'Incorrect password. Please try again.';
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-unlock-alt"></i> Enter';
-                return;
-            }
-            // Success!
-            password = usePw;
-            localStorage.setItem('olivia_pass', password);
-            window.history.replaceState(null, '', `?pass=${password}`);
-            const loginScreen = document.getElementById('loginScreen');
-            loginScreen.classList.add('hidden');
-            document.getElementById('mainApp').classList.add('visible');
-            setTimeout(()=>{ loginScreen.style.display='none'; }, 700);
-            const data = await res.json();
-            renderLeads(data);
-            refreshAppointments();
-            loadTodos();
-            initSSE();
-        } catch(e) {
-            errEl.innerText = 'Connection error. Check network.';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-unlock-alt"></i> Enter';
-        }
-    }
-
-    // Auto-login if password is in URL — skip login screen instantly
-    if (password) {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('mainApp').classList.add('visible');
-        // Validate in background
-        fetch(`/api/logs?pass=${password}`).then(res => {
-            if (res.status === 403) {
-                // Wrong password — show login screen
-                document.getElementById('mainApp').classList.remove('visible');
-                document.getElementById('loginScreen').style.display = 'flex';
-                document.getElementById('loginError').innerText = 'Session expired. Please re-enter password.';
-            } else {
-                localStorage.setItem('olivia_pass', password);
-                res.json().then(data => {
-                    renderLeads(data);
-                    refreshAppointments();
-                    loadTodos();
-                });
+        async function doLogin() {
+            const pw = document.getElementById('pwInput').value;
+            const res = await fetch(`/api/logs?pass=${pw}`);
+            if(res.ok) {
+                password = pw;
+                localStorage.setItem('olivia_pass', pw);
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainApp').classList.add('visible');
+                syncLeads();
                 initSSE();
-            }
-        });
-    }
-
-    function initSSE() {
-        const source = new EventSource(`/api/stream?pass=${password}`);
-        source.onmessage = function(event) {
-            syncLeads();
-            refreshAppointments();
-            loadTodos();
-        };
-        source.onerror = function() {
-            // Auto reconnects natively, but fallback can be implemented if needed
-        };
-    }
-
-    // Tab switching
-    function switchTab(name, el) {
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById('tab-' + name).classList.add('active');
-        el.classList.add('active');
-        if (name === 'leads') syncLeads();
-    }
-
-    // Model selector
-    document.getElementById('modelSelector').addEventListener('change', function() {
-        document.getElementById('currentModel').innerText = modelNames[this.value];
-    });
-
-    // Streaming effect
-    function typeText(el, text, speed = 20) {
-        if (!el) return;
-        el.textContent = '';
-        let i = 0;
-        return new Promise(resolve => {
-            const timer = setInterval(() => {
-                if (i >= text.length) { 
-                    clearInterval(timer); 
-                    resolve(); 
-                    return;
-                }
-                el.textContent += text[i];
-                i++;
-                // Scroll container while typing if at bottom
-                const msgWrap = document.getElementById('chatMessages');
-                if (msgWrap) msgWrap.scrollTop = msgWrap.scrollHeight;
-            }, speed);
-        });
-    }
-
-    // Voice Visualizer logic
-    let audioCtx, analyzer, dataArray, source;
-    async function initVoiceVisualizer() {
-        if (audioCtx) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            analyzer = audioCtx.createAnalyser();
-            source = audioCtx.createMediaStreamSource(stream);
-            source.connect(analyzer);
-            analyzer.fftSize = 64;
-            dataArray = new Uint8Array(analyzer.frequencyBinCount);
-            updateWaves();
-        } catch(e) { console.warn('Mic visualizer failed:', e); }
-    }
-
-    function updateWaves() {
-        if (!analyzer) return;
-        requestAnimationFrame(updateWaves);
-        if (!document.body.classList.contains('listening')) {
-            document.querySelectorAll('.wave-layer').forEach(l => l.style.transform = 'scale(1)');
-            return;
-        }
-        analyzer.getByteFrequencyData(dataArray);
-        const volume = dataArray.reduce((p, c) => p + c, 0) / dataArray.length;
-        const scale = 1 + (volume / 128); // normalize
-        document.querySelectorAll('.wave-layer').forEach((l, idx) => {
-            l.style.transform = `scale(${scale * (1 + idx * 0.1)})`;
-            l.style.opacity = (volume / 255) + 0.2;
-        });
-    }
-
-    // Text to Speech
-    let audioUnlocked = false;
-    function unlockAudio() {
-        if (audioUnlocked) return;
-        // Prime synthesis with silent utterance for Safari/iOS
-        const silent = new SpeechSynthesisUtterance(" ");
-        silent.volume = 0;
-        window.speechSynthesis.speak(silent);
-        
-        // Resume AudioContext if it exists (for waves)
-        if (audioCtx && audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        audioUnlocked = true;
-        console.log('Audio engine unlocked for Safari/iOS');
-    }
-
-    function speakText(text) {
-        if (!document.getElementById('voiceToggle').checked) return;
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Premium "Sick" AI Voice Settings
-        utterance.pitch = 1.05; // Slightly elevated for clarity
-        utterance.rate = 0.95; // Slightly slower for a more dramatic, professional AI tone
-        
-        const avatar = document.getElementById('avatarContainer');
-        utterance.onstart = () => {
-            avatar.classList.add('olivia-talking');
-        };
-        utterance.onend = () => {
-            avatar.classList.remove('olivia-talking');
-        };
-        utterance.onerror = () => {
-            avatar.classList.remove('olivia-talking');
-        };
-
-        let voices = window.speechSynthesis.getVoices();
-        
-        // Priority list of "really sick" premium, high-quality female voices
-        const premiumVoices = [
-            'Microsoft Jenny Online (Natural)',
-            'Microsoft Aria Online (Natural)',
-            'Google UK English Female',
-            'Samantha',
-            'Victoria',
-            'Siri',
-            'Google US English'
-        ];
-
-        let bestVoice = null;
-        for (let pv of premiumVoices) {
-            bestVoice = voices.find(v => v.name.includes(pv));
-            if (bestVoice) break;
-        }
-
-        // Fallback
-        if (!bestVoice) {
-            bestVoice = voices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Zira'));
-        }
-
-        if (bestVoice) {
-            utterance.voice = bestVoice;
-        }
-        
-        window.speechSynthesis.speak(utterance);
-    }
-
-    // Speech Recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const micBtn = document.getElementById('micBtn');
-    let recognition;
-    let currentLang = 'en-US';
-
-    function setLang(lang, el) {
-        currentLang = lang;
-        document.querySelectorAll('.lang-opt').forEach(opt => opt.classList.remove('active'));
-        el.classList.add('active');
-        if (recognition) recognition.lang = lang;
-        userTextEl.innerText = lang === 'si-LK' ? 'භාෂාව මාරු කළා (සිංහල)...' : 'Language switched to English...';
-    }
-
-    if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = currentLang;
-
-        recognition.onstart = () => {
-            document.body.classList.add('listening');
-            initVoiceVisualizer(); // Start Gemini waves
-            userTextEl.innerText = 'Listening...';
-            micBtn.innerHTML = '<i class="fas fa-wave-square"></i>';
-        };
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            userTextEl.innerText = '"' + transcript + '"';
-            handleQuery(transcript);
-        };
-
-        recognition.onerror = (event) => {
-            document.body.classList.remove('listening');
-            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            userTextEl.innerText = 'Error: ' + (event.error || 'Try again.');
-        };
-
-        recognition.onend = () => {
-            document.body.classList.remove('listening');
-            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-        };
-
-        micBtn.onclick = () => {
-            unlockAudio(); // Ensure safari unlock
-            recognition.lang = currentLang; // Ensure language is applied
-            try {
-                recognition.start();
-            } catch(e) {}
-        };
-    } else {
-        micBtn.onclick = () => alert('Voice not supported. Use Chrome.');
-    }
-
-    // Query handler
-    async function handleQuery(query) {
-        aiTextEl.innerText = 'Olivia is thinking...';
-        aiTextEl.classList.add('thinking-shimmer');
-        const model = document.getElementById('modelSelector').value;
-
-        try {
-            const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}&model=${model}`);
-            const data = await res.json();
-            aiTextEl.classList.remove('thinking-shimmer');
-            if (data.answer) {
-                speakText(data.answer); // Start speaking immediately
-                await typeText(aiTextEl, data.answer); // Type while speaking
+                updateStatusUI();
             } else {
-                aiTextEl.innerText = 'No response received.';
+                document.getElementById('loginError').innerText = 'Wrong password';
             }
-        } catch (err) {
-            aiTextEl.classList.remove('thinking-shimmer');
-            aiTextEl.innerText = 'Connection error. Please try again.';
-        }
-    }
-
-    // === TO-DO LIST LOGIC ===
-    async function loadTodos() {
-        if (!password) return;
-        try {
-            const res = await fetch(`/api/todos?pass=${password}`);
-            if (!res.ok) return;
-            const todos = await res.json();
-            renderTodos(todos);
-        } catch(e) { console.error('Todo sync error:', e); }
-    }
-
-    function renderTodos(todos) {
-        const container = document.getElementById('todoList');
-        if (todos.length === 0) {
-            container.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding: 20px; border: 1px dashed var(--border); border-radius: 12px;">No active tasks. You are all caught up! ✨</p>';
-            return;
         }
 
-        let html = '';
-        todos.forEach(t => {
-            html += `
-                <div class="todo-item ${t.completed ? 'completed' : ''}">
-                    <i class="fas ${t.completed ? 'fa-check-circle' : 'fa-circle'}" style="color:${t.completed ? 'var(--success)' : 'var(--text-dim)'}; cursor:pointer; font-size:1.1rem; transition:0.2s;" onclick="todoAction('toggle', ${t.id})"></i>
-                    <div class="todo-text" onclick="todoAction('toggle', ${t.id})">${t.text}</div>
-                    <button class="todo-del" onclick="todoAction('delete', ${t.id})"><i class="fas fa-trash"></i></button>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
-    }
-
-    async function addTodo() {
-        const input = document.getElementById('newTodoInput');
-        const text = input.value.trim();
-        if (!text) return;
-        input.value = '';
-        await todoAction('add', null, text);
-        // AI feedback (optional) -> we just update UI sync for now.
-    }
-
-    async function todoAction(action, id = null, text = null) {
-        try {
-            const res = await fetch('/api/todos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pass: password, action, id, text })
-            });
-            const data = await res.json();
-            if (data.success) renderTodos(data.todos);
-        } catch(e) { console.error('Todo action error:', e); }
-    }
-
-    async function refreshAppointments() {
-        if (!password) return;
-        try {
-            const res = await fetch(`/api/appointments?pass=${password}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            renderAppointments(data);
-        } catch(e) { console.error('Appt sync error:', e); }
-    }
-
-    function renderAppointments(data) {
-        const container = document.getElementById('appointmentsList');
-        document.getElementById('totalAppts').innerText = data.length;
-
-        if (data.length > 0) {
-            document.getElementById('leadsBadge').style.display = 'block';
-        }
-
-        if (data.length === 0) {
-            container.innerHTML = '<p style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding: 20px; border: 1px dashed var(--border); border-radius: 12px;">No bookings found yet.</p>';
-            return;
-        }
-
-        let html = '';
-        data.forEach(a => {
-            html += `
-                <div class="appt-card">
-                    <div class="appt-header">
-                        <div class="appt-name">${a.name || 'Anonymous User'}</div>
-                        <div class="appt-service">${a.service || 'Studio Session'}</div>
-                    </div>
-                    <div class="appt-grid">
-                        <div class="appt-item"><i class="fas fa-calendar-alt"></i> ${a.date || 'TBD'}</div>
-                        <div class="appt-item"><i class="fas fa-clock"></i> ${a.time || 'TBD'}</div>
-                    </div>
-                    <a href="tel:${a.phone}" class="appt-phone"><i class="fas fa-phone-alt"></i> ${a.phone || 'No phone'}</a>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
-    }
-
-    // Sync leads
-    async function syncLeads() {
-        try {
+        async function syncLeads() {
             const res = await fetch(`/api/logs?pass=${password}`);
-            if (res.status === 403) {
-                // Wrong password — re-prompt like admin page
-                password = prompt('Incorrect password. Enter the correct password:');
-                if (password) {
-                    window.history.replaceState(null, '', `?pass=${password}`);
-                    syncLeads(); // retry
-                }
-                return;
-            }
-            if (!res.ok) throw new Error('Server error');
             const data = await res.json();
-            renderLeads(data);
-        } catch (err) {
-            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p style="color:var(--text-dim)">Could not load data. Tap Sync to retry.</p></div>';
-        }
-    }
-
-    let allLeadsData = {}; // Store for search/filter
-
-    function filterLeads() {
-        const q = document.getElementById('leadSearch')?.value.toLowerCase() || '';
-        const filtered = {};
-        for (const [jid, msgs] of Object.entries(allLeadsData)) {
-            if (jid.toLowerCase().includes(q)) filtered[jid] = msgs;
-        }
-        renderLeads(filtered, false);
-    }
-
-    function renderLeads(data, store = true) {
-        if (store) allLeadsData = data;
-        const total = Object.keys(data).length;
-        document.getElementById('totalChats').innerText = total;
-
-        const leadKeywords = ['@', '07', '+94', 'name', 'interested', 'price', 'how much'];
-        let leads = 0;
-        let html = '';
-
-        const sorted = Object.keys(data).sort((a, b) => {
-            const lastA = data[a][data[a].length - 1]?.time || 0;
-            const lastB = data[b][data[b].length - 1]?.time || 0;
-            return new Date(lastB) - new Date(lastA);
-        });
-
-        if (sorted.length === 0) {
-            document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p>No conversations yet.</p></div>';
-            return;
-        }
-
-        for (const jid of sorted) {
-            const msgs = data[jid];
-            const cleanJid = jid.split('@')[0];
-            const lastMsg = msgs[msgs.length - 1];
-            const lastText = lastMsg?.parts?.[0]?.text || lastMsg?.text || 'No message';
-            const allText = msgs.map(m => (m.parts?.[0]?.text || m.text || '')).join(' ').toLowerCase();
-            const isLead = leadKeywords.some(k => allText.includes(k));
-            if (isLead) leads++;
-
-            html += `
-                <div class="lead-card" id="card-${cleanJid}">
-                    <div class="lead-card-header">
+            const list = document.getElementById('leadsList');
+            let html = '';
+            Object.keys(data).forEach(jid => {
+                const msgs = data[jid];
+                const last = msgs[msgs.length-1]?.parts?.[0]?.text || msgs[msgs.length-1]?.text || '';
+                html += `
+                    <div class="lead-card">
                         <div class="lead-info">
                             <div class="lead-avatar"><i class="fas fa-user"></i></div>
-                            <div>
-                                <h4>${cleanJid}</h4>
-                                <small>${msgs.length} messages</small>
-                            </div>
+                            <div><b>${jid.split('@')[0]}</b></div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            ${isLead ? '<span class="lead-badge"><i class="fas fa-star"></i> Lead</span>' : ''}
-                            <button class="log-toggle-btn" onclick="toggleLog('${cleanJid}')">
-                                <i class="fas fa-comments"></i> Log
-                            </button>
-                        </div>
+                        <div class="lead-preview">${last}</div>
                     </div>
-                    <div class="lead-preview">${lastText}</div>
-                    <div class="log-view" id="log-${cleanJid}">
-                        ${msgs.map(m => {
-                            const txt = m.parts?.[0]?.text || m.text || '';
-                            const isUser = m.role === 'user';
-                            const time = m.time ? new Date(m.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
-                            return `<div class="log-msg ${isUser ? 'log-msg-user' : 'log-msg-bot'}">
-                                <div class="log-msg-label">${isUser ? 'Customer' : 'Olivia AI'}</div>
-                                ${txt}
-                                <div class="log-msg-time">${time}</div>
-                            </div>`;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
+                `;
+            });
+            list.innerHTML = html || 'No chats yet.';
         }
 
-        document.getElementById('totalLeads').innerText = leads;
-        document.getElementById('totalChats').innerText = total;
-        document.getElementById('leadsList').innerHTML = html;
-    }
-
-    function toggleLog(jid) {
-        const el = document.getElementById('log-' + jid);
-        if (!el) return;
-        const isOpen = el.classList.contains('open');
-        document.querySelectorAll('.log-view.open').forEach(l => l.classList.remove('open'));
-        if (!isOpen) {
-            el.classList.add('open');
-            setTimeout(() => el.scrollTop = el.scrollHeight, 100);
-        }
-    }
-
-    async function clearLogs() {
-        if (!confirm('Delete ALL chat logs permanently?')) return;
-        try {
-            const res = await fetch(`/api/logs/clear?pass=${password}`, { method: 'POST' });
-            if (res.ok) { alert('Logs cleared!'); syncLeads(); }
-        } catch (err) { alert('Failed to clear logs.'); }
-    }
-
-    // Quick Reply copy
-    function copyTemplate(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            const status = document.createElement('div');
-            status.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--success);color:white;padding:10px 20px;border-radius:12px;font-size:0.85rem;z-index:9999;';
-            status.innerText = '✓ Copied to clipboard!';
-            document.body.appendChild(status);
-            setTimeout(() => status.remove(), 2000);
-        });
-    }
-
-    // Broadcast
-    function copyBroadcast() {
-        const msg = document.getElementById('broadcastMsg').value.trim();
-        if (!msg) { document.getElementById('broadcastStatus').innerText = 'Please type a message first.'; return; }
-        navigator.clipboard.writeText(msg).then(() => {
-            document.getElementById('broadcastStatus').innerText = '✓ Message copied! Paste it in WhatsApp Broadcast.';
-        });
-    }
-    function previewBroadcast() {
-        const msg = document.getElementById('broadcastMsg').value.trim();
-        if (!msg) return;
-        alert('Preview:\n\n' + msg);
-    }
-
-    // Mode switcher (Voice / Text Chat)
-    function setMode(mode) {
-        document.getElementById('voiceMode').style.display = mode === 'voice' ? 'block' : 'none';
-        document.getElementById('chatMode').style.display = mode === 'chat' ? 'block' : 'none';
-        document.getElementById('modeVoiceBtn').classList.toggle('active', mode === 'voice');
-        document.getElementById('modeChatBtn').classList.toggle('active', mode === 'chat');
-    }
-
-    // Text Chat
-    let chatHistory = [];
-    async function sendChat() {
-        const input = document.getElementById('chatInput');
-        const msg = input.value.trim();
-        if (!msg) return;
-        input.value = '';
-
-        appendBubble('user', msg);
-        chatHistory.push({ role: 'user', text: msg });
-
-        const typingId = 'typing-' + Date.now();
-        const typingEl = document.createElement('div');
-        typingEl.id = typingId;
-        typingEl.className = 'chat-bubble bubble-ai';
-        typingEl.innerHTML = '<span class="thinking-shimmer" style="display:inline-block; width:100px; height:10px; border-radius:10px;"></span>';
-        document.getElementById('chatMessages').appendChild(typingEl);
-        scrollChat();
-
-        const model = document.getElementById('modelSelector').value;
-        try {
-            const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}`);
-            const data = await res.json();
-            const reply = data.answer || 'Sorry, no response.';
-            
-            typingEl.innerHTML = `<div class="bubble-label">${modelNames[model]}</div><div id="text-${typingId}"></div>`;
-            speakText(reply); // Olivia speaks the response
-            await typeText(document.getElementById(`text-${typingId}`), reply, 15);
-            
-            chatHistory.push({ role: 'ai', text: reply });
-        } catch (err) {
-            typingEl.innerHTML = 'Connection error: ' + err.message;
-        }
-        scrollChat();
-    }
-
-    function appendBubble(role, text) {
-        const msgs = document.getElementById('chatMessages');
-        const div = document.createElement('div');
-        div.className = 'chat-bubble ' + (role === 'user' ? 'bubble-user' : 'bubble-ai');
-        if (role === 'ai') div.innerHTML = '<div class="bubble-label">Olivia AI</div>' + text;
-        else div.innerText = text;
-        msgs.appendChild(div);
-        scrollChat();
-    }
-
-    function scrollChat() {
-        const msgs = document.getElementById('chatMessages');
-        msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    // Photo / Image upload for Vision AI
-    async function handleImageUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        event.target.value = ''; // Reset for re-upload
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const dataUrl = e.target.result;
-            const base64 = dataUrl.split(',')[1];
-            const mimeType = file.type;
-
-            // Show image bubble
-            const msgs = document.getElementById('chatMessages');
-            const imgDiv = document.createElement('div');
-            imgDiv.className = 'chat-bubble bubble-user';
-            imgDiv.innerHTML = `<img src="${dataUrl}" class="bubble-img" alt="Uploaded image">`;
-            msgs.appendChild(imgDiv);
-            scrollChat();
-
-            // Optional: ask a question about it
-            const question = document.getElementById('chatInput').value.trim();
-            document.getElementById('chatInput').value = '';
-
-            // Typing indicator
-            const typingId = 'typing-' + Date.now();
-            const typingEl = document.createElement('div');
-            typingEl.id = typingId;
-            typingEl.className = 'chat-bubble bubble-ai bubble-typing';
-            typingEl.innerHTML = '<span></span><span></span><span></span>';
-            msgs.appendChild(typingEl);
-            scrollChat();
-
-            const model = document.getElementById('modelSelector').value;
+        async function updateStatusUI() {
             try {
-                const res = await fetch('/api/assistant/vision', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pass: password, query: question, imageBase64: base64, mimeType, model })
-                });
+                const res = await fetch(`/api/status?pass=${password}`);
                 const data = await res.json();
-                document.getElementById(typingId)?.remove();
-                appendBubble('ai', data.answer || 'Could not analyze image.');
-            } catch (err) {
-                document.getElementById(typingId)?.remove();
-                appendBubble('ai', 'Error analyzing image. Please try again.');
-            }
-        };
-        reader.readAsDataURL(file);
-    }
+                const el = document.getElementById('waStatus');
+                const txt = document.getElementById('waStatusText');
+                el.className = 'status-pill status-' + data.status;
+                txt.innerText = data.status.toUpperCase();
+            } catch(e) {}
+        }
 
-    // Init — called after successful login via doLogin()
-    window.speechSynthesis.onvoiceschanged = () => {};
-</script>
+        function initSSE() {
+            const source = new EventSource(`/api/stream?pass=${password}`);
+            source.onmessage = (e) => {
+                if(e.data === 'update') syncLeads();
+                if(e.data === 'status') updateStatusUI();
+            };
+        }
+
+        function switchTab(tab, btn) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        if(password) doLogin();
+    </script>
 </body>
 </html>
