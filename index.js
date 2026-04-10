@@ -14,6 +14,9 @@ import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import cors from 'cors';
+import multer from 'multer';
+
+const upload = multer({ dest: 'uploads/' });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,20 +29,15 @@ const memoryFile = 'memories.json';
 const tokensFile = path.join(__dirname, 'push-tokens.json');
 const settingsFile = path.join(__dirname, 'settings.json');
 const prefsFile = 'preferences.json';
-const budgetFile = 'budget.json';
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
 let pushTokens = [];
 let preferences = {};
-let budgetData = { limits: {}, expenses: [], totalSpent: 0 };
 let globalSettings = { 
     autoReply: true, 
-    voiceMode: 'browser', 
-    personality: 'sophisticated', // 'sophisticated' or 'friendly'
-    autoConfirmBookings: true,
-    glassmorphism: true,
-    defaultLang: 'en-US'
+    voiceMode: 'browser', // 'browser' or 'elevenlabs'
+    personality: 'sophisticated' // 'sophisticated' or 'friendly'
 };
 const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
@@ -125,37 +123,10 @@ function savePrefs() {
     try { fs.writeFileSync(prefsFile, JSON.stringify(preferences, null, 2)); } catch (e) {}
 }
 
-// --- BUDGET TRACKING ---
-if (fs.existsSync(budgetFile)) {
-    try { budgetData = JSON.parse(fs.readFileSync(budgetFile)); } catch (e) {}
-}
-
-function saveBudget() {
-    try { 
-        fs.writeFileSync(budgetFile, JSON.stringify(budgetData, null, 2)); 
-        notifyClients(); 
-    } catch (e) { console.error('Budget save error:', e); }
-}
-
 // --- ELEVENLABS CLIENT ---
 const xiClient = process.env.ELEVENLABS_API_KEY 
     ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }) 
     : null;
-
-const openai = process.env.OPENAI_API_KEY 
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
-    : null;
-
-const groq = process.env.GROQ_API_KEY 
-    ? new Groq({ apiKey: process.env.GROQ_API_KEY }) 
-    : null;
-
-const genAI = process.env.GEMINI_API_KEY 
-    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    : null;
-
-if (!groq) console.warn('⚠️ GROQ_API_KEY is missing. Groq features will be disabled.');
-if (!genAI) console.warn('⚠️ GEMINI_API_KEY is missing. Gemini features will be disabled.');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -201,10 +172,33 @@ app.get('/api/stream', (req, res) => {
     });
 });
 
-// API: Get Logs
+// API: Get Logs (Enhanced with Mute Status)
 app.get('/api/logs', (req, res) => {
     if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
-    res.json(Object.fromEntries(chatHistory));
+    
+    const logs = Object.fromEntries(chatHistory);
+    const muteStatus = {};
+    
+    // Include current mute timers for the PWA UI
+    adminMuteMap.forEach((until, jid) => {
+        if (until > Date.now()) {
+            muteStatus[jid] = until;
+        }
+    });
+
+    res.json({ logs, muteStatus });
+});
+
+// API: Resume AI (Force Manual Unmute)
+app.post('/api/logs/resume', (req, res) => {
+    const { pass, jid } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!jid) return res.status(400).json({ error: 'JID is required' });
+
+    adminMuteMap.delete(jid);
+    console.log(`🚀 Manual Resume: Olivia is back for ${jid}`);
+    notifyClients(); // Refresh PWA UI
+    res.json({ success: true });
 });
 
 // API: Settings
@@ -377,18 +371,6 @@ app.post('/api/save-token', (req, res) => {
         console.log('✅ New Push Token Registered:', token.substring(0, 10) + '...');
     }
     res.json({ success: true });
-});
-
-app.post('/api/assistant/test-push', async (req, res) => {
-    const { pass } = req.body;
-    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
-
-    try {
-        await sendPushToAll("📡 Test Alert", "Verification successful! Real-time alerts are online.");
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
 });
 
 // API: Manage Todos (Add, Toggle, Delete)
@@ -780,59 +762,7 @@ async function processAiTools(aiText, jid) {
         const last = trendsData.lastUpdate ? new Date(trendsData.lastUpdate).toLocaleTimeString() : 'Never';
         finalOutput += `\n\n[TRENDS INTEL: Last updated at ${last}. Cars: ${trendsData.cars.length} updates. Design: ${trendsData.design.length} updates.]`;
     }
-    finalOutput = finalOutput.replace(trendsRegex, '');
-
-    // 8. Budget Tracker
-    const addExpenseRegex = /\[ADD_EXPENSE:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\]/gi;
-    let expenseMatch;
-    while ((expenseMatch = addExpenseRegex.exec(aiText)) !== null) {
-        const amount = parseFloat(expenseMatch[1].trim());
-        const category = expenseMatch[2].trim().toLowerCase();
-        const desc = expenseMatch[3].trim();
-        if (!isNaN(amount)) {
-            budgetData.expenses.push({ amount, category, desc, date: new Date().toISOString() });
-            budgetData.totalSpent += amount;
-            saveBudget();
-            const limit = budgetData.limits[category];
-            const catSpent = budgetData.expenses.filter(e => e.category === category).reduce((sum, e) => sum + e.amount, 0);
-            let alert = `\n\n[FINANCE: Sir, I have recorded ${amount} for ${category}. (Total Category Spent: ${catSpent})]`;
-            if (limit && catSpent > limit) {
-                alert += `\n⚠️ CRITICAL: Sir, you have exceeded the budget limit of ${limit} for ${category}!`;
-            }
-            finalOutput += alert;
-        }
-    }
-    finalOutput = finalOutput.replace(addExpenseRegex, '');
-
-    const setBudgetRegex = /\[SET_BUDGET:\s*(.+?)\s*\|\s*(.+?)\]/gi;
-    let budgetMatch;
-    while ((budgetMatch = setBudgetRegex.exec(aiText)) !== null) {
-        const category = budgetMatch[1].trim().toLowerCase();
-        const limit = parseFloat(budgetMatch[2].trim());
-        if (!isNaN(limit)) {
-            budgetData.limits[category] = limit;
-            saveBudget();
-            finalOutput += `\n\n[FINANCE: Protocol updated. Budget limit for ${category} is set to ${limit}, Sir.]`;
-        }
-    }
-    finalOutput = finalOutput.replace(setBudgetRegex, '');
-
-    const getBudgetRegex = /\[GET_BUDGET\]/gi;
-    if (getBudgetRegex.test(aiText)) {
-        let report = `Sir Subhash, here is your financial briefing:\n- Total Spend: ${budgetData.totalSpent}\n- Expenses Logged: ${budgetData.expenses.length}`;
-        const cats = Object.keys(budgetData.limits);
-        if (cats.length > 0) {
-            report += `\n\nLimits Status:`;
-            cats.forEach(c => {
-                const spent = budgetData.expenses.filter(e => e.category === c).reduce((sum, e) => sum + e.amount, 0);
-                report += `\n- ${c}: ${spent} / ${budgetData.limits[c]}`;
-            });
-        }
-        finalOutput += `\n\n[FINANCE BRIEFING:\n${report}]`;
-    }
-    finalOutput = finalOutput.replace(getBudgetRegex, '');
-
-    // 9. Desktop Control
+    // 8. Desktop Control
     const deskRegex = /\[OPEN_APP:\s*(.+?)\]/gi;
     let dMatch;
     while ((dMatch = deskRegex.exec(aiText)) !== null) {
@@ -844,55 +774,46 @@ async function processAiTools(aiText, jid) {
     return finalOutput.trim();
 }
 
-async function getGroqResponse(prompt, history = [], isAdmin = true) {
+async function getGroqResponse(message, history = []) {
     try {
         const tone = globalSettings.personality === 'friendly' 
             ? "Warm, helpful, and friendly. Use a casual but respectful tone." 
             : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
 
-        // --- PERSONA DEFINITION ---
-        let systemContent = "";
-        
-        if (isAdmin) {
-            systemContent = `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
-                Tone: ${tone}
-                Context: You are the core intelligence of the Olivia v7.5 Dashboard. Your goal is to manage Subhash's life, studio, and tasks with precision and elegance.
-                
-                Preference Vault:
-                - Remember favorites and learned facts.
-                - Use [SAVE_PREF: category | value] to store.
-                - Current Preferences: ${JSON.stringify(preferences)}
-
-                Tool Integration:
-                - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
-                - [GET_WEATHER: City], [GET_NEWS: Topic], [BOOK_APPT: Name | Date | Time | Service]
-                - [GET_CALENDAR], [SAVE_MEMORY: fact]
-                - [ADD_EXPENSE: amount | category | description] (Finance tracking)
-                - [SET_BUDGET: category | limit] (Set spending limits)
-                - [GET_BUDGET] (Get financial overview)`;
-        } else {
-            systemContent = `Role: You are Olivia, the professional AI Studio Assistant for 69 Studio. 
-                Tone: ${tone}
-                Goal: Help customers with their inquiries, provide information about studio services, and book appointments. 
-                Identity: You are an AI, but you speak naturally. Never say "I was initially configured for Subhash" to customers. 
-                Context: If a customer wants to book, use the [BOOK_APPT] tool below.
-                
-                Studio Rules:
-                - Be warm and welcoming. 
-                - If asked about prices or specifics you don't know, say you will notify Subhash to get back to them.
-                - Tools available for customers: [BOOK_APPT: Name | Date | Time | Service]`;
-        }
-
         const messages = [
             {
                 role: "system",
-                content: systemContent
+                content: `Role: You are Olivia, Subhash's highly sophisticated personal AI assistant. 
+                Tone: ${tone}
+                Addressing: Always address Subhash as "Sir" or "Sir Subhash".
+                
+                Preference Vault:
+                - You MUST remember Subhash's favorites (colors, food, hobbies).
+                - Use [SAVE_PREF: category | value] to store a preference.
+                - Current Preferences: ${JSON.stringify(preferences)}
+
+                Health & Habits Tracking:
+                - Remind Subhash to drink water or take breaks if the conversation is long or late.
+                - Use [REMIND_HEALTH: msg] for health nudges.
+
+                Language Protocol (CRITICAL):
+                - Subhash prefers "Singlish" (Sinhala words in English alphabet). 
+                - If in Friendly Mode, speak naturally in Singlish (e.g., "Sir, wede iwarayi", "Oyaata kohomada?").
+                - If Subhash speaks formal Sinhala (සිංහල), reply in formal Sinhala.
+                
+                Tool Integration:
+                - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
+                - [SAVE_PREF: category | value], [GET_CALENDAR], [GET_EMAILS], [GET_TRENDS]
+                - [GET_WEATHER: City], [GET_NEWS: Topic], [OPEN_APP: Name]
+                - [HOME_ACTION: entity | command], [IFTTT_TRIGGER: event | data]
+                - [BOOK_APPT: Name | Date | Time | Service]
+                `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
                 role: h.role === "model" ? "assistant" : "user",
                 content: h.parts ? h.parts[0].text : (h.text || "")
             })),
-            { role: "user", content: prompt }
+            { role: "user", content: message }
         ];
 
         const chatCompletion = await groq.chat.completions.create({
@@ -923,8 +844,8 @@ app.post('/api/chat', async (req, res) => {
         if (!chatHistory.has(userId)) chatHistory.set(userId, []);
         const history = chatHistory.get(userId);
 
-        // Process via Groq (Website guests are always non-admins)
-        let aiResponse = await getGroqResponse(message, history, false);
+        // Process via Groq
+        let aiResponse = await getGroqResponse(message, history);
         aiResponse = await processAiTools(aiResponse, userId);
         aiResponse = processAiResponseForTodos(aiResponse);
 
@@ -1045,14 +966,13 @@ app.post('/api/assistant/memory/save', (req, res) => {
     const { pass: password, memory } = req.body;
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
-// Memory Save
-app.post('/api/assistant/memory/save', async (req, res) => {
-    const { pass, fact } = req.body;
-    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
-    let memories = loadMemories();
-    if (!memories[pass]) memories[pass] = [];
-    memories[pass].unshift(`[LEARNED ${new Date().toLocaleDateString()}]: ${fact}`);
-    if (memories[pass].length > 20) memories[pass].pop();
+    const memories = loadMemories();
+    if (!memories[password]) memories[password] = [];
+    if (!memories[password].includes(memory)) {
+        memories[password].push(memory);
+        // Keep only last 50 memories
+        if (memories[password].length > 50) memories[password].shift();
+    }
     saveMemories(memories);
     res.json({ success: true });
 });
@@ -1065,23 +985,34 @@ app.post('/api/assistant/vision', async (req, res) => {
 
     try {
         const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const imageParts = [{ inlineData: { data: image.split(',')[1], mimeType: "image/jpeg" } }];
+        
+        // Prepare image data for Gemini
+        const imageParts = [
+            {
+                inlineData: {
+                    data: image.split(',')[1], // Remove metadata prefix if present
+                    mimeType: "image/jpeg"
+                }
+            }
+        ];
 
-        // --- POTION: BOSS IDENTIFICATION ---
-        const protocolBody = "Identify Subhash (The Boss) if visible. Provide witty analysis. Treat him with loyalty.";
-        const prompt = q || "Describe this for Subhash.";
+        const prompt = q || "Look at this image. What do you see? Be concise and witty as Olivia, Subhash's assistant.";
+        const systemAddon = "You are Olivia. Answer directly to Subhash. Mention unique details you see.";
 
-        const result = await genModel.generateContent([protocolBody + "\n" + prompt, ...imageParts]);
+        const result = await genModel.generateContent([systemAddon + "\n" + prompt, ...imageParts]);
         const response = await result.response;
         const answer = response.text();
+
         res.json({ answer });
     } catch (error) {
+        console.error("Vision Error:", error.message);
         res.status(500).json({ error: 'Vision AI Error: ' + error.message });
     }
 });
 
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
+
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
@@ -1127,6 +1058,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         }
 
         let answer = "";
+
         if (modelType === "gemini") {
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const chat = model.startChat({
@@ -1141,12 +1073,20 @@ app.get('/api/assistant/ask', async (req, res) => {
         } else if (modelType === "chatgpt") {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
-                messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: query }],
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...history,
+                    { role: "user", content: query }
+                ],
             });
             answer = completion.choices[0].message.content;
-        } else {
+        } else { // Default to Groq Llama
             const chatCompletion = await groq.chat.completions.create({
-                messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: query }],
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...history,
+                    { role: "user", content: query }
+                ],
                 model: "llama-3.3-70b-versatile",
                 temperature: 0.7,
                 max_tokens: 512,
@@ -1158,44 +1098,61 @@ app.get('/api/assistant/ask', async (req, res) => {
         answer = processAiResponseForTodos(answer);
         res.json({ answer });
     } catch (error) {
+        console.error("Assistant Error:", error.message);
         res.status(500).json({ error: 'AI Error: ' + error.message });
     }
 });
 
-// Assistant TTS (Emotion-Aware v8.2)
 app.post('/api/assistant/tts', async (req, res) => {
-    const { pass, text, voiceId, mood } = req.body;
+    const { pass, text, voiceId } = req.body;
     if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
     if (!xiClient) return res.status(500).json({ error: 'ElevenLabs not configured' });
 
     try {
-        let vs = { stability: 0.5, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true };
-        if (mood === 'happy') { vs.stability = 0.4; vs.style = 0.5; }
-        else if (mood === 'serious') { vs.stability = 0.8; vs.similarity_boost = 0.9; }
-
         const audio = await xiClient.generate({
-            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L",
+            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L", // Default: Bella (Sinhala Girl tone)
             text: text,
             model_id: "eleven_multilingual_v2",
-            voice_settings: vs
+            voice_settings: {
+                stability: 0.4,
+                similarity_boost: 0.8,
+                style: 0.05,
+                use_speaker_boost: true
+            }
         });
+
         res.setHeader('Content-Type', 'audio/mpeg');
         audio.pipe(res);
     } catch (e) {
+        console.error('TTS Error:', e.message);
         res.status(500).json({ error: 'TTS Generation Failed' });
     }
 });
 
-                model_id: "eleven_multilingual_v2",
-            });
-            res.setHeader('Content-Type', 'audio/mpeg');
-            audio.pipe(res);
-        } else {
-            res.status(204).send(); // Fallback to browser TTS
-        }
+// --- VOICE CLONING ENDPOINT (v7.5) ---
+app.post('/api/assistant/voice-clone', upload.single('sample'), async (req, res) => {
+    const { pass } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!xiClient) return res.status(500).json({ error: 'ElevenLabs not configured' });
+    if (!req.file) return res.status(400).json({ error: 'No audio sample uploaded' });
+
+    try {
+        console.log(`🎙️ Cloning voice from sample: ${req.file.originalname}`);
+        
+        const voice = await xiClient.voices.add({
+            name: `Clone_${Date.now()}`,
+            description: "Custom clone from Olivia PWA",
+            files: [fs.createReadStream(req.file.path)]
+        });
+
+        // Cleanup local file
+        fs.unlinkSync(req.file.path);
+
+        res.json({ success: true, voiceId: voice.voice_id });
     } catch (e) {
-        console.error('ElevenLabs Error:', e.message);
-        res.status(500).json({ error: 'Voice synthesis failed' });
+        console.error('Cloning Error:', e.message);
+        if (req.file) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: 'Voice Cloning Failed: ' + e.message });
     }
 });
 
@@ -1277,8 +1234,10 @@ async function startBot() {
             
             // --- DETECT MANUAL INTERVENTION ---
             if (isMe) {
-                adminMuteMap.set(from, Date.now());
-                console.log(`🔇 Manual reply detected by Admin. Olivia is now MUTED for ${from} for 30 minutes.`);
+                const muteUntil = Date.now() + 30 * 60 * 1000;
+                adminMuteMap.set(from, muteUntil);
+                console.log(`🔇 Manual reply detected by Admin. Olivia is now MUTED for ${from} until ${new Date(muteUntil).toLocaleTimeString()}.`);
+                notifyClients(); // Refresh Pulse in PWA
             }
         }
 
@@ -1287,9 +1246,9 @@ async function startBot() {
         const from = msg.key.remoteJid;
         
         // --- CHECK MUTE STATUS ---
-        const lastManual = adminMuteMap.get(from);
-        if (lastManual && (Date.now() - lastManual) < 30 * 60 * 1000) {
-            const remaining = Math.round((30 * 60 * 1000 - (Date.now() - lastManual)) / 60000);
+        const muteUntil = adminMuteMap.get(from);
+        if (muteUntil && muteUntil > Date.now()) {
+            const remaining = Math.round((muteUntil - Date.now()) / 60000);
             console.log(`⏳ Skip auto-reply for ${from}. Manual override active for ${remaining} more mins.`);
             return;
         }
@@ -1373,12 +1332,8 @@ async function startBot() {
                         console.error('❌ Push System Error:', pushErr.message);
                     }
 
-                    // Determine if sender is Subhash (assuming only the account owner is Admin for now)
-                    // You can add more ADMIN_JIDs to a list if needed.
-                    const isAdmin = false; // Default to Lead mode for security
-                    
-                    // Get AI Response using Groq (Pass isAdmin = false for WhatsApp leads)
-                    let aiResponse = await getGroqResponse(body, history, isAdmin);
+                    // Get AI Response using Groq
+                    let aiResponse = await getGroqResponse(body, history);
                     aiResponse = processAiResponseForTodos(aiResponse);
                     aiResponse = processAiResponseForBookings(aiResponse, from);
                     aiResponse = await processAiTools(aiResponse, from);
@@ -1407,4 +1362,3 @@ async function startBot() {
 }
 
 startBot();
-
