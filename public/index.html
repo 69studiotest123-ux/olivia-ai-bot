@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
@@ -42,6 +42,10 @@
             --text-dim: #94a3b8;
             --accent: #38bdf8;
             --success: #10b981;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
             --glass: rgba(255, 255, 255, 0.03);
         }
 
@@ -57,7 +61,8 @@
             color: var(--text-main);
             line-height: 1.6;
             overflow-x: hidden;
-            padding-bottom: 80px;
+            padding-top: var(--safe-top);
+            padding-bottom: calc(80px + var(--safe-bottom));
         }
 
         /* ====== LOGIN SCREEN ====== */
@@ -1270,7 +1275,7 @@
             border-top: 1px solid var(--border);
             display: flex;
             justify-content: space-around;
-            padding: 10px 0 20px;
+            padding: 10px 0 calc(20px + var(--safe-bottom));
             z-index: 999;
         }
 
