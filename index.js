@@ -562,9 +562,6 @@ app.listen(port, '0.0.0.0', () => {
 });
 
 // --- AI SETUP AND PARSERS ---
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "no_key" });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "no_key");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "no_key" });
 
 function processAiResponseForTodos(aiText) {
     if (!aiText) return aiText;
