@@ -146,8 +146,16 @@ const openai = process.env.OPENAI_API_KEY
     ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
     : null;
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = process.env.GROQ_API_KEY 
+    ? new Groq({ apiKey: process.env.GROQ_API_KEY }) 
+    : null;
+
+const genAI = process.env.GEMINI_API_KEY 
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
+
+if (!groq) console.warn('⚠️ GROQ_API_KEY is missing. Groq features will be disabled.');
+if (!genAI) console.warn('⚠️ GEMINI_API_KEY is missing. Gemini features will be disabled.');
 
 const app = express();
 const port = process.env.PORT || 3000;
