@@ -831,14 +831,17 @@ async function getGroqResponse(message, history = []) {
             : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
 
         const messages = [
-                       content: `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
+            {
+                role: "system",
+                content: `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
                 Tone: ${tone}
                 Context: You are the core intelligence of the Olivia v7.5 Dashboard. Your goal is to manage Subhash's life, studio, and tasks with precision and elegance.
                 
                 Preference Vault:
                 - Remember favorites and learned facts.
                 - Use [SAVE_PREF: category | value] to store.
-                - Current Preferences: ${JSON.stringify(preferences)}
+                - Current Preferences: ${JSON.stringify(preferences)}`
+            },
 
                 Tool Integration:
                 - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
