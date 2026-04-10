@@ -1045,13 +1045,14 @@ app.post('/api/assistant/memory/save', (req, res) => {
     const { pass: password, memory } = req.body;
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
-    const memories = loadMemories();
-    if (!memories[password]) memories[password] = [];
-    if (!memories[password].includes(memory)) {
-        memories[password].push(memory);
-        // Keep only last 50 memories
-        if (memories[password].length > 50) memories[password].shift();
-    }
+// Memory Save
+app.post('/api/assistant/memory/save', async (req, res) => {
+    const { pass, fact } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    let memories = loadMemories();
+    if (!memories[pass]) memories[pass] = [];
+    memories[pass].unshift(`[LEARNED ${new Date().toLocaleDateString()}]: ${fact}`);
+    if (memories[pass].length > 20) memories[pass].pop();
     saveMemories(memories);
     res.json({ success: true });
 });
@@ -1064,34 +1065,23 @@ app.post('/api/assistant/vision', async (req, res) => {
 
     try {
         const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        
-        // Prepare image data for Gemini
-        const imageParts = [
-            {
-                inlineData: {
-                    data: image.split(',')[1], // Remove metadata prefix if present
-                    mimeType: "image/jpeg"
-                }
-            }
-        ];
+        const imageParts = [{ inlineData: { data: image.split(',')[1], mimeType: "image/jpeg" } }];
 
-        const prompt = q || "Look at this image. What do you see? Be concise and witty as Olivia, Subhash's assistant.";
-        const systemAddon = "You are Olivia. Answer directly to Subhash. Mention unique details you see.";
+        // --- POTION: BOSS IDENTIFICATION ---
+        const protocolBody = "Identify Subhash (The Boss) if visible. Provide witty analysis. Treat him with loyalty.";
+        const prompt = q || "Describe this for Subhash.";
 
-        const result = await genModel.generateContent([systemAddon + "\n" + prompt, ...imageParts]);
+        const result = await genModel.generateContent([protocolBody + "\n" + prompt, ...imageParts]);
         const response = await result.response;
         const answer = response.text();
-
         res.json({ answer });
     } catch (error) {
-        console.error("Vision Error:", error.message);
         res.status(500).json({ error: 'Vision AI Error: ' + error.message });
     }
 });
 
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
-
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
     try {
@@ -1107,29 +1097,20 @@ app.get('/api/assistant/ask', async (req, res) => {
         
         const internalSystem = `You are Subhash's loyal, smart and charming AI Personal Assistant named Olivia. 
         Your boss and creator is Subhash. NEVER ask for his name or purpose. 
-        NEVER provide appointment links (that is for WhatsApp leads).
+        
+        LANGUAGE PROTOCOL:
+        - Use "Singlish" (Sinhala words in English alphabet) for a natural Sri Lankan feel.
+        - Examples: "Sir, wede iwarayi", "Dannam karannam Sir", "Kohomada Sirta?".
+        - Reply in English for technical/formal tasks.
         
         CONTEXT FROM RECENT WHATSAPP LEADS:
         ${leadsSummary || "No active leads."}
 
         ${memoryContext}
         
-        TOOL INTEGRATION (STRICT):
-        - [SET_REMINDER: msg | time], [SET_TIMER: duration], [SAVE_NOTE: text], [GET_WEATHER: location]
-        - [GET_NEWS], [GET_XCHANGE: base | target], [START_FOCUS: duration], [GET_BATTERY]
-        - [GEN_QR: text], [GEN_PASS], [START_BREATHE], [GET_WISDOM], [GET_WIKI: topic]
-        - [START_GAME], [DRINK_WATER], [CALC: expression], [WEB_SEARCH: query]
-        - [OPEN_CAMERA], [PLAY_MUSIC: query], [CALL: number/name], [ADD_TODO: task]
-        - [GEN_CONTENT: type | topic], [TRANSLATE: text | lang], [WELLNESS_CHECK], [SAVE_MEMORY: fact]
-        - [GEN_IMAGE: simple description], [TRACK_EXPENSE: amount | desc], [DAILY_BRIEFING]
-        - [SEND_EMAIL: to | subject | body], [CHECK_SITE: url], [READ_WEBPAGE: url], [GEN_MAPS: location]
-        - [SHARE_CONTENT: title | text], [VIBRATE_PHONE], [ADD_EVENT: title | date | duration]
-        - [CHANGE_THEME: hex_color], [CELEBRATE], [LOCK_APP]
-
-        CRITICAL INSTRUCTIONS: 
-        1. Answer Subhash directly. Be witty, efficient and charming.
-        2. KEEP IT CONCISE (1-3 sentences max).
-        3. Use subtle emojis. Output tool tags at the VERY END.
+        TOOL INTEGRATION:
+        - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
+        - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc]
         `;
 
         const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
@@ -1146,7 +1127,6 @@ app.get('/api/assistant/ask', async (req, res) => {
         }
 
         let answer = "";
-
         if (modelType === "gemini") {
             const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const chat = model.startChat({
@@ -1161,20 +1141,12 @@ app.get('/api/assistant/ask', async (req, res) => {
         } else if (modelType === "chatgpt") {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    ...history,
-                    { role: "user", content: query }
-                ],
+                messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: query }],
             });
             answer = completion.choices[0].message.content;
-        } else { // Default to Groq Llama
+        } else {
             const chatCompletion = await groq.chat.completions.create({
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    ...history,
-                    { role: "user", content: query }
-                ],
+                messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: query }],
                 model: "llama-3.3-70b-versatile",
                 temperature: 0.7,
                 max_tokens: 512,
@@ -1186,48 +1158,34 @@ app.get('/api/assistant/ask', async (req, res) => {
         answer = processAiResponseForTodos(answer);
         res.json({ answer });
     } catch (error) {
-        console.error("Assistant Error:", error.message);
         res.status(500).json({ error: 'AI Error: ' + error.message });
     }
 });
 
-// --- PREMIUM TTS ENDPOINT (v7.5) ---
+// Assistant TTS (Emotion-Aware v8.2)
 app.post('/api/assistant/tts', async (req, res) => {
-    const { pass, text, voiceId } = req.body;
+    const { pass, text, voiceId, mood } = req.body;
     if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
     if (!xiClient) return res.status(500).json({ error: 'ElevenLabs not configured' });
 
     try {
+        let vs = { stability: 0.5, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true };
+        if (mood === 'happy') { vs.stability = 0.4; vs.style = 0.5; }
+        else if (mood === 'serious') { vs.stability = 0.8; vs.similarity_boost = 0.9; }
+
         const audio = await xiClient.generate({
-            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L", // Default: Bella (Sinhala Girl tone)
+            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L",
             text: text,
             model_id: "eleven_multilingual_v2",
-            voice_settings: {
-                stability: 0.4,
-                similarity_boost: 0.8,
-                style: 0.05,
-                use_speaker_boost: true
-            }
+            voice_settings: vs
         });
-
         res.setHeader('Content-Type', 'audio/mpeg');
         audio.pipe(res);
     } catch (e) {
-        console.error('TTS Error:', e.message);
         res.status(500).json({ error: 'TTS Generation Failed' });
     }
 });
 
-app.post('/api/assistant/speak', async (req, res) => {
-    const { text, pass: password } = req.body;
-    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
-    if (!text) return res.status(400).json({ error: 'Text is required' });
-
-    try {
-        if (globalSettings.voiceMode === 'elevenlabs' && process.env.ELEVENLABS_API_KEY) {
-            const audio = await xiClient.generate({
-                voice: process.env.ELEVENLABS_VOICE_ID || "nPczCjzI2devNBz1zWPC",
-                text: text,
                 model_id: "eleven_multilingual_v2",
             });
             res.setHeader('Content-Type', 'audio/mpeg');
@@ -1449,3 +1407,4 @@ async function startBot() {
 }
 
 startBot();
+
