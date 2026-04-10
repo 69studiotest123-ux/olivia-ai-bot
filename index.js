@@ -371,6 +371,18 @@ app.post('/api/save-token', (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/assistant/test-push', async (req, res) => {
+    const { pass } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+
+    try {
+        await sendPushToAll("📡 Test Alert", "Verification successful! Real-time alerts are online.");
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // API: Manage Todos (Add, Toggle, Delete)
 app.post('/api/todos', (req, res) => {
     const { pass, action, text, id, url } = req.body;
@@ -824,16 +836,17 @@ async function processAiTools(aiText, jid) {
     return finalOutput.trim();
 }
 
-async function getGroqResponse(message, history = []) {
+async function getGroqResponse(prompt, history = [], isAdmin = true) {
     try {
         const tone = globalSettings.personality === 'friendly' 
             ? "Warm, helpful, and friendly. Use a casual but respectful tone." 
             : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
 
-        const messages = [
-            {
-                role: "system",
-                content: `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
+        // --- PERSONA DEFINITION ---
+        let systemContent = "";
+        
+        if (isAdmin) {
+            systemContent = `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
                 Tone: ${tone}
                 Context: You are the core intelligence of the Olivia v7.5 Dashboard. Your goal is to manage Subhash's life, studio, and tasks with precision and elegance.
                 
@@ -848,13 +861,30 @@ async function getGroqResponse(message, history = []) {
                 - [GET_CALENDAR], [SAVE_MEMORY: fact]
                 - [ADD_EXPENSE: amount | category | description] (Finance tracking)
                 - [SET_BUDGET: category | limit] (Set spending limits)
-                - [GET_BUDGET] (Get financial overview)`
+                - [GET_BUDGET] (Get financial overview)`;
+        } else {
+            systemContent = `Role: You are Olivia, the professional AI Studio Assistant for 69 Studio. 
+                Tone: ${tone}
+                Goal: Help customers with their inquiries, provide information about studio services, and book appointments. 
+                Identity: You are an AI, but you speak naturally. Never say "I was initially configured for Subhash" to customers. 
+                Context: If a customer wants to book, use the [BOOK_APPT] tool below.
+                
+                Studio Rules:
+                - Be warm and welcoming. 
+                - If asked about prices or specifics you don't know, say you will notify Subhash to get back to them.
+                - Tools available for customers: [BOOK_APPT: Name | Date | Time | Service]`;
+        }
+
+        const messages = [
+            {
+                role: "system",
+                content: systemContent
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
                 role: h.role === "model" ? "assistant" : "user",
                 content: h.parts ? h.parts[0].text : (h.text || "")
             })),
-            { role: "user", content: message }
+            { role: "user", content: prompt }
         ];
 
         const chatCompletion = await groq.chat.completions.create({
@@ -885,8 +915,8 @@ app.post('/api/chat', async (req, res) => {
         if (!chatHistory.has(userId)) chatHistory.set(userId, []);
         const history = chatHistory.get(userId);
 
-        // Process via Groq
-        let aiResponse = await getGroqResponse(message, history);
+        // Process via Groq (Website guests are always non-admins)
+        let aiResponse = await getGroqResponse(message, history, false);
         aiResponse = await processAiTools(aiResponse, userId);
         aiResponse = processAiResponseForTodos(aiResponse);
 
@@ -1377,8 +1407,12 @@ async function startBot() {
                         console.error('❌ Push System Error:', pushErr.message);
                     }
 
-                    // Get AI Response using Groq
-                    let aiResponse = await getGroqResponse(body, history);
+                    // Determine if sender is Subhash (assuming only the account owner is Admin for now)
+                    // You can add more ADMIN_JIDs to a list if needed.
+                    const isAdmin = false; // Default to Lead mode for security
+                    
+                    // Get AI Response using Groq (Pass isAdmin = false for WhatsApp leads)
+                    let aiResponse = await getGroqResponse(body, history, isAdmin);
                     aiResponse = processAiResponseForTodos(aiResponse);
                     aiResponse = processAiResponseForBookings(aiResponse, from);
                     aiResponse = await processAiTools(aiResponse, from);

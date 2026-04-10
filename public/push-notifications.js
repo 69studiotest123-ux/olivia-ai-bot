@@ -158,8 +158,33 @@ function saveTokenToServer(token) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: token })
-  }).then(res => console.log('Token saved to Render backend'))
+  }).then(res => {
+     console.log('Token saved to Render backend');
+     // Alert the user if this was a manual test
+     if (window.isManualTest) {
+        alert('✅ Notifications Enabled! Token registered on server.');
+        window.isManualTest = false;
+     }
+  })
     .catch(err => console.error('Failed to save token to Render:', err));
+}
+
+async function sendTestPush() {
+  const password = localStorage.getItem('adminPassword');
+  if (!password) return alert('Please login first');
+  
+  window.isManualTest = true;
+  await setupFCM(); // Ensure we have a token
+
+  fetch(`${PUSH_API_BASE}/api/assistant/test-push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pass: password })
+  }).then(res => res.json())
+    .then(data => {
+      if (data.success) alert('📡 Test Alert Sent! Check your phone.');
+      else alert('❌ Failed: ' + data.error);
+    });
 }
 
 // Trigger prompt after login or after a short delay

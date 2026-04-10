@@ -1415,27 +1415,38 @@
             transform: translateX(22px);
         }
 
-        /* Quick Reply Templates */
-        .template-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 25px;
+        /* Centered Premium Toggles */
+        .mode-tabs, .lang-switch {
+            display: flex !important;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03) !important;
+            backdrop-filter: blur(15px);
+            padding: 5px;
+            border-radius: 16px;
+            border: 1px solid var(--border) !important;
+            width: fit-content;
+            margin: 0 auto 25px !important; /* Forces centering */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        .template-chip {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px;
+        .mode-tab, .lang-opt {
+            padding: 10px 24px !important;
+            border-radius: 12px !important;
+            font-size: 0.75rem;
+            font-weight: 700;
             cursor: pointer;
-            transition: 0.2s;
-            text-align: left;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-dim) !important;
+            border: none !important;
+            background: transparent !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .template-chip:hover {
-            border-color: var(--primary);
-            background: rgba(255, 77, 77, 0.05);
+        .mode-tab.active, .lang-opt.active {
+            background: var(--primary) !important;
+            color: white !important;
+            box-shadow: 0 4px 15px var(--primary-glow) !important;
         }
 
         .template-chip .chip-lang {
@@ -1637,35 +1648,7 @@
             transform: scale(1.1);
         }
 
-        /* LANGUAGE TOGGLE */
-        .lang-switch {
-            display: flex;
-            gap: 4px;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 4px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            margin-bottom: 25px;
-            margin-left: auto;
-            margin-right: auto;
-            width: fit-content;
-        }
-
-        .lang-opt {
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: 0.3s;
-            color: var(--text-dim);
-        }
-
-        .lang-opt.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 12px var(--primary-glow);
-        }
+        /* Removed old lang-switch styles favoring the unified one above */
 
         @media (max-width: 400px) {
             .stats-grid {
@@ -2075,6 +2058,20 @@
                         <p>Active: <span id="currentModel" style="color:var(--primary)">Groq (Llama 3.3)</span></p>
                     </div>
                     <i class="fas fa-chevron-right" style="color:var(--text-dim)"></i>
+                </div>
+                <div class="setting-row">
+                    <div>
+                        <h4>Push Notifications</h4>
+                        <p>Receive alerts on your phone</p>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-ghost" onclick="showNotificationPrompt()" style="padding: 10px; border-radius: 12px; border: 1px solid var(--border);">
+                            <i class="fas fa-bell"></i> Enable
+                        </button>
+                        <button class="btn btn-ghost" onclick="sendTestPush()" style="padding: 10px; border-radius: 12px; border: 1px solid var(--border);">
+                            <i class="fas fa-vial"></i> Test
+                        </button>
+                    </div>
                 </div>
                 <div class="setting-row" style="cursor:pointer;" onclick="clearLogs()">
                     <div>
