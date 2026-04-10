@@ -840,18 +840,15 @@ async function getGroqResponse(message, history = []) {
                 Preference Vault:
                 - Remember favorites and learned facts.
                 - Use [SAVE_PREF: category | value] to store.
-                - Current Preferences: ${JSON.stringify(preferences)}`
-            },
+                - Current Preferences: ${JSON.stringify(preferences)}
 
                 Tool Integration:
                 - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
                 - [GET_WEATHER: City], [GET_NEWS: Topic], [BOOK_APPT: Name | Date | Time | Service]
                 - [GET_CALENDAR], [SAVE_MEMORY: fact]
-                ` Date | Time | Service]
                 - [ADD_EXPENSE: amount | category | description] (Finance tracking)
                 - [SET_BUDGET: category | limit] (Set spending limits)
-                - [GET_BUDGET] (Get financial overview)
-                `
+                - [GET_BUDGET] (Get financial overview)`
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
                 role: h.role === "model" ? "assistant" : "user",
