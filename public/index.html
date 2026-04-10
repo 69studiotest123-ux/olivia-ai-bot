@@ -27,12 +27,13 @@
             --primary: #ff4d4d;
             --primary-glow: rgba(255, 77, 77, 0.3);
             --bg: #0a0a0c;
-            --card: #121214;
+            --card: #161618;
             --border: rgba(255, 255, 255, 0.08);
             --text-main: #f8f9fa;
             --text-dim: #94a3b8;
             --accent: #38bdf8;
             --success: #10b981;
+            --glass: rgba(255, 255, 255, 0.03);
         }
 
         * {
@@ -379,19 +380,141 @@
             pointer-events: none;
         }
 
-        /* HEADER */
-        header {
-            padding: 12px 16px;
-            background: rgba(18, 18, 20, 0.9);
-            backdrop-filter: blur(20px);
-            border-bottom: 2px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+        /* ====== v7.5 DASHBOARD STYLES ====== */
+        .voice-panel-v75 {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
-            gap: 10px;
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        .pulse-container {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .pulse-rings {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ring {
+            position: absolute;
+            border: 1px solid rgba(255, 77, 77, 0.2);
+            border-radius: 50%;
+            animation: ringPulse 4s cubic-bezier(0, 0.5, 0.5, 1) infinite;
+        }
+
+        .ring:nth-child(1) { width: 100%; height: 100%; animation-delay: 0s; }
+        .ring:nth-child(2) { width: 80%; height: 80%; animation-delay: 0.5s; }
+        .ring:nth-child(3) { width: 60%; height: 60%; animation-delay: 1s; }
+        .ring:nth-child(4) { width: 40%; height: 40%; animation-delay: 1.5s; }
+
+        @keyframes ringPulse {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.2); opacity: 0; }
+        }
+
+        .avatar-center {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            z-index: 2;
+        }
+
+        .avatar-center img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 30px var(--primary-glow);
+        }
+
+        .mic-fab {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            width: 48px;
+            height: 48px;
+            background: var(--primary);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 15px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+        }
+
+        .mic-fab:hover { transform: scale(1.1); filter: brightness(1.1); }
+
+        .v75-action-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .action-btn-v75 {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .action-btn-v75:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(255, 77, 77, 0.2);
+        }
+
+        .status-text-v75 h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            letter-spacing: -1px;
+        }
+
+        .status-text-v75 p {
+            font-size: 1rem;
+            color: var(--text-dim);
+        }
+
+        .version-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(255, 77, 77, 0.1);
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 77, 77, 0.2);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .brand {
@@ -1782,18 +1905,18 @@
                     <img src="/olivia.png" alt="Olivia"
                         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=O&background=ff4d4d&color=fff';">
                 </div>
-                <h1>Olivia <span>AI</span></h1>
+                <h1 style="font-size: 1.1rem; letter-spacing: 1px;">OLIVIA <span style="font-weight: 400; opacity: 0.8;">AI</span></h1>
             </div>
             <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                <select id="modelSelector" class="model-select">
-                    <option value="groq">⚡ Groq</option>
-                    <option value="gemini">✨ Gemini</option>
-                    <option value="chatgpt">🧠 GPT-4o</option>
-                </select>
-                <div class="status-container" onclick="location.reload(true)" title="Force Update" style="cursor:pointer; display:flex; align-items:center; gap:5px;">
-                    <i class="fas fa-sync-alt" id="syncSpinner" style="font-size:0.8rem; color:#ff4d4d; filter: drop-shadow(0 0 5px rgba(255,77,77,0.4));"></i>
-                    <span id="versionTag" style="font-size:0.7rem; color:var(--primary); font-weight:700; background:rgba(255,77,77,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(255,77,77,0.2);">v7.5</span>
-                    <span class="status-dot" style="flex-shrink:0;"></span>
+                <div class="header-controls">
+                    <select id="modelSelector" class="model-select">
+                        <option value="groq">⚡ Groq</option>
+                        <option value="gemini">✨ Gemini</option>
+                        <option value="chatgpt">🧠 GPT-4o</option>
+                    </select>
+                    <i class="fas fa-sync-alt" onclick="refreshAllData()" id="syncSpinner" style="cursor:pointer; font-size:0.9rem; color:var(--primary);"></i>
+                    <span id="versionTag" class="version-badge">v7.5</span>
+                    <span class="status-dot"></span>
                 </div>
             </div>
         </header>
@@ -1807,53 +1930,48 @@
                     <!-- Timers, Weather, and active tools will inject here -->
                 </div>
 
-                <!-- Mode Switcher -->
-                <div class="mode-tabs">
-                    <button class="mode-tab active" id="modeVoiceBtn" onclick="setMode('voice')">
-                        <i class="fas fa-microphone"></i> Voice
-                    </button>
-                    <button class="mode-tab" id="modeChatBtn" onclick="setMode('chat')">
-                        <i class="fas fa-comment-dots"></i> Text Chat
-                    </button>
+                <!-- v7.5 Dual Toggles -->
+                <div class="v75-toggles">
+                    <div class="mode-toggle-v75">
+                        <button class="mode-opt active" id="modeVoiceBtn" onclick="setMode('voice')">VOICE</button>
+                        <button class="mode-opt" id="modeChatBtn" onclick="setMode('chat')">TEXT</button>
+                    </div>
+                    <div class="lang-toggle-v75">
+                        <button class="lang-opt v75 active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</button>
+                        <button class="lang-opt v75" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</button>
+                    </div>
                 </div>
 
-                <!-- VOICE MODE -->
+                <!-- VOICE MODE (v7.5) -->
                 <div id="voiceMode">
-                    <div class="voice-panel"
-                        style="background: transparent; border: none; padding: 40px 0; text-align: center;">
-                        <div class="lang-switch">
-                            <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
-                            <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
+                    <div class="voice-panel-v75">
+                        <div class="pulse-container">
+                            <div class="pulse-rings">
+                                <div class="ring"></div>
+                                <div class="ring"></div>
+                                <div class="ring"></div>
+                                <div class="ring"></div>
+                            </div>
+                            <div class="avatar-center">
+                                <img src="/olivia.png" id="mainAvatar" alt="Olivia" 
+                                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Olivia&background=ff4d4d&color=fff&size=512';">
+                                <div class="avatar-mouth"></div>
+                                <button id="micBtn" class="mic-fab"><i class="fas fa-microphone"></i></button>
+                            </div>
                         </div>
-                        <div class="wave-container" id="avatarContainer">
-                            <div class="wave-layer"></div>
-                            <div class="wave-layer"></div>
-                            <div class="wave-layer"></div>
-                            <img src="/olivia.png" class="olivia-avatar-glow" alt="Olivia" id="mainAvatar"
-                                onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Olivia&background=ff4d4d&color=fff&size=512';">
-                            <div class="avatar-mouth"></div>
-                            <button id="micBtn"><i class="fas fa-microphone"></i></button>
+
+                        <!-- Action Bar (v7.5 icons) -->
+                        <div class="v75-action-row">
+                            <button class="action-btn-v75" onclick="executeTool('OPEN_CAMERA', '')"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn-v75" onclick="switchTab('more')"><i class="fas fa-folder-open"></i></button>
+                            <button class="action-btn-v75" onclick="executeTool('SAVE_NOTE', '')"><i class="fas fa-pen"></i></button>
+                            <button class="action-btn-v75" onclick="executeTool('TRANSLATE', '')"><i class="fas fa-language"></i></button>
+                            <button class="action-btn-v75" onclick="executeTool('WELLNESS_CHECK', '')"><i class="fas fa-heartbeat"></i></button>
                         </div>
-                        <div style="margin-top: 25px; display: flex; justify-content: center; flex-wrap: wrap; gap: 15px;">
-                            <button class="btn btn-ghost" onclick="executeTool('OPEN_CAMERA', '')" title="Vision Analysis" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-eye" style="color: #38bdf8;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('SAVE_NOTE', prompt('Enter a quick note:'))" title="Save Note" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-sticky-note" style="color: #fbbf24;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('GEN_CONTENT', 'Script | Studio Topic')" title="Content Engine" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-magic" style="color: #a855f7;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('TRANSLATE', 'Hello | Sinhala')" title="Translator" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-language" style="color: #34d399;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('WELLNESS_CHECK', '')" title="Wellness Pulse" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-heartbeat" style="color: #f43f5e;"></i>
-                            </button>
-                        </div>
-                        <div class="voice-text">
-                            <h2 id="aiText" style="font-size: 1.5rem; letter-spacing: -0.5px;">I'm listening...</h2>
-                            <p id="userText" style="opacity: 0.6; font-size: 1rem;">Tap the red dot or speak now.</p>
+
+                        <div class="status-text-v75">
+                            <h2 id="aiText">I'm listening...</h2>
+                            <p id="userText">Tap the red dot or speak now.</p>
                         </div>
                     </div>
                 </div>

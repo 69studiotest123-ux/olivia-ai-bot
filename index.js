@@ -26,15 +26,20 @@ const memoryFile = 'memories.json';
 const tokensFile = path.join(__dirname, 'push-tokens.json');
 const settingsFile = path.join(__dirname, 'settings.json');
 const prefsFile = 'preferences.json';
+const budgetFile = 'budget.json';
 let chatHistory = new Map();
 let appointments = [];
 let todos = [];
 let pushTokens = [];
 let preferences = {};
+let budgetData = { limits: {}, expenses: [], totalSpent: 0 };
 let globalSettings = { 
     autoReply: true, 
-    voiceMode: 'browser', // 'browser' or 'elevenlabs'
-    personality: 'sophisticated' // 'sophisticated' or 'friendly'
+    voiceMode: 'browser', 
+    personality: 'sophisticated', // 'sophisticated' or 'friendly'
+    autoConfirmBookings: true,
+    glassmorphism: true,
+    defaultLang: 'en-US'
 };
 const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
@@ -120,10 +125,29 @@ function savePrefs() {
     try { fs.writeFileSync(prefsFile, JSON.stringify(preferences, null, 2)); } catch (e) {}
 }
 
+// --- BUDGET TRACKING ---
+if (fs.existsSync(budgetFile)) {
+    try { budgetData = JSON.parse(fs.readFileSync(budgetFile)); } catch (e) {}
+}
+
+function saveBudget() {
+    try { 
+        fs.writeFileSync(budgetFile, JSON.stringify(budgetData, null, 2)); 
+        notifyClients(); 
+    } catch (e) { console.error('Budget save error:', e); }
+}
+
 // --- ELEVENLABS CLIENT ---
 const xiClient = process.env.ELEVENLABS_API_KEY 
     ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }) 
     : null;
+
+const openai = process.env.OPENAI_API_KEY 
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
+    : null;
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -739,7 +763,59 @@ async function processAiTools(aiText, jid) {
         const last = trendsData.lastUpdate ? new Date(trendsData.lastUpdate).toLocaleTimeString() : 'Never';
         finalOutput += `\n\n[TRENDS INTEL: Last updated at ${last}. Cars: ${trendsData.cars.length} updates. Design: ${trendsData.design.length} updates.]`;
     }
-    // 8. Desktop Control
+    finalOutput = finalOutput.replace(trendsRegex, '');
+
+    // 8. Budget Tracker
+    const addExpenseRegex = /\[ADD_EXPENSE:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let expenseMatch;
+    while ((expenseMatch = addExpenseRegex.exec(aiText)) !== null) {
+        const amount = parseFloat(expenseMatch[1].trim());
+        const category = expenseMatch[2].trim().toLowerCase();
+        const desc = expenseMatch[3].trim();
+        if (!isNaN(amount)) {
+            budgetData.expenses.push({ amount, category, desc, date: new Date().toISOString() });
+            budgetData.totalSpent += amount;
+            saveBudget();
+            const limit = budgetData.limits[category];
+            const catSpent = budgetData.expenses.filter(e => e.category === category).reduce((sum, e) => sum + e.amount, 0);
+            let alert = `\n\n[FINANCE: Sir, I have recorded ${amount} for ${category}. (Total Category Spent: ${catSpent})]`;
+            if (limit && catSpent > limit) {
+                alert += `\n⚠️ CRITICAL: Sir, you have exceeded the budget limit of ${limit} for ${category}!`;
+            }
+            finalOutput += alert;
+        }
+    }
+    finalOutput = finalOutput.replace(addExpenseRegex, '');
+
+    const setBudgetRegex = /\[SET_BUDGET:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let budgetMatch;
+    while ((budgetMatch = setBudgetRegex.exec(aiText)) !== null) {
+        const category = budgetMatch[1].trim().toLowerCase();
+        const limit = parseFloat(budgetMatch[2].trim());
+        if (!isNaN(limit)) {
+            budgetData.limits[category] = limit;
+            saveBudget();
+            finalOutput += `\n\n[FINANCE: Protocol updated. Budget limit for ${category} is set to ${limit}, Sir.]`;
+        }
+    }
+    finalOutput = finalOutput.replace(setBudgetRegex, '');
+
+    const getBudgetRegex = /\[GET_BUDGET\]/gi;
+    if (getBudgetRegex.test(aiText)) {
+        let report = `Sir Subhash, here is your financial briefing:\n- Total Spend: ${budgetData.totalSpent}\n- Expenses Logged: ${budgetData.expenses.length}`;
+        const cats = Object.keys(budgetData.limits);
+        if (cats.length > 0) {
+            report += `\n\nLimits Status:`;
+            cats.forEach(c => {
+                const spent = budgetData.expenses.filter(e => e.category === c).reduce((sum, e) => sum + e.amount, 0);
+                report += `\n- ${c}: ${spent} / ${budgetData.limits[c]}`;
+            });
+        }
+        finalOutput += `\n\n[FINANCE BRIEFING:\n${report}]`;
+    }
+    finalOutput = finalOutput.replace(getBudgetRegex, '');
+
+    // 9. Desktop Control
     const deskRegex = /\[OPEN_APP:\s*(.+?)\]/gi;
     let dMatch;
     while ((dMatch = deskRegex.exec(aiText)) !== null) {
@@ -758,30 +834,23 @@ async function getGroqResponse(message, history = []) {
             : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
 
         const messages = [
-            {
-                role: "system",
-                content: `Role: You are Olivia, Subhash's highly sophisticated personal AI assistant. 
+                       content: `Role: You are Olivia, a highly sophisticated and efficient personal AI assistant for Subhash.
                 Tone: ${tone}
-                Addressing: Always address Subhash as "Sir" or "Sir Subhash".
+                Context: You are the core intelligence of the Olivia v7.5 Dashboard. Your goal is to manage Subhash's life, studio, and tasks with precision and elegance.
                 
                 Preference Vault:
-                - You MUST remember Subhash's favorites (colors, food, hobbies).
-                - Use [SAVE_PREF: category | value] to store a preference.
+                - Remember favorites and learned facts.
+                - Use [SAVE_PREF: category | value] to store.
                 - Current Preferences: ${JSON.stringify(preferences)}
 
-                Health & Habits Tracking:
-                - Remind Subhash to drink water or take breaks if the conversation is long or late.
-                - Use [REMIND_HEALTH: msg] for health nudges.
-
-                Language Isolation Rules (STRICT):
-                - Use English for English, Singlish for Singlish. Never mix.
-                
                 Tool Integration:
                 - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
-                - [SAVE_PREF: category | value], [GET_CALENDAR], [GET_EMAILS], [GET_TRENDS]
-                - [GET_WEATHER: City], [GET_NEWS: Topic], [OPEN_APP: Name]
-                - [HOME_ACTION: entity | command], [IFTTT_TRIGGER: event | data]
-                - [BOOK_APPT: Name | Date | Time | Service]
+                - [GET_WEATHER: City], [GET_NEWS: Topic], [BOOK_APPT: Name | Date | Time | Service]
+                - [GET_CALENDAR], [SAVE_MEMORY: fact]
+                ` Date | Time | Service]
+                - [ADD_EXPENSE: amount | category | description] (Finance tracking)
+                - [SET_BUDGET: category | limit] (Set spending limits)
+                - [GET_BUDGET] (Get financial overview)
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -1084,6 +1153,33 @@ app.get('/api/assistant/ask', async (req, res) => {
     } catch (error) {
         console.error("Assistant Error:", error.message);
         res.status(500).json({ error: 'AI Error: ' + error.message });
+    }
+});
+
+// --- PREMIUM TTS ENDPOINT (v7.5) ---
+app.post('/api/assistant/tts', async (req, res) => {
+    const { pass, text, voiceId } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!xiClient) return res.status(500).json({ error: 'ElevenLabs not configured' });
+
+    try {
+        const audio = await xiClient.generate({
+            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L", // Default: Bella (Sinhala Girl tone)
+            text: text,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+                stability: 0.4,
+                similarity_boost: 0.8,
+                style: 0.05,
+                use_speaker_boost: true
+            }
+        });
+
+        res.setHeader('Content-Type', 'audio/mpeg');
+        audio.pipe(res);
+    } catch (e) {
+        console.error('TTS Error:', e.message);
+        res.status(500).json({ error: 'TTS Generation Failed' });
     }
 });
 
