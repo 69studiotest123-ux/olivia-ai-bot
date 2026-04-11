@@ -146,6 +146,11 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.static('public')); // Serve frontend files
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/index.html'));
+});
 
 // --- API ROUTES FIRST (To prevent static file hijacking) ---
 
