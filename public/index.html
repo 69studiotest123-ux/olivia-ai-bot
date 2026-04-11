@@ -2319,7 +2319,7 @@
     </div><!-- end #mainApp -->
 
     <script>
-        const API_BASE = 'https://whatsapp-ai-bot-3-gin3.onrender.com';
+        const API_BASE = window.location.origin;
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
         const aiTextEl = document.getElementById('aiText');
         const userTextEl = document.getElementById('userText');
