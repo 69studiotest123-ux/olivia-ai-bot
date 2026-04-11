@@ -1630,13 +1630,84 @@
             gap: 4px;
         }
 
-        /* Broadcast */
-        .broadcast-box {
-            background: var(--card);
-            border-radius: 20px;
+        /* Status & QR Features */
+        .status-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 12px;
             border: 1px solid var(--border);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .mini-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #444;
+        }
+
+        .mini-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: mini-blink 2s infinite;
+        }
+
+        .mini-dot.warning {
+            background: #f59e0b;
+            box-shadow: 0 0 8px #f59e0b;
+        }
+
+        .mini-dot.danger {
+            background: #ef4444;
+        }
+
+        @keyframes mini-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        #qrModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            z-index: 20000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             padding: 20px;
-            margin-bottom: 15px;
+        }
+
+        .qr-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 30px;
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+        }
+
+        .qr-img-wrapper {
+            background: white;
+            padding: 15px;
+            border-radius: 16px;
+            margin: 20px 0;
+        }
+
+        .qr-img-wrapper img {
+            width: 100%;
+            display: block;
         }
 
         .broadcast-box textarea {
@@ -2138,19 +2209,19 @@
                     <img src="/olivia.png" alt="Olivia"
                         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=O&background=ff4d4d&color=fff';">
                 </div>
-                <h1 style="font-size: 1.1rem; letter-spacing: 1px;">OLIVIA <span style="font-weight: 400; opacity: 0.8;">AI</span></h1>
+                <h1>Olivia <span>AI</span></h1>
             </div>
-            <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                <div class="header-controls">
-                    <select id="modelSelector" class="model-select">
-                        <option value="groq">⚡ Groq</option>
-                        <option value="gemini">✨ Gemini</option>
-                        <option value="chatgpt">🧠 GPT-4o</option>
-                    </select>
-                    <i class="fas fa-sync-alt" onclick="refreshAllData()" id="syncSpinner" style="cursor:pointer; font-size:0.9rem; color:var(--primary);"></i>
-                    <span id="versionTag" style="font-size:0.7rem; color:var(--primary); font-weight:700; background:rgba(255,77,77,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(255,77,77,0.2);">v8.3</span>
-                    <span class="status-dot" style="flex-shrink:0;"></span>
+            
+            <div class="status-group">
+                <div class="status-item" title="Server Connection">
+                    <div id="dot-server" class="mini-dot"></div>
+                    <span>SRV</span>
                 </div>
+                <div class="status-item" title="WhatsApp Status">
+                    <div id="dot-whatsapp" class="mini-dot"></div>
+                    <span>WA</span>
+                </div>
+                <button id="qrBtn" onclick="toggleQRModal(true)" style="display:none; background:var(--primary); border:none; color:white; font-size:0.6rem; font-weight:800; padding:2px 6px; border-radius:4px; cursor:pointer; margin-left:5px; animation: pulse-ring 1.5s infinite;">SCAN QR</button>
             </div>
         </header>
 
@@ -2555,6 +2626,19 @@
         </nav>
     </div><!-- end #mainApp -->
 
+    <!-- QR CODE MODAL -->
+    <div id="qrModal">
+        <div class="qr-card">
+            <h3 style="margin-bottom:10px;">Link WhatsApp</h3>
+            <p style="font-size:0.8rem; color:var(--text-dim);">Scan this QR code with your WhatsApp to activate Olivia.</p>
+            <div class="qr-img-wrapper" id="qrContainer">
+                <img src="/qr.png?t=${Date.now()}" id="qrImg" onerror="this.src='https://via.placeholder.com/200?text=Generating+QR...'; this.style.filter='invert(1)'">
+            </div>
+            <button class="btn btn-primary" onclick="toggleQRModal(false)" style="width:100%;">Close</button>
+            <p style="font-size:0.7rem; color:var(--text-dim); margin-top:15px;">Dashboard will refresh automatically after scan.</p>
+        </div>
+    </div>
+
     <script>
         const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
         const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
@@ -2654,26 +2738,39 @@
         let prevApptCount = -1;
         let prevLeadCount = -1;
 
-        function setStatus(state) {
-            const statusLabel = document.getElementById('quickStatStatus');
-            document.querySelectorAll('.status-dot').forEach(dot => {
-                if (state === 'live') {
-                    dot.style.background = 'var(--success)';
-                    dot.style.boxShadow = '0 0 12px var(--success)';
-                    dot.style.animation = 'blink 2s infinite';
-                    if (statusLabel) statusLabel.innerText = 'Connected';
-                } else if (state === 'polling') {
-                    dot.style.background = '#f59e0b'; // Amber
-                    dot.style.boxShadow = '0 0 12px #f59e0b';
-                    dot.style.animation = 'none';
-                    if (statusLabel) statusLabel.innerText = 'Syncing...';
-                } else {
-                    dot.style.background = '#ef4444'; // Red
-                    dot.style.boxShadow = '0 0 12px #ef4444';
-                    dot.style.animation = 'none';
-                    if (statusLabel) statusLabel.innerText = 'Offline';
-                }
-            });
+        function setServerStatus(state) {
+            const dot = document.getElementById('dot-server');
+            if (!dot) return;
+            dot.style.background = state === 'live' ? 'var(--success)' : '#ef4444';
+            dot.style.boxShadow = `0 0 8px ${state === 'live' ? 'var(--success)' : '#ef4444'}`;
+        }
+
+        function toggleQRModal(show) {
+            const modal = document.getElementById('qrModal');
+            if (show) {
+                // Force reload image
+                const qrImg = document.getElementById('qrImg');
+                if (qrImg) qrImg.src = `${API_BASE}/qr.png?t=${Date.now()}`;
+                modal.style.display = 'flex';
+            } else {
+                modal.style.display = 'none';
+            }
+        }
+
+        function setWhatsAppStatus(state) {
+            const dot = document.getElementById('dot-whatsapp');
+            const btn = document.getElementById('qrBtn');
+            if (!dot) return;
+            
+            if (state === 'connected') {
+                dot.style.background = 'var(--success)';
+                dot.style.boxShadow = '0 0 8px var(--success)';
+                if (btn) btn.style.display = 'none';
+            } else {
+                dot.style.background = '#f59e0b';
+                dot.style.boxShadow = '0 0 8px #f59e0b';
+                if (btn) btn.style.display = 'block';
+            }
         }
 
         let sseSource = null;
@@ -2682,22 +2779,37 @@
             if (sseSource) sseSource.close();
             
             console.log('📡 Initializing Real-Time Connection...');
-            setStatus('polling');
+            setServerStatus('polling');
 
             try {
                 const source = new EventSource(`${API_BASE}/api/stream?pass=${password}`);
                 sseSource = source;
 
                 source.onopen = () => {
-                    console.log('✅ SSE Connected (Real-Time Active)');
-                    setStatus('live');
+                    console.log('✅ SSE Connected');
+                    setServerStatus('live');
                 };
 
                 source.onmessage = function (event) {
-                    // Process both 'update' signals and 'heartbeat' signals
-                    setStatus('live');
                     console.log('⚡ Stream Event:', event.data);
                     
+                    try {
+                        // Handle JSON status objects
+                        if (event.data.startsWith('{')) {
+                            const payload = JSON.parse(event.data);
+                            if (payload.heartbeat) {
+                                setServerStatus('live');
+                            } else if (payload.wa) {
+                                setWhatsAppStatus(payload.wa);
+                                setServerStatus('live');
+                            }
+                            return;
+                        }
+                    } catch (e) {
+                         console.warn('JSON parse error in SSE', e);
+                    }
+
+                    setServerStatus('live');
                     const eventData = event.data.toLowerCase();
                     if (eventData.includes('update') || 
                         eventData.includes('heartbeat') || 
@@ -2712,7 +2824,7 @@
 
                 source.onerror = function() {
                     console.warn('⚠️ SSE Disconnected. Reconnecting in 5s...');
-                    setStatus('offline');
+                    setServerStatus('offline');
                     source.close();
                     setTimeout(initSSE, 5000); 
                 };

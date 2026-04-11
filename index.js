@@ -68,9 +68,10 @@ function saveSettings() {
 let streamClients = [];
 let waConnectionStatus = 'disconnected'; // Current WhatsApp connection status
 
-function notifyClients(type = 'update') {
+function notifyClients(type = 'update', data = null) {
+    const payload = data ? JSON.stringify({ type, ...data }) : (typeof type === 'object' ? JSON.stringify(type) : type);
     streamClients.forEach(client => {
-        try { client.write(`data: ${type}\n\n`); } catch (e) {}
+        try { client.write(`data: ${payload}\n\n`); } catch (e) {}
     });
 }
 
@@ -1199,13 +1200,16 @@ async function startBot() {
         if (qr) {
             console.log('--- SCAN THE QR CODE BELOW WITH WHATSAPP ---');
             qrcode.generate(qr, { small: true });
+            const qrPath = path.join(__dirname, 'public', 'qr.png');
             const qr_svg = qrImage.image(qr, { type: 'png' });
-            qr_svg.pipe(fs.createWriteStream('qr.png'));
+            qr_svg.pipe(fs.createWriteStream(qrPath));
+            console.log(`🖼️ QR Code saved to ${qrPath}`);
+            notifyClients('status', { wa: 'qr', hasQr: true });
         }
 
         if (connection === 'close') {
             waConnectionStatus = 'disconnected';
-            notifyClients('status');
+            notifyClients('status', { wa: 'disconnected' });
             const code = (new Boom(lastDisconnect?.error)).output?.statusCode;
             console.log(`❌ Connection Closed. Reason: ${code}`);
             
@@ -1215,17 +1219,24 @@ async function startBot() {
                 startBot();
             } else {
                 console.log('🚪 Logged out. Delete auth_info_baileys and scan again.');
+                if (fs.existsSync(path.join(__dirname, 'public', 'qr.png'))) {
+                    try { fs.unlinkSync(path.join(__dirname, 'public', 'qr.png')); } catch(e) {}
+                }
             }
         } else if (connection === 'open') {
             waConnectionStatus = 'connected';
-            notifyClients('status');
+            notifyClients('status', { wa: 'connected' });
+            // Remove QR if exists
+            if (fs.existsSync(path.join(__dirname, 'public', 'qr.png'))) {
+                try { fs.unlinkSync(path.join(__dirname, 'public', 'qr.png')); } catch(e) {}
+            }
             const botName = sock.user.name || 'Bot';
             console.log(`--- ✅ BOT IS READY! YOUR AI IS NOW ACTIVE ---`);
             console.log(`Verified as: ${botName} (${sock.user.id.split(':')[0]})`);
         } else {
             // Probably connecting...
             waConnectionStatus = 'connecting';
-            notifyClients('status');
+            notifyClients('status', { wa: 'connecting' });
         }
     });
 
