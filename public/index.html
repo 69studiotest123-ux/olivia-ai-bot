@@ -1397,16 +1397,60 @@
             height: 0;
         }
 
-        .toggle-slider {
+        /* Toggle Switch FIX (v8.2) */
+        .toggle-slider:before {
+            content: "";
             position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #2e2e32;
-            border-radius: 26px;
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.3s cubic-bezier(0.18, 0.89, 0.35, 1.15);
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Glassmorphism Sections */
+        .setting-row {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             transition: 0.3s;
+        }
+
+        .setting-row:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .section-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--primary);
+            font-weight: 800;
+            margin: 30px 0 15px 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title:after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
         }
 
         /* Main Header Layout (v8.1 Fix) */
@@ -1907,18 +1951,19 @@
             from { transform: translateY(30px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        /* IDENTITY LOCK SCREEN */
+        /* IDENTITY LOCK SCREEN (v8.2 ELITE) */
         #identityLock {
             position: fixed;
             inset: 0;
-            background: var(--bg);
+            background: radial-gradient(circle at center, rgba(18, 18, 20, 0.7), #0a0a0c 100%);
+            backdrop-filter: blur(40px);
             z-index: 10005;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 30px;
-            transition: 0.5s ease;
+            transition: 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         #identityLock.unlocked {
@@ -2234,20 +2279,22 @@
                     </label>
                 </div>
 
-                <div class="potion-card" style="background:rgba(255,77,77,0.05); border:1px solid rgba(255,77,77,0.1); border-radius:16px; padding:15px; margin-bottom:20px;">
-                    <p style="font-size:0.65rem; color:var(--primary); font-weight:800; text-transform:uppercase; margin-bottom:10px; letter-spacing:1px;">Elite Potions Active</p>
+                <div class="potion-card" style="background:rgba(255,77,77,0.05); border:1px solid rgba(255,77,77,0.1); border-radius:20px; padding:18px; margin-bottom:20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    <p style="font-size:0.7rem; color:var(--primary); font-weight:800; text-transform:uppercase; margin-bottom:12px; letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+                        <i class="fas fa-flask"></i> Elite Potions Active
+                    </p>
                     <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
                         <div style="text-align:center; cursor:pointer;" onclick="togglePotion('visionEye')" id="potion-vision">
-                            <i class="fas fa-eye" style="color:var(--primary); font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
-                            <div style="font-size:0.6rem; font-weight:600;">Vision Eye</div>
+                            <i class="fas fa-eye" style="color:var(--primary); font-size:1.4rem; margin-bottom:6px; transition:0.3s;"></i>
+                            <div style="font-size:0.7rem; font-weight:600;">Vision Eye</div>
                         </div>
                         <div style="text-align:center; cursor:pointer;" onclick="togglePotion('deepMemory')" id="potion-memory">
-                            <i class="fas fa-brain" style="color:#a855f7; font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
-                            <div style="font-size:0.6rem; font-weight:600;">Deep Memory</div>
+                            <i class="fas fa-brain" style="color:#a855f7; font-size:1.4rem; margin-bottom:6px; transition:0.3s;"></i>
+                            <div style="font-size:0.7rem; font-weight:600;">Deep Memory</div>
                         </div>
                         <div style="text-align:center; cursor:pointer;" onclick="togglePotion('homeHub')" id="potion-home">
-                            <i class="fas fa-home" style="color:#34d399; font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
-                            <div style="font-size:0.6rem; font-weight:600;">Home Hub</div>
+                            <i class="fas fa-home" style="color:#34d399; font-size:1.4rem; margin-bottom:6px; transition:0.3s;"></i>
+                            <div style="font-size:0.7rem; font-weight:600;">Home Hub</div>
                         </div>
                     </div>
                 </div>
@@ -2274,12 +2321,12 @@
                         <h4>Push Notifications</h4>
                         <p>Receive alerts on your phone</p>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-ghost" onclick="showNotificationPrompt()" style="padding: 10px; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-ghost" onclick="showNotificationPrompt()" style="padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border);">
                             <i class="fas fa-bell"></i> Enable
                         </button>
-                        <button class="btn btn-ghost" onclick="sendTestPush()" style="padding: 10px; border-radius: 12px; border: 1px solid var(--border);">
-                            <i class="fas fa-vial"></i> Test
+                        <button class="btn btn-ghost" onclick="sendTestPush()" style="padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border);">
+                            <i class="fas fa-bell-on"></i> Test
                         </button>
                     </div>
                 </div>
@@ -2413,8 +2460,9 @@
             </button>
             <button class="nav-item"
                 onclick="switchTab('leads', this); document.getElementById('leadsBadge').style.display='none';">
-                <div class="nav-badge" id="leadsBadge"></div>
-                <i class="fas fa-users"></i>
+                <i class="fas fa-users" style="position:relative;">
+                    <div class="nav-badge" id="leadsBadge"></div>
+                </i>
                 <span>Leads</span>
             </button>
             <button class="nav-item" onclick="switchTab('more', this)">
@@ -4447,7 +4495,10 @@
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && currentSettings.biometricEnabled) {
+                // If app was hidden, re-lock to verify identity
+                console.log('🔒 Re-locking for security (Visibility Change)');
                 lockApp();
+                verifyBiometrics();
             }
         });
 
