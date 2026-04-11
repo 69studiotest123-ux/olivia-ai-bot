@@ -2655,19 +2655,23 @@
         let prevLeadCount = -1;
 
         function setStatus(state) {
+            const statusLabel = document.getElementById('quickStatStatus');
             document.querySelectorAll('.status-dot').forEach(dot => {
                 if (state === 'live') {
                     dot.style.background = 'var(--success)';
                     dot.style.boxShadow = '0 0 12px var(--success)';
                     dot.style.animation = 'blink 2s infinite';
+                    if (statusLabel) statusLabel.innerText = 'Connected';
                 } else if (state === 'polling') {
                     dot.style.background = '#f59e0b'; // Amber
                     dot.style.boxShadow = '0 0 12px #f59e0b';
                     dot.style.animation = 'none';
+                    if (statusLabel) statusLabel.innerText = 'Syncing...';
                 } else {
                     dot.style.background = '#ef4444'; // Red
                     dot.style.boxShadow = '0 0 12px #ef4444';
                     dot.style.animation = 'none';
+                    if (statusLabel) statusLabel.innerText = 'Offline';
                 }
             });
         }
@@ -4066,7 +4070,8 @@
                 }
                 if (!res.ok) throw new Error('Server error');
                 const data = await res.json();
-                renderLeads(data);
+                // Correctly extract logs from the { logs, muteStatus } response
+                renderLeads(data.logs || data);
             } catch (err) {
                 document.getElementById('leadsList').innerHTML = '<div class="loading-screen"><p style="color:var(--text-dim)">Could not load data. Tap Sync to retry.</p></div>';
             }
@@ -4099,6 +4104,8 @@
             prevLeadCount = total;
 
             document.getElementById('totalChats').innerText = total;
+            const statLeads = document.getElementById('quickStatLeads');
+            if (statLeads) statLeads.innerText = total;
 
             const leadKeywords = ['@', '07', '+94', 'name', 'interested', 'price', 'how much'];
             let leads = 0;
