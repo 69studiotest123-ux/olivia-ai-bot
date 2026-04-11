@@ -100,7 +100,8 @@ function saveHistory() {
 function saveAppointments() {
     try {
         fs.writeFileSync(appointmentsFile, JSON.stringify(appointments, null, 2));
-        notifyClients();
+        console.log(`💾 Appointments saved to ${appointmentsFile}`);
+        notifyClients('appointment'); // Specific type for appointments
     } catch (e) { console.error('Appointments save error:', e); }
 }
 
@@ -451,6 +452,8 @@ app.post('/api/appointments/add', (req, res) => {
         name, phone, date, time, service,
         timestamp: new Date().toISOString()
     };
+    
+    console.log('✅ Processing Booking for:', name);
     appointments.unshift(newAppt); // Latest first
     saveAppointments();
     

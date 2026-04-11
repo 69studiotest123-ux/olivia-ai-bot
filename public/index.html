@@ -2697,7 +2697,12 @@
                     // Process both 'update' signals and 'heartbeat' signals
                     setStatus('live');
                     console.log('⚡ Stream Event:', event.data);
-                    if (event.data.includes('update') || event.data.includes('heartbeat')) {
+                    
+                    const eventData = event.data.toLowerCase();
+                    if (eventData.includes('update') || 
+                        eventData.includes('heartbeat') || 
+                        eventData.includes('appointment')) {
+                        
                         syncLeads();
                         refreshAppointments();
                         loadTodos();
@@ -4004,12 +4009,20 @@
 
         async function refreshAppointments() {
             if (!password) return;
+            console.log('📅 Syncing appointments from server...');
             try {
                 const res = await fetch(`${API_BASE}/api/appointments?pass=${password}`);
-                if (!res.ok) return;
+                if (!res.ok) {
+                    const errText = await res.text();
+                    console.warn('❌ Appointments Fetch Failed:', res.status, errText);
+                    return;
+                }
                 const data = await res.json();
+                console.log(`✅ Loaded ${data.length} appointments.`);
                 renderAppointments(data);
-            } catch (e) { console.error('Appt sync error:', e); }
+            } catch (e) { 
+                console.error('Appt sync network error:', e); 
+            }
         }
 
         function renderAppointments(data) {
