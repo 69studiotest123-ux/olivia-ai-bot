@@ -221,8 +221,8 @@
             console.log('Connecting to SSE stream...');
             const source = new EventSource(`/api/stream?pass=${password}`);
             source.onmessage = (e) => {
-                const data = e.data;
-                if(data.includes('update')) syncLeads();
+                const data = e.data.toLowerCase();
+                if(data.includes('update') || data.includes('appointment')) syncLeads();
                 if(data.includes('status')) updateStatusUI();
             };
             source.onerror = (e) => {

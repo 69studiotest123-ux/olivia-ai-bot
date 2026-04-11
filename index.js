@@ -648,6 +648,12 @@ function processAiResponseForBookings(aiText, jid) {
     if (addedCount > 0) {
         saveAppointments();
         notifyClients('appointment');
+        
+        // Trigger push notification for new booking
+        const lastAppt = appointments[0];
+        sendPushToAll("New Studio Booking! 📅", `Booking from ${lastAppt.name} for ${lastAppt.service}`).catch(e => {
+            console.error('❌ Push Alert Failed for Booking:', e.message);
+        });
     }
 
     return aiText.replace(bookRegex, '').trim();
@@ -1257,6 +1263,8 @@ async function startBot() {
                 adminMuteMap.set(from, muteUntil);
                 console.log(`🔇 Manual reply detected by Admin. Olivia is now MUTED for ${from} until ${new Date(muteUntil).toLocaleTimeString()}.`);
                 notifyClients(); // Refresh Pulse in PWA
+            } else {
+                console.log(`📩 Incoming message object captured. Remote JID: ${from}`);
             }
         }
 
