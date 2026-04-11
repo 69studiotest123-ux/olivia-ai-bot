@@ -151,7 +151,7 @@ function loadScript(src) {
   });
 }
 
-const PUSH_API_BASE = 'https://whatsapp-ai-bot-3-gin3.onrender.com';
+const PUSH_API_BASE = 'https://olivia-ai-bot-1.onrender.com';
 
 function saveTokenToServer(token) {
   fetch(`${PUSH_API_BASE}/api/save-token`, {
