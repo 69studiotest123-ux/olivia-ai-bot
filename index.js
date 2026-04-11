@@ -890,13 +890,17 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// Vision AI Endpoint (Image Analysis)
+// API: Vision Assistant (Image Analysis)
 app.post('/api/assistant/vision', async (req, res) => {
-    const { pass: password, query, imageBase64, mimeType, model: modelType } = req.body;
+    const { pass: password, q, query, image, imageBase64, mimeType, model: modelType } = req.body;
 
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
     const systemPrompt = `You are Subhash's personal AI assistant. Analyze the image provided and give a concise, helpful response. If asked a specific question about it, answer that. Be professional and brief.`;
+    const finalQuery = q || query || "Describe this image.";
+    const finalImage = (image || imageBase64 || "").includes('base64,') ? (image || imageBase64).split(',')[1] : (image || imageBase64);
+
+    if (!finalImage) return res.status(400).json({ error: 'Image data missing' });
 
     try {
         let answer = '';
@@ -904,8 +908,8 @@ app.post('/api/assistant/vision', async (req, res) => {
         if (modelType === 'gemini') {
             const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             const result = await model.generateContent([
-                systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.'),
-                { inlineData: { data: imageBase64, mimeType: mimeType || 'image/jpeg' } }
+                systemPrompt + (finalQuery ? `\n\nUser question: ${finalQuery}` : '\n\nDescribe this image.'),
+                { inlineData: { data: finalImage, mimeType: mimeType || 'image/jpeg' } }
             ]);
             answer = result.response.text();
         } else if (modelType === 'chatgpt') {
@@ -914,8 +918,8 @@ app.post('/api/assistant/vision', async (req, res) => {
                 messages: [{
                     role: 'user',
                     content: [
-                        { type: 'text', text: systemPrompt + (query ? `\n\nUser question: ${query}` : '\n\nDescribe this image.') },
-                        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } }
+                        { type: 'text', text: systemPrompt + (finalQuery ? `\n\nUser question: ${finalQuery}` : '\n\nDescribe this image.') },
+                        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${finalImage}` } }
                     ]
                 }]
             });
@@ -997,38 +1001,6 @@ app.post('/api/assistant/memory/save', (req, res) => {
     res.json({ success: true });
 });
 
-// API: Vision Assistant (Image Analysis)
-app.post('/api/assistant/vision', async (req, res) => {
-    const { pass: password, image, q, model: modelType } = req.body;
-    if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
-    if (!image) return res.status(400).json({ error: 'Image data missing' });
-
-    try {
-        const genModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        
-        // Prepare image data for Gemini
-        const imageParts = [
-            {
-                inlineData: {
-                    data: image.split(',')[1], // Remove metadata prefix if present
-                    mimeType: "image/jpeg"
-                }
-            }
-        ];
-
-        const prompt = q || "Look at this image. What do you see? Be concise and witty as Olivia, Subhash's assistant.";
-        const systemAddon = "You are Olivia. Answer directly to Subhash. Mention unique details you see.";
-
-        const result = await genModel.generateContent([systemAddon + "\n" + prompt, ...imageParts]);
-        const response = await result.response;
-        const answer = response.text();
-
-        res.json({ answer });
-    } catch (error) {
-        console.error("Vision Error:", error.message);
-        res.status(500).json({ error: 'Vision AI Error: ' + error.message });
-    }
-});
 
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;

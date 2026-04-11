@@ -3659,10 +3659,11 @@
             aiTextEl.innerText = 'Olivia is looking...';
             
             try {
+                const model = document.getElementById('modelSelector').value;
                 const res = await fetch(`${API_BASE}/api/assistant/vision`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pass: password, image: imageData, q: userTextEl.innerText })
+                    body: JSON.stringify({ pass: password, image: imageData, q: userTextEl.innerText, model: model })
                 });
                 const data = await res.json();
                 if (data.answer) {
