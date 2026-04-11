@@ -2556,7 +2556,8 @@
     </div><!-- end #mainApp -->
 
     <script>
-        const API_BASE = window.location.origin;
+        const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
+        const API_BASE = IS_FIREBASE ? 'https://whatsapp-ai-bot-3-gin3.onrender.com' : window.location.origin;
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
         const aiTextEl = document.getElementById('aiText');
         const userTextEl = document.getElementById('userText');
