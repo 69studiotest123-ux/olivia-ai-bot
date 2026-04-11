@@ -2127,16 +2127,16 @@
                 <div class="potion-card" style="background:rgba(255,77,77,0.05); border:1px solid rgba(255,77,77,0.1); border-radius:16px; padding:15px; margin-bottom:20px;">
                     <p style="font-size:0.65rem; color:var(--primary); font-weight:800; text-transform:uppercase; margin-bottom:10px; letter-spacing:1px;">Elite Potions Active</p>
                     <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
-                        <div style="text-align:center;">
-                            <i class="fas fa-eye" style="color:var(--primary); font-size:1.2rem; margin-bottom:5px;"></i>
+                        <div style="text-align:center; cursor:pointer;" onclick="togglePotion('visionEye')" id="potion-vision">
+                            <i class="fas fa-eye" style="color:var(--primary); font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
                             <div style="font-size:0.6rem; font-weight:600;">Vision Eye</div>
                         </div>
-                        <div style="text-align:center;">
-                            <i class="fas fa-brain" style="color:#a855f7; font-size:1.2rem; margin-bottom:5px;"></i>
+                        <div style="text-align:center; cursor:pointer;" onclick="togglePotion('deepMemory')" id="potion-memory">
+                            <i class="fas fa-brain" style="color:#a855f7; font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
                             <div style="font-size:0.6rem; font-weight:600;">Deep Memory</div>
                         </div>
-                        <div style="text-align:center;">
-                            <i class="fas fa-home" style="color:#34d399; font-size:1.2rem; margin-bottom:5px;"></i>
+                        <div style="text-align:center; cursor:pointer;" onclick="togglePotion('homeHub')" id="potion-home">
+                            <i class="fas fa-home" style="color:#34d399; font-size:1.2rem; margin-bottom:5px; transition:0.3s;"></i>
                             <div style="font-size:0.6rem; font-weight:600;">Home Hub</div>
                         </div>
                     </div>
@@ -2148,11 +2148,11 @@
                         <p>Speak answers aloud via Text-to-Speech</p>
                     </div>
                     <label class="toggle">
-                        <input type="checkbox" checked id="voiceToggle">
+                        <input type="checkbox" checked id="voiceToggle" onchange="saveSetting('voiceEnabled', this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                <div class="setting-row">
+                <div class="setting-row" style="cursor:pointer;" onclick="document.getElementById('modelSelector').focus(); document.getElementById('modelSelector').click();">
                     <div>
                         <h4>AI Model</h4>
                         <p>Active: <span id="currentModel" style="color:var(--primary)">Groq (Llama 3.3)</span></p>
@@ -2325,6 +2325,15 @@
         const userTextEl = document.getElementById('userText');
         const modelNames = { groq: 'Groq (Llama 3.3)', gemini: 'Gemini 2.0 Flash', chatgpt: 'ChatGPT (GPT-4o)' };
 
+        let currentSettings = {
+            autoReply: true,
+            voiceEnabled: true,
+            currentModel: 'groq',
+            potions: { visionEye: true, deepMemory: true, homeHub: true }
+        };
+
+        let DYNAMIC_PROMPT = "";
+
 
 
         function togglePw() {
@@ -2370,6 +2379,7 @@
                 refreshAppointments();
                 syncLeads();
                 loadTodos();
+                loadSettings();
                 
                 initSSE();
             } catch (e) {
@@ -2549,12 +2559,123 @@
                 updateTabTitle();
                 syncLeads();
             }
+            if (name === 'settings') {
+                loadSettings();
+            }
         }
 
         // Model selector
         document.getElementById('modelSelector').addEventListener('change', function () {
             document.getElementById('currentModel').innerText = modelNames[this.value];
+            saveSetting('currentModel', this.value);
         });
+
+        async function loadSettings() {
+            if (!password) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/settings?pass=${password}`);
+                const data = await res.json();
+                if (data) {
+                    currentSettings = data;
+                    applySettingsToUI();
+                    updateSystemPrompt();
+                }
+            } catch (e) { console.error('Load settings failed', e); }
+        }
+
+        function applySettingsToUI() {
+            document.getElementById('botToggle').checked = currentSettings.autoReply;
+            document.getElementById('voiceToggle').checked = currentSettings.voiceEnabled;
+            document.getElementById('modelSelector').value = currentSettings.currentModel;
+            document.getElementById('currentModel').innerText = modelNames[currentSettings.currentModel];
+
+            // Potions UI
+            const pots = currentSettings.potions || {};
+            updatePotionUI('visionEye', pots.visionEye);
+            updatePotionUI('deepMemory', pots.deepMemory);
+            updatePotionUI('homeHub', pots.homeHub);
+        }
+
+        function updatePotionUI(id, active) {
+            const el = document.getElementById('potion-' + (id === 'visionEye' ? 'vision' : id === 'deepMemory' ? 'memory' : 'home'));
+            if (!el) return;
+            const icon = el.querySelector('i');
+            if (active) {
+                icon.style.opacity = '1';
+                icon.style.filter = 'drop-shadow(0 0 8px currentColor)';
+                el.style.opacity = '1';
+            } else {
+                icon.style.opacity = '0.3';
+                icon.style.filter = 'none';
+                el.style.opacity = '0.5';
+            }
+        }
+
+        async function saveSetting(key, value) {
+            if (!password) return;
+            if (key.includes('.')) {
+                const [parent, child] = key.split('.');
+                currentSettings[parent][child] = value;
+            } else {
+                currentSettings[key] = value;
+            }
+            
+            updateSystemPrompt();
+
+            try {
+                await fetch(`${API_BASE}/api/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, settings: { [key]: value } })
+                });
+                showToast('Setting Saved', `${key} updated successfully.`, 'fa-check');
+            } catch (e) { console.error('Save setting failed', e); }
+        }
+
+        async function togglePotion(id) {
+            const active = !currentSettings.potions[id];
+            updatePotionUI(id, active);
+            await saveSetting(`potions.${id}`, active);
+        }
+
+        function updateSystemPrompt() {
+            const pots = currentSettings.potions || {};
+            DYNAMIC_PROMPT = `You are Subhash's loyal, smart and charming AI Personal Assistant named Olivia. 
+    
+    CRITICAL IDENTITY:
+    - You are talking directly to Subhash, your boss and creator.
+    - NEVER ask for his name or purpose. 
+    - NEVER provide the appointment link (that is only for new WhatsApp leads).
+    - Be helpful, witty, and concise.
+
+    POTIONS STATUS (ELITE v8.2):
+    - Vision Eye: ${pots.visionEye ? 'ON (Identify Subhash if seen)' : 'OFF (Vision disabled)'}.
+    - Deep Memory: ${pots.deepMemory ? 'ON (Learn from every interaction)' : 'OFF (Short-term only)'}.
+    - Home Hub: ${pots.homeHub ? 'ON (Active)' : 'OFF (Home disconnected)'}.
+
+    Language Rules:
+    - Detect the language (English or Singlish).
+    - NEVER use Sinhala script (අ ආ...).
+
+    MEMORY SYSTEM:
+    ${pots.deepMemory ? `
+    - You must remember important facts about Subhash or his clients.
+    - If you learn something new and important (name, hobby, studio details, upcoming event), output the tag [SAVE_MEMORY: fact] at the end.
+    - Example: "My name is Kasun." -> Reply: "Nice to meet you Kasun! [SAVE_MEMORY: User name is Kasun]"
+    ` : '- Deep memory is currently disabled. Do not use [SAVE_MEMORY] tool.'}
+
+    TOOL INTEGRATION (STRICT):
+    - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
+    - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
+    - [GET_NEWS], [GEN_IMAGE: simple description], [TRACK_EXPENSE: amount | desc]
+    ${pots.deepMemory ? '- [SAVE_MEMORY: fact] -> Store a permanent fact about Subhash.\n    - [RECALL_MEMORY: topic] -> Search memory bank for context.' : ''}
+    ${pots.homeHub ? '- [HOME_ACTION: light.living_room | toggle] -> Interface with smart lighting/home core.' : ''}
+    - [MOOD_AUTO: happy/serious/witty] -> Directly control my voice emotion and personality.
+    - [DAILY_BRIEFING], [SEND_EMAIL: email | subject | body], [CHECK_SITE: url]
+    - [READ_WEBPAGE: url], [VIBRATE_PHONE], [ADD_EVENT: title | date | duration]
+    - [CHANGE_THEME: hex_color], [CELEBRATE], [LOCK_APP] ${pots.visionEye ? ', [OPEN_CAMERA]' : ''}
+    `;
+        }
 
         // Streaming effect
         function typeText(el, text, speed = 20) {
@@ -2861,7 +2982,7 @@
             if (chatHistory.length > 20) chatHistory.shift();
 
             try {
-                const systemEncoded = encodeURIComponent(SYSTEM_PROMPT);
+                const systemEncoded = encodeURIComponent(DYNAMIC_PROMPT || SYSTEM_PROMPT);
                 const historyEncoded = encodeURIComponent(JSON.stringify(chatHistory));
                 const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(query)}&model=${model}&system=${systemEncoded}&history=${historyEncoded}`);
                 const data = await res.json();
@@ -3901,7 +4022,7 @@
 
             const model = document.getElementById('modelSelector').value;
             try {
-                const systemEncoded = encodeURIComponent(SYSTEM_PROMPT);
+                const systemEncoded = encodeURIComponent(DYNAMIC_PROMPT || SYSTEM_PROMPT);
                 const historyEncoded = encodeURIComponent(JSON.stringify(chatHistory));
                 const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}&system=${systemEncoded}&history=${historyEncoded}`);
                 const data = await res.json();

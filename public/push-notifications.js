@@ -170,7 +170,7 @@ function saveTokenToServer(token) {
 }
 
 async function sendTestPush() {
-  const password = localStorage.getItem('adminPassword');
+  const password = localStorage.getItem('olivia_pass');
   if (!password) return alert('Please login first');
   
   window.isManualTest = true;

@@ -37,7 +37,14 @@ let preferences = {};
 let globalSettings = { 
     autoReply: true, 
     voiceMode: 'browser', // 'browser' or 'elevenlabs'
-    personality: 'sophisticated' // 'sophisticated' or 'friendly'
+    voiceEnabled: true,
+    personality: 'sophisticated', // 'sophisticated' or 'friendly'
+    currentModel: 'groq',
+    potions: {
+        visionEye: true,
+        deepMemory: true,
+        homeHub: true
+    }
 };
 const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
@@ -209,8 +216,16 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
     if (!checkAuth(req.body.pass)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    // Merge nested structures correctly
+    if (req.body.settings.potions && typeof req.body.settings.potions === 'object') {
+        globalSettings.potions = { ...globalSettings.potions, ...req.body.settings.potions };
+        delete req.body.settings.potions;
+    }
+    
     globalSettings = { ...globalSettings, ...req.body.settings };
     saveSettings();
+    console.log('⚙️ Settings updated:', globalSettings);
     res.json({ success: true, settings: globalSettings });
 });
 
