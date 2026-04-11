@@ -2148,7 +2148,7 @@
                         <option value="chatgpt">🧠 GPT-4o</option>
                     </select>
                     <i class="fas fa-sync-alt" onclick="refreshAllData()" id="syncSpinner" style="cursor:pointer; font-size:0.9rem; color:var(--primary);"></i>
-                    <span id="versionTag" style="font-size:0.7rem; color:var(--primary); font-weight:700; background:rgba(255,77,77,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(255,77,77,0.2);">v8.2 ELITE</span>
+                    <span id="versionTag" style="font-size:0.7rem; color:var(--primary); font-weight:700; background:rgba(255,77,77,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(255,77,77,0.2);">v8.3</span>
                     <span class="status-dot" style="flex-shrink:0;"></span>
                 </div>
             </div>
@@ -2164,24 +2164,32 @@
                 </div>
 
                 <!-- Mode Switcher -->
-                <div class="mode-tabs">
-                    <button class="mode-tab active" id="modeVoiceBtn" onclick="setMode('voice')">
-                        <i class="fas fa-microphone"></i> Voice
-                    </button>
-                    <button class="mode-tab" id="modeChatBtn" onclick="setMode('chat')">
-                        <i class="fas fa-comment-dots"></i> Text Chat
-                    </button>
+                <div style="display:flex; justify-content:center; margin-top:10px;">
+                    <div class="mode-tabs">
+                        <button class="mode-tab active" id="modeVoiceBtn" onclick="setMode('voice')">
+                            <i class="fas fa-microphone"></i> Voice
+                        </button>
+                        <button class="mode-tab" id="modeChatBtn" onclick="setMode('chat')">
+                            <i class="fas fa-comment-dots"></i> Chat
+                        </button>
+                    </div>
                 </div>
 
                 <!-- VOICE MODE -->
                 <div id="voiceMode">
                     <div class="voice-panel"
-                        style="background: transparent; border: none; padding: 40px 0; text-align: center;">
-                        <div class="lang-switch">
-                            <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
-                            <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
+                        style="background: transparent; border: none; padding: 20px 0 10px; text-align: center;">
+                        
+                        <!-- Language Switcher -->
+                        <div style="display:flex; justify-content:center; margin-bottom:15px;">
+                            <div class="lang-switch">
+                                <div class="lang-opt active" id="lang-en" onclick="setLang('en-US', this)">ENGLISH</div>
+                                <div class="lang-opt" id="lang-si" onclick="setLang('si-LK', this)">සිංහල</div>
+                            </div>
                         </div>
-                        <div class="wave-container" id="avatarContainer">
+
+                        <!-- Avatar with Pulse -->
+                        <div class="wave-container" id="avatarContainer" style="margin: 0 auto 20px;">
                             <div class="wave-layer"></div>
                             <div class="wave-layer"></div>
                             <div class="wave-layer"></div>
@@ -2190,27 +2198,59 @@
                             <div class="avatar-mouth"></div>
                             <button id="micBtn"><i class="fas fa-microphone"></i></button>
                         </div>
-                        <div style="margin-top: 25px; display: flex; justify-content: center; flex-wrap: wrap; gap: 15px;">
-                            <button class="btn btn-ghost" onclick="executeTool('OPEN_CAMERA', '')" title="Vision Analysis" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-eye" style="color: #38bdf8;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('SAVE_NOTE', prompt('Enter a quick note:'))" title="Save Note" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-sticky-note" style="color: #fbbf24;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('GEN_CONTENT', 'Script | Studio Topic')" title="Content Engine" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-magic" style="color: #a855f7;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('TRANSLATE', 'Hello | Sinhala')" title="Translator" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-language" style="color: #34d399;"></i>
-                            </button>
-                            <button class="btn btn-ghost" onclick="executeTool('WELLNESS_CHECK', '')" title="Wellness Pulse" style="border-radius: 50%; width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);">
-                                <i class="fas fa-heartbeat" style="color: #f43f5e;"></i>
-                            </button>
+
+                        <!-- Status Text -->
+                        <div class="voice-text" style="margin-bottom:20px;">
+                            <h2 id="aiText" style="font-size: 1.4rem; letter-spacing: -0.5px;">I'm listening...</h2>
+                            <p id="userText" style="opacity: 0.5; font-size: 0.9rem; margin-top:4px;">Tap the mic or speak now</p>
                         </div>
-                        <div class="voice-text">
-                            <h2 id="aiText" style="font-size: 1.5rem; letter-spacing: -0.5px;">I'm listening...</h2>
-                            <p id="userText" style="opacity: 0.6; font-size: 1rem;">Tap the red dot or speak now.</p>
+
+                        <!-- Quick Actions Grid -->
+                        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px; max-width:400px; margin:0 auto 25px;">
+                            <div onclick="executeTool('OPEN_CAMERA', '')" style="cursor:pointer; text-align:center; padding:12px 4px; background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.15); border-radius:16px; transition:0.3s;">
+                                <i class="fas fa-eye" style="color:#38bdf8; font-size:1.1rem; display:block; margin-bottom:6px;"></i>
+                                <span style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Vision</span>
+                            </div>
+                            <div onclick="executeTool('SAVE_NOTE', prompt('Enter a quick note:'))" style="cursor:pointer; text-align:center; padding:12px 4px; background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.15); border-radius:16px; transition:0.3s;">
+                                <i class="fas fa-sticky-note" style="color:#fbbf24; font-size:1.1rem; display:block; margin-bottom:6px;"></i>
+                                <span style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Notes</span>
+                            </div>
+                            <div onclick="executeTool('GEN_CONTENT', 'Script | Studio Topic')" style="cursor:pointer; text-align:center; padding:12px 4px; background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.15); border-radius:16px; transition:0.3s;">
+                                <i class="fas fa-magic" style="color:#a855f7; font-size:1.1rem; display:block; margin-bottom:6px;"></i>
+                                <span style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Create</span>
+                            </div>
+                            <div onclick="executeTool('TRANSLATE', 'Hello | Sinhala')" style="cursor:pointer; text-align:center; padding:12px 4px; background:rgba(52,211,153,0.06); border:1px solid rgba(52,211,153,0.15); border-radius:16px; transition:0.3s;">
+                                <i class="fas fa-language" style="color:#34d399; font-size:1.1rem; display:block; margin-bottom:6px;"></i>
+                                <span style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Translate</span>
+                            </div>
+                            <div onclick="executeTool('WELLNESS_CHECK', '')" style="cursor:pointer; text-align:center; padding:12px 4px; background:rgba(244,63,94,0.06); border:1px solid rgba(244,63,94,0.15); border-radius:16px; transition:0.3s;">
+                                <i class="fas fa-heartbeat" style="color:#f43f5e; font-size:1.1rem; display:block; margin-bottom:6px;"></i>
+                                <span style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Wellness</span>
+                            </div>
                         </div>
+
+                        <!-- Status Card -->
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:20px; padding:18px 20px; max-width:400px; margin:0 auto; text-align:left;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <span style="font-size:0.65rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--primary); font-weight:700;"><i class="fas fa-satellite-dish" style="margin-right:6px;"></i>System Status</span>
+                                <span class="status-dot"></span>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+                                <div style="text-align:center;">
+                                    <div style="font-size:1.2rem; font-weight:700; color:var(--text-main);" id="quickStatLeads">—</div>
+                                    <div style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase;">Leads</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:1.2rem; font-weight:700; color:var(--accent);" id="quickStatModel">Groq</div>
+                                    <div style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase;">AI Model</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:1.2rem; font-weight:700; color:var(--success);" id="quickStatStatus">Live</div>
+                                    <div style="font-size:0.6rem; color:var(--text-dim); text-transform:uppercase;">WhatsApp</div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
