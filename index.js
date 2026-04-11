@@ -44,6 +44,7 @@ let globalSettings = {
     personality: 'sophisticated', // 'sophisticated' or 'friendly'
     currentModel: 'groq',
     biometricEnabled: false,
+    adminPassword: process.env.ADMIN_PASSWORD || '69studio123',
     potions: {
         visionEye: true,
         deepMemory: true,
@@ -54,7 +55,9 @@ const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
 // Load Settings
 if (fs.existsSync(settingsFile)) {
-    try { globalSettings = JSON.parse(fs.readFileSync(settingsFile)); } catch (e) {}
+    try { 
+        globalSettings = { ...globalSettings, ...JSON.parse(fs.readFileSync(settingsFile)) }; 
+    } catch (e) {}
 }
 
 function saveSettings() {
@@ -100,6 +103,20 @@ function saveAppointments() {
         notifyClients();
     } catch (e) { console.error('Appointments save error:', e); }
 }
+
+function saveBiometricKeys() {
+    try {
+        fs.writeFileSync(biometricFile, JSON.stringify(biometricKeys, null, 2));
+    } catch (e) { console.error('Biometric save error:', e); }
+}
+
+// Load Biometric Keys
+try {
+    if (fs.existsSync(biometricFile)) {
+        biometricKeys = JSON.parse(fs.readFileSync(biometricFile, 'utf8'));
+    }
+} catch (e) { console.error('Biometric load error:', e); }
+
 
 // Load Todos from File
 try {
@@ -300,12 +317,7 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// API: Get Appointments
-app.get('/api/appointments', (req, res) => {
-    if (!checkAuth(req.query.pass)) return res.status(403).json({ error: 'Unauthorized' });
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(appointments));
-});
+// (API: Get Appointments handled at line 270)
 
 // API: Get Todos
 app.get('/api/todos', (req, res) => {
@@ -581,24 +593,7 @@ async function addToGoogleCalendar(appt) {
     }
 }
 
-app.listen(port, '0.0.0.0', () => {
-    const publicUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-    console.log(`Web server listening on port ${port}`);
-    console.log(`ADMIN DASHBOARD: ${publicUrl}/admin?pass=${process.env.ADMIN_PASSWORD}`);
-    console.log(`PERSONAL ASSISTANT: ${publicUrl}/assistant?pass=${process.env.ADMIN_PASSWORD}`);
 
-    // --- SELF PING TO KEEP ALIVE ON RENDER ---
-    if (process.env.RENDER_EXTERNAL_URL) {
-        setInterval(async () => {
-            try {
-                await fetch(process.env.RENDER_EXTERNAL_URL);
-                console.log('Self-ping successful: Bot is awake.');
-            } catch (e) {
-                console.error('Self-ping failed:', e.message);
-            }
-        }, 10 * 60 * 1000); // Ping every 10 minutes
-    }
-});
 
 // --- AI SETUP AND PARSERS ---
 
@@ -1012,32 +1007,13 @@ app.post('/api/assistant/memory/save', (req, res) => {
     if (!memories[password].includes(memory)) {
         memories[password].push(memory);
         // Keep only last 50 memories
-        if (memories[password].length > 50) memories[password].shift();
+        saveMemories(memories);
     }
-// --- BIOMETRIC AUTH ENDPOINTS (v8.2) ---
-app.post('/api/auth/biometric/register', (req, res) => {
-    const { pass, keyId, publicKey } = req.body;
-    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
-    
-    // Store key linked to this specific password/user
-    biometricKeys[pass] = { keyId, publicKey };
-    saveBiometrics();
-    console.log(`🔐 Biometric Registered for account: ${pass.substring(0,3)}...`);
     res.json({ success: true });
 });
 
-app.post('/api/auth/biometric/verify', (req, res) => {
-    const { pass, keyId } = req.body;
-    const stored = biometricKeys[pass];
-    
-    if (!stored || stored.keyId !== keyId) {
-        return res.status(401).json({ error: 'Biometric verification failed' });
-    }
-    
-    // In a full production flow, we would verify the signature here.
-    res.json({ success: true });
-});
-
+// --- BIOMETRIC AUTH ENDPOINTS (v8.3) ---
+// --- BIOMETRIC AUTH ENDPOINTS (Consolidated at the end) ---
 
 app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
@@ -1394,32 +1370,39 @@ async function startBot() {
 
 app.post('/api/auth/biometric/register', (req, res) => {
     const { pass, keyId } = req.body;
-    if (pass !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+    if (pass !== (process.env.ADMIN_PASSWORD || '69studio123')) return res.status(401).json({ error: 'Unauthorized' });
     
-    // In a real app, you'd store many keys per user. Here we just link the device.
-    biometrics.deviceKey = keyId;
-    saveBiometrics();
+    biometricKeys.deviceKey = keyId;
+    saveBiometricKeys();
     res.json({ success: true });
 });
 
 app.post('/api/auth/biometric/verify', (req, res) => {
     const { pass, keyId } = req.body;
-    if (pass !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+    if (pass !== (process.env.ADMIN_PASSWORD || '69studio123')) return res.status(401).json({ error: 'Unauthorized' });
     
-    if (biometrics.deviceKey === keyId) {
+    if (biometricKeys.deviceKey === keyId) {
         res.json({ success: true });
     } else {
         res.status(401).json({ error: 'Invalid biometric key' });
     }
 });
 
-// Root route for PWA
+// --- FINAL EXPRESS WRAPUP ---
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// --- SERVER STARTUP ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Olivia Core Elite v8.2 running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Olivia Core Elite v8.3 running on port ${PORT}`);
+    
+    if (process.env.RENDER_EXTERNAL_URL) {
+        setInterval(async () => {
+            try { await fetch(process.env.RENDER_EXTERNAL_URL); } catch (e) {}
+        }, 10 * 60 * 1000);
+    }
+
     startBot();
 });

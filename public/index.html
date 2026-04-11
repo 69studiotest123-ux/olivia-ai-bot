@@ -1296,6 +1296,11 @@
 
         .nav-item i {
             font-size: 1.2rem;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .nav-item span {
@@ -1404,7 +1409,8 @@
             height: 18px;
             width: 18px;
             left: 4px;
-            bottom: 4px;
+            top: 50%;
+            transform: translateY(-50%);
             background-color: white;
             transition: 0.3s cubic-bezier(0.18, 0.89, 0.35, 1.15);
             border-radius: 50%;
@@ -1412,7 +1418,7 @@
         }
 
         input:checked + .toggle-slider:before {
-            transform: translateX(22px);
+            transform: translateX(22px) translateY(-50%);
         }
 
         /* Glassmorphism Sections */
@@ -1473,7 +1479,7 @@
         }
 
         input:checked+.toggle-slider:before {
-            transform: translateX(22px);
+            transform: translateX(22px) translateY(-50%);
         }
 
         /* Centered Elite Toggles (v8.1 Ultra-Sleek) */
@@ -4495,7 +4501,7 @@
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && currentSettings.biometricEnabled) {
-                // If app was hidden, re-lock to verify identity
+                // Instant re-lock for security
                 console.log('🔒 Re-locking for security (Visibility Change)');
                 lockApp();
                 verifyBiometrics();
