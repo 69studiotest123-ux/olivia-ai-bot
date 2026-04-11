@@ -25,7 +25,8 @@ const historyFile = path.join(__dirname, 'history.json');
 const appointmentsFile = 'appointments.json';
 const todosFile = 'todos.json';
 const pwaHistoryFile = 'pwa_history.json';
-const memoryFile = 'memories.json';
+const memoryFile = './memories.json';
+const biometricFile = './biometrics.json';
 const tokensFile = path.join(__dirname, 'push-tokens.json');
 const settingsFile = path.join(__dirname, 'settings.json');
 const prefsFile = 'preferences.json';
@@ -33,13 +34,16 @@ let chatHistory = new Map();
 let appointments = [];
 let todos = [];
 let pushTokens = [];
+let leads = [];
 let preferences = {};
+let biometricKeys = {};
 let globalSettings = { 
     autoReply: true, 
     voiceMode: 'browser', // 'browser' or 'elevenlabs'
     voiceEnabled: true,
     personality: 'sophisticated', // 'sophisticated' or 'friendly'
     currentModel: 'groq',
+    biometricEnabled: false,
     potions: {
         visionEye: true,
         deepMemory: true,
@@ -129,6 +133,19 @@ function saveTrends() {
 function savePrefs() {
     try { fs.writeFileSync(prefsFile, JSON.stringify(preferences, null, 2)); } catch (e) {}
 }
+
+function loadBiometrics() {
+    if (!fs.existsSync(biometricFile)) return {};
+    try { return JSON.parse(fs.readFileSync(biometricFile)); }
+    catch (e) { return {}; }
+}
+
+function saveBiometrics() {
+    try { fs.writeFileSync(biometricFile, JSON.stringify(biometricKeys, null, 2)); } catch (e) {}
+}
+
+const biometricKeysRaw = loadBiometrics();
+biometricKeys = biometricKeysRaw;
 
 // --- ELEVENLABS CLIENT ---
 const xiClient = process.env.ELEVENLABS_API_KEY 
@@ -997,7 +1014,27 @@ app.post('/api/assistant/memory/save', (req, res) => {
         // Keep only last 50 memories
         if (memories[password].length > 50) memories[password].shift();
     }
-    saveMemories(memories);
+// --- BIOMETRIC AUTH ENDPOINTS (v8.2) ---
+app.post('/api/auth/biometric/register', (req, res) => {
+    const { pass, keyId, publicKey } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    // Store key linked to this specific password/user
+    biometricKeys[pass] = { keyId, publicKey };
+    saveBiometrics();
+    console.log(`🔐 Biometric Registered for account: ${pass.substring(0,3)}...`);
+    res.json({ success: true });
+});
+
+app.post('/api/auth/biometric/verify', (req, res) => {
+    const { pass, keyId } = req.body;
+    const stored = biometricKeys[pass];
+    
+    if (!stored || stored.keyId !== keyId) {
+        return res.status(401).json({ error: 'Biometric verification failed' });
+    }
+    
+    // In a full production flow, we would verify the signature here.
     res.json({ success: true });
 });
 

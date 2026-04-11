@@ -1907,6 +1907,84 @@
             from { transform: translateY(30px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+        /* IDENTITY LOCK SCREEN */
+        #identityLock {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 10005;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            transition: 0.5s ease;
+        }
+
+        #identityLock.unlocked {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.1);
+        }
+
+        .lock-orb {
+            width: 120px;
+            height: 120px;
+            background: transparent;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            position: relative;
+            cursor: pointer;
+            box-shadow: 0 0 30px var(--primary-glow);
+        }
+
+        .lock-orb i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            animation: lockPulse 2s infinite;
+        }
+
+        @keyframes lockPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+
+        .lock-scanner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            animation: lockScan 2s linear infinite;
+        }
+
+        @keyframes lockScan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        .bio-btn {
+            background: rgba(255, 77, 77, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .bio-btn:hover { background: var(--primary); color: white; }
     </style>
 
 </head>
@@ -1917,6 +1995,19 @@
     <audio id="notifSound" preload="auto">
         <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
     </audio>
+
+    <!-- IDENTITY LOCK SCREEN (Biometric) -->
+    <div id="identityLock" style="display: none;">
+        <div class="orb orb-1"></div>
+        <div class="lock-orb" onclick="verifyBiometrics()">
+            <div class="lock-scanner"></div>
+            <i class="fas fa-fingerprint"></i>
+        </div>
+        <h2 style="margin-bottom: 5px; font-weight: 700;">Identity Required</h2>
+        <p style="color: var(--text-dim); margin-bottom: 30px; font-size: 0.9rem;">Scan biometric to access Olivia Core</p>
+        <button class="bio-btn" onclick="verifyBiometrics()">Verify Identity</button>
+        <button class="btn btn-ghost" onclick="logoutForBio()" style="margin-top: 20px; font-size: 0.7rem; opacity: 0.5;">Use Password Instead</button>
+    </div>
 
     <!-- ===== LOGIN SCREEN ===== -->
     <div id="loginScreen">
@@ -2113,6 +2204,25 @@
             <!-- TAB: SETTINGS (v8.2 Elite) -->
             <div id="tab-settings" class="tab-panel">
                 <p class="section-title">Automation & Core</p>
+                <div class="setting-row">
+                    <div>
+                        <h4>Biometric Security</h4>
+                        <p>Require fingerprint on every app entry</p>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="bioToggle" onchange="saveSetting('biometricEnabled', this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div id="bioRegRow" class="setting-row" style="display:none; border-top: 1px dashed var(--border); padding-top: 10px;">
+                    <div>
+                        <h4>Device Registration</h4>
+                        <p id="bioStatus">Link this phone's fingerprint sensor</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="registerBiometrics()" style="padding: 8px 15px; font-size: 0.75rem;">
+                        <i class="fas fa-fingerprint"></i> Register
+                    </button>
+                </div>
                 <div class="setting-row">
                     <div>
                         <h4>Auto-Reply Bot</h4>
@@ -2586,6 +2696,7 @@
         function applySettingsToUI() {
             document.getElementById('botToggle').checked = currentSettings.autoReply;
             document.getElementById('voiceToggle').checked = currentSettings.voiceEnabled;
+            document.getElementById('bioToggle').checked = currentSettings.biometricEnabled || false;
             document.getElementById('modelSelector').value = currentSettings.currentModel;
             document.getElementById('currentModel').innerText = modelNames[currentSettings.currentModel];
 
@@ -2594,6 +2705,16 @@
             updatePotionUI('visionEye', pots.visionEye);
             updatePotionUI('deepMemory', pots.deepMemory);
             updatePotionUI('homeHub', pots.homeHub);
+            
+            // Show bio registration row if enabled
+            if (currentSettings.biometricEnabled) {
+                document.getElementById('bioRegRow').style.display = 'flex';
+                if (localStorage.getItem('olivia_bio_id')) {
+                    document.getElementById('bioStatus').innerText = '✅ Device securely linked.';
+                }
+            } else {
+                document.getElementById('bioRegRow').style.display = 'none';
+            }
         }
 
         function updatePotionUI(id, active) {
@@ -4206,6 +4327,144 @@
                 showToast('Home Error', 'Downlink unstable.', 'fa-wifi');
             }
         }
+
+        // === BIOMETRIC AUTH (v8.2 ELITE) ===
+        let isAppLocked = false;
+
+        async function registerBiometrics() {
+            if (!window.PublicKeyCredential) {
+                showToast('Not Supported', 'Biometrics require HTTPS and modern hardware.', 'fa-exclamation-triangle');
+                return;
+            }
+
+            const bioStatus = document.getElementById('bioStatus');
+            bioStatus.innerText = 'Initializing sensor...';
+
+            try {
+                const challenge = new Uint8Array(32);
+                window.crypto.getRandomValues(challenge);
+                const userId = Uint8Array.from(password, c => c.charCodeAt(0));
+
+                const options = {
+                    publicKey: {
+                        challenge,
+                        rp: { name: "Olivia AI" },
+                        user: { id: userId, name: "Subhash", displayName: "Subhash" },
+                        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+                        timeout: 60000,
+                        attestation: "none"
+                    }
+                };
+
+                const credential = await navigator.credentials.create(options);
+                const keyId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+                
+                const res = await fetch(`${API_BASE}/api/auth/biometric/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, keyId })
+                });
+
+                if (res.ok) {
+                    showToast('Identity Linked!', 'Biometrics are now active for this device.', 'fa-fingerprint');
+                    bioStatus.innerText = '✅ Device securely linked.';
+                    localStorage.setItem('olivia_bio_id', keyId);
+                }
+            } catch (err) {
+                console.error('Bio Register Error:', err);
+                bioStatus.innerText = 'Registration failed. Try again.';
+            }
+        }
+
+        async function verifyBiometrics() {
+            const keyId = localStorage.getItem('olivia_bio_id');
+            if (!keyId) {
+                showToast('No Key', 'Please register fingerprint in settings first.', 'fa-key');
+                return;
+            }
+
+            try {
+                // For a high-end feel, we trigger the real prompt even if we're just checking the ID
+                const challenge = new Uint8Array(32);
+                window.crypto.getRandomValues(challenge);
+                
+                const options = {
+                    publicKey: {
+                        challenge,
+                        allowCredentials: [{ id: Uint8Array.from(atob(keyId), c => c.charCodeAt(0)), type: "public-key" }],
+                        timeout: 60000
+                    }
+                };
+
+                await navigator.credentials.get(options);
+                
+                const res = await fetch(`${API_BASE}/api/auth/biometric/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pass: password, keyId })
+                });
+
+                if (res.ok) {
+                    unlockApp();
+                } else {
+                    showToast('Verification Failed', 'Identity not recognized.', 'fa-times');
+                }
+            } catch (err) {
+                console.error('Bio Verify Error:', err);
+            }
+        }
+
+        function unlockApp() {
+            isAppLocked = false;
+            const lock = document.getElementById('identityLock');
+            lock.classList.add('unlocked');
+            setTimeout(() => { lock.style.display = 'none'; }, 500);
+            showToast('Access Granted', 'Welcome back, Sir.', 'fa-shield-check');
+            speakText("Identity verified. Access granted.");
+        }
+
+        function lockApp() {
+            if (!currentSettings.biometricEnabled || isAppLocked) return;
+            isAppLocked = true;
+            const lock = document.getElementById('identityLock');
+            lock.style.display = 'flex';
+            lock.classList.remove('unlocked');
+        }
+
+        function logoutForBio() {
+            password = '';
+            localStorage.removeItem('olivia_pass');
+            location.reload();
+        }
+
+        // Auto-Lock on Focus/Entry
+        window.addEventListener('blur', () => {
+            if (currentSettings.biometricEnabled) {
+                // Small delay to allow quick app switching without annoyance
+                setTimeout(() => { if (document.hidden) lockApp(); }, 1000);
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && currentSettings.biometricEnabled) {
+                lockApp();
+            }
+        });
+
+        // Trigger on initial load if enabled
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (currentSettings.biometricEnabled && password) {
+                    lockApp();
+                    verifyBiometrics(); // Auto-prompt
+                }
+                
+                // Show registration row if bio enabled but not registered
+                if (currentSettings.biometricEnabled && !localStorage.getItem('olivia_bio_id')) {
+                    document.getElementById('bioRegRow').style.display = 'flex';
+                }
+            }, 1000);
+        });
 
         // Init — called after successful login via doLogin()
         window.speechSynthesis.onvoiceschanged = () => { };

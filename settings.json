@@ -1,0 +1,16 @@
+{
+  "autoReply": true,
+  "voiceMode": "browser",
+  "voiceEnabled": true,
+  "personality": "sophisticated",
+  "currentModel": "groq",
+  "potions": {
+    "visionEye": true,
+    "deepMemory": true,
+    "homeHub": true
+  },
+  "biometricEnabled": false,
+  "potions.visionEye": true,
+  "potions.deepMemory": true,
+  "potions.homeHub": true
+}
