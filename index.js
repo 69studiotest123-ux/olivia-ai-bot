@@ -1390,4 +1390,36 @@ async function startBot() {
     });
 }
 
-startBot();
+// --- BIOMETRIC SECURITY ENDPOINTS ---
+
+app.post('/api/auth/biometric/register', (req, res) => {
+    const { pass, keyId } = req.body;
+    if (pass !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+    
+    // In a real app, you'd store many keys per user. Here we just link the device.
+    biometrics.deviceKey = keyId;
+    saveBiometrics();
+    res.json({ success: true });
+});
+
+app.post('/api/auth/biometric/verify', (req, res) => {
+    const { pass, keyId } = req.body;
+    if (pass !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+    
+    if (biometrics.deviceKey === keyId) {
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ error: 'Invalid biometric key' });
+    }
+});
+
+// Root route for PWA
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 Olivia Core Elite v8.2 running on port ${PORT}`);
+    startBot();
+});
