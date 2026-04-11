@@ -4418,6 +4418,43 @@
             reader.readAsDataURL(file);
         }
 
+        // UI Interaction Functions
+        function setMode(mode) {
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+            if (mode === 'voice') {
+                document.getElementById('modeVoiceBtn').classList.add('active');
+                document.getElementById('voiceMode').style.display = 'block';
+                document.getElementById('chatMode').style.display = 'none';
+            } else {
+                document.getElementById('modeChatBtn').classList.add('active');
+                document.getElementById('voiceMode').style.display = 'none';
+                document.getElementById('chatMode').style.display = 'block';
+            }
+        }
+
+        function setLang(lang, el) {
+            document.querySelectorAll('.lang-opt').forEach(opt => opt.classList.remove('active'));
+            if (el) el.classList.add('active');
+            showToast('Language Updated', lang === 'si-LK' ? 'Switched to Sinhala' : 'Switched to English', 'fa-language');
+        }
+
+        function executeTool(toolName, param) {
+            if (toolName === 'OPEN_CAMERA') {
+                const overlay = document.getElementById('visionOverlay');
+                if (overlay) {
+                    overlay.classList.add('active');
+                    overlay.style.display = 'flex';
+                }
+                showToast('Vision System', 'Camera initializing...', 'fa-eye');
+            } else if (toolName === 'SAVE_NOTE') {
+                if (param) {
+                    saveMemoryFact(param);
+                }
+            } else {
+                showToast('Action Dispatched', `Executing ${toolName}`, 'fa-bolt');
+            }
+        }
+
         // === ELITE POTIONS LOGIC (v8.2) ===
         async function saveMemoryFact(fact) {
             if (!password || !fact) return;
