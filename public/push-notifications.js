@@ -151,8 +151,7 @@ function loadScript(src) {
   });
 }
 
-const IS_FIREBASE_PUSH = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
-const PUSH_API_BASE = IS_FIREBASE_PUSH ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
+const PUSH_API_BASE = '';
 
 function saveTokenToServer(token) {
   fetch(`${PUSH_API_BASE}/api/save-token`, {
