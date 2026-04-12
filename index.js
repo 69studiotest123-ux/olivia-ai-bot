@@ -556,6 +556,7 @@ async function addToGoogleCalendar(appt) {
         return;
     }
 
+    try {
         const privateKey = cleanKey(process.env.GOOGLE_PRIVATE_KEY);
 
         const auth = new google.auth.JWT({
