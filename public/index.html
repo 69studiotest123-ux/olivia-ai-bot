@@ -4066,14 +4066,38 @@
                 return;
             }
 
+            showToast('Initializing Eye', 'Waking up camera sensors...', 'fa-circle-notch fa-spin', 2000);
+
             try {
-                visionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // Primary: Try Back Camera
+                try {
+                    visionStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: { exact: 'environment' } } 
+                    });
+                } catch (e) {
+                    console.warn('Back camera failed, trying standard camera...');
+                    // Fallback: Try any camera
+                    visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                }
+
                 video.srcObject = visionStream;
                 overlay.style.display = 'block';
                 showToast('Vision Eye Active', 'Tap the eye to analyze.', 'fa-eye');
                 speakText("My eye is always on. Tap it whenever you want me to analyze something for you.");
             } catch (err) {
-                showToast('Camera Error', 'Permission denied.', 'fa-exclamation-triangle');
+                console.error('Camera Access Error:', err);
+                
+                let errorMsg = 'Could not access camera.';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMsg = 'Permission Denied. Please unblock the camera in your browser settings (top left of URL bar).';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg = 'No camera detected on this device.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg = 'Camera is Busy. Close other apps using the camera (WhatsApp, Zoom, etc).';
+                }
+                
+                showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
+                speakText("I'm sorry, I can't see right now because your browser is blocking camera access.");
             }
         }
 
