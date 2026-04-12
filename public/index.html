@@ -4673,13 +4673,16 @@
             }
         }
 
+        let isBioPrompting = false;
         async function verifyBiometrics() {
+            if (isBioPrompting) return;
             const keyId = localStorage.getItem('olivia_bio_id');
             if (!keyId) {
                 showToast('No Key', 'Please register fingerprint in settings first.', 'fa-key');
                 return;
             }
 
+            isBioPrompting = true;
             try {
                 // For a high-end feel, we trigger the real prompt even if we're just checking the ID
                 const challenge = new Uint8Array(32);
@@ -4708,6 +4711,12 @@
                 }
             } catch (err) {
                 console.error('Bio Verify Error:', err);
+                const lock = document.getElementById('identityLock');
+                if (lock && lock.style.display !== 'none' && !lock.classList.contains('unlocked')) {
+                    showToast('Biometric Cancelled', 'Use finger scan or password to enter.', 'fa-info-circle');
+                }
+            } finally {
+                isBioPrompting = false;
             }
         }
 
@@ -4743,11 +4752,15 @@
         });
 
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && currentSettings.biometricEnabled) {
-                // Instant re-lock for security
+            if (document.visibilityState === 'visible' && currentSettings.biometricEnabled && password) {
+                // Prevent locking if we are already seeing the lock screen
+                if (isAppLocked) return;
+                
                 console.log('🔒 Re-locking for security (Visibility Change)');
                 lockApp();
-                verifyBiometrics();
+                
+                // Small delay to ensure UI reflow before prompt
+                setTimeout(verifyBiometrics, 500);
             }
         });
 
