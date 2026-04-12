@@ -1919,7 +1919,8 @@
 
         .toast {
             background: rgba(18, 18, 20, 0.9);
-            backdrop-filter: blur(20px);
+            backdrop-filter: blur(12px);
+            will-change: transform;
             border: 1px solid var(--border);
             padding: 16px 24px;
             border-radius: 18px;
@@ -2035,9 +2036,10 @@
             position: fixed;
             inset: 0;
             background: rgba(10, 10, 12, 0.95);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(8px);
             z-index: 10002;
             display: none;
+            will-change: opacity, transform;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -2066,9 +2068,10 @@
             position: fixed;
             inset: 0;
             background: radial-gradient(circle at center, rgba(18, 18, 20, 0.7), #0a0a0c 100%);
-            backdrop-filter: blur(40px);
+            backdrop-filter: blur(15px);
             z-index: 10005;
             display: flex;
+            will-change: opacity;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -2790,6 +2793,7 @@
                     setServerStatus('live');
                 };
 
+                let lastRefreshTime = 0;
                 source.onmessage = function (event) {
                     console.log('⚡ Stream Event:', event.data);
                     
@@ -2799,11 +2803,12 @@
                             const payload = JSON.parse(event.data);
                             if (payload.heartbeat) {
                                 setServerStatus('live');
+                                return; // Heartbeats should not trigger UI refresh
                             } else if (payload.wa) {
                                 setWhatsAppStatus(payload.wa);
                                 setServerStatus('live');
+                                return;
                             }
-                            return;
                         }
                     } catch (e) {
                          console.warn('JSON parse error in SSE', e);
@@ -2811,10 +2816,14 @@
 
                     setServerStatus('live');
                     const eventData = event.data.toLowerCase();
-                    if (eventData.includes('update') || 
-                        eventData.includes('heartbeat') || 
-                        eventData.includes('appointment')) {
+                    const now = Date.now();
+                    
+                    // Throttled refresh (min 2 seconds between full syncs)
+                    if (eventData.includes('update') || eventData.includes('appointment')) {
+                        if (now - lastRefreshTime < 2000) return;
+                        lastRefreshTime = now;
                         
+                        console.log('🔄 Triggering Smart Sync...');
                         syncLeads();
                         refreshAppointments();
                         loadTodos();
@@ -4137,7 +4146,12 @@
             }
         }
 
+        let lastApptsHash = "";
         function renderAppointments(data) {
+            const currentHash = JSON.stringify(data.map(a => a.id));
+            if (currentHash === lastApptsHash) return; // Skip if identity hasn't changed
+            lastApptsHash = currentHash;
+
             const container = document.getElementById('appointmentsList');
             document.getElementById('totalAppts').innerText = data.length;
 
@@ -4213,8 +4227,15 @@
             renderLeads(filtered, false);
         }
 
+        let lastLeadsHash = "";
         function renderLeads(data, store = true) {
             if (store) allLeadsData = data;
+            
+            // Fast check if we really need to re-render
+            const currentHash = Object.keys(data).length + "-" + JSON.stringify(Object.keys(data).slice(0, 5));
+            if (currentHash === lastLeadsHash && store) return;
+            lastLeadsHash = currentHash;
+
             const total = Object.keys(data).length;
             
             if (prevLeadCount !== -1 && total > prevLeadCount) {
