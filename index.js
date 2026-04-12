@@ -359,11 +359,7 @@ async function sendPushToAll(title, body) {
     }
 
     try {
-        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-            privateKey = privateKey.substring(1, privateKey.length - 1);
-        }
-        privateKey = privateKey.replace(/\\n/g, '\n');
+        const privateKey = cleanKey(process.env.GOOGLE_PRIVATE_KEY);
 
         const auth = new google.auth.JWT({
             email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -511,7 +507,7 @@ app.get('/assistant', (req, res) => {
 async function getTodayEvents() {
     try {
         const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-        const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        const privateKey = cleanKey(process.env.GOOGLE_PRIVATE_KEY);
         const calendarId = process.env.GOOGLE_CALENDAR_ID;
 
         if (!clientEmail || !privateKey || !calendarId) return [];
@@ -560,12 +556,7 @@ async function addToGoogleCalendar(appt) {
         return;
     }
 
-    try {
-        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-            privateKey = privateKey.substring(1, privateKey.length - 1);
-        }
-        privateKey = privateKey.replace(/\\n/g, '\n');
+        const privateKey = cleanKey(process.env.GOOGLE_PRIVATE_KEY);
 
         const auth = new google.auth.JWT({
             email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -1420,6 +1411,14 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Olivia Core Elite v8.3 running on port ${PORT}`);
     
+    // --- DIAGNOSTICS ---
+    console.log('📊 Environment Status:');
+    console.log(`  - GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ set' : '❌ missing'}`);
+    console.log(`  - ELEVENLABS_API_KEY: ${process.env.ELEVENLABS_API_KEY ? '✅ set' : '❌ missing'}`);
+    console.log(`  - GOOGLE_CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL ? '✅ set' : '❌ missing'}`);
+    console.log(`  - GOOGLE_PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? '✅ set' : '❌ missing'}`);
+    console.log(`  - GOOGLE_CALENDAR_ID: ${process.env.GOOGLE_CALENDAR_ID ? '✅ set' : '❌ missing'}`);
+
     if (process.env.RENDER_EXTERNAL_URL) {
         setInterval(async () => {
             try { await fetch(process.env.RENDER_EXTERNAL_URL); } catch (e) {}
@@ -1428,3 +1427,12 @@ app.listen(PORT, '0.0.0.0', () => {
 
     startBot();
 });
+
+function cleanKey(key) {
+    if (!key) return null;
+    let clean = key;
+    if (clean.startsWith('"') && clean.endsWith('"')) {
+        clean = clean.substring(1, clean.length - 1);
+    }
+    return clean.replace(/\\n/g, '\n');
+}
