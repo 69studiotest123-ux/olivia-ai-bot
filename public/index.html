@@ -95,12 +95,32 @@
             display: none;
             overflow: hidden;
         }
-        #visionOverlay video {
+        #visionVideo {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            filter: grayscale(0.4) contrast(1.2) brightness(1.2);
+            filter: grayscale(0.2) contrast(1.1) brightness(1.1);
         }
+        #visionCloseBtn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 10010;
+            width: 48px;
+            height: 48px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        #visionCloseBtn:active { transform: scale(0.9); }
         .eye-scanner {
             position: absolute; top: 0; left: 0; width: 100%; height: 4px;
             background: linear-gradient(to bottom, transparent, var(--primary), transparent);
@@ -2256,10 +2276,14 @@
 
     <!-- VISION EYE -->
     <div id="visionOverlay" onclick="captureVisionFrame()">
-        <video id="visionVideo" autoplay muted playsinline></video>
+        <video id="visionVideo" autoplay muted playsinline webkit-playsinline></video>
         <div class="eye-scanner"></div>
         <div class="eye-label">LIVE EYE | TAP TO CAPTURE</div>
     </div>
+    <!-- VISION CLOSE BUTTON (always on top) -->
+    <button id="visionCloseBtn" onclick="openVisionEye()" aria-label="Close Camera">
+        <i class="fas fa-times"></i>
+    </button>
 
     <!-- ===== MAIN APP ===== -->
     <div id="mainApp">
@@ -4069,52 +4093,57 @@
         async function openVisionEye() {
             const overlay = document.getElementById('visionOverlay');
             const video = document.getElementById('visionVideo');
+            const closeBtn = document.getElementById('visionCloseBtn');
             
             if (visionStream) {
+                // CLOSE CAMERA
                 visionStream.getTracks().forEach(track => track.stop());
                 visionStream = null;
+                video.srcObject = null;
                 overlay.style.display = 'none';
+                closeBtn.style.display = 'none';
                 showToast('Eye Closed', 'Vision Assistant Off.', 'fa-eye-slash');
                 return;
             }
 
-            // PROACTIVE UI: Show scanner immediately while hardware wakes up
+            // PROACTIVE UI: Show scanner + close button immediately
             overlay.style.display = 'block';
-            showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin', 2000);
+            closeBtn.style.display = 'flex';
+            showToast('Initializing Eye', 'Waking up camera...', 'fa-circle-notch fa-spin', 2000);
 
             try {
-                // Try BACK CAMERA first
+                // Try BACK CAMERA first (rear lens on phone)
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: 'environment' } 
+                        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } 
                     });
                 } catch (e) {
-                    console.warn('Back camera failed, trying fallback...');
+                    console.warn('Rear camera failed, trying any camera...');
                     visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
 
                 video.srcObject = visionStream;
                 
-                // AGGRESSIVE PLAYBACK NUDGE (Fixes black screens on slow mobile hardware)
-                video.onloadedmetadata = () => {
-                    video.play().catch(e => console.error('Auto-play blocked, retrying...', e));
-                };
+                // Nudge 1: onloadedmetadata
+                video.onloadedmetadata = () => { video.play().catch(()=>{}); };
+                // Nudge 2: oncanplay
+                video.oncanplay = () => { if (video.paused) video.play().catch(()=>{}); };
+                // Nudge 3: after 600ms
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 600);
+                // Nudge 4: after 1500ms
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 1500);
 
-                // Secondary nudge after 500ms
-                setTimeout(() => {
-                    if (video.paused && visionStream) {
-                        video.play().catch(e => console.warn('Secondary play nudge failed. User interaction might be required.'));
-                    }
-                }, 500);
-
-                speakText("My eye is active. Point me at something and tap the screen.");
+                speakText("Eye is open. Point me at something and tap the screen to analyze.");
 
             } catch (err) {
-                console.error('Camera Access Error:', err);
+                console.error('Camera Error:', err.name, err.message);
                 overlay.style.display = 'none';
-                let errorMsg = 'Could not access camera.';
-                if (err.name === 'NotAllowedError') errorMsg = 'Camera permission denied.';
-                showToast('Hardware Error', errorMsg, 'fa-exclamation-triangle');
+                closeBtn.style.display = 'none';
+                let errorMsg = 'Camera access failed.';
+                if (err.name === 'NotAllowedError') errorMsg = 'Permission denied. Tap the lock icon in your browser address bar.';
+                else if (err.name === 'NotFoundError') errorMsg = 'No camera detected on this device.';
+                else if (err.name === 'NotReadableError') errorMsg = 'Camera busy. Close other apps using the camera.';
+                showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
             }
         }
 

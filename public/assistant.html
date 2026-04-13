@@ -117,6 +117,16 @@
             display: none; overflow: hidden;
         }
         #visionVideo { width: 100%; height: 100%; object-fit: cover; }
+        #visionCloseBtn {
+            position: fixed; top: 20px; left: 20px; z-index: 10010;
+            width: 48px; height: 48px;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%; color: white; font-size: 1.2rem;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s;
+        }
+        #visionCloseBtn:active { transform: scale(0.9); }
         .eye-scanner {
             position: absolute; top: 0; left: 0; width: 100%; height: 4px;
             background: linear-gradient(to bottom, transparent, var(--primary), transparent);
@@ -186,10 +196,14 @@
 
         <!-- VISION EYE OVERLAY -->
         <div id="visionOverlay" onclick="captureVisionFrame()">
-            <video id="visionVideo" autoplay muted playsinline></video>
+            <video id="visionVideo" autoplay muted playsinline webkit-playsinline></video>
             <div class="eye-scanner"></div>
             <div class="eye-label">LIVE EYE | TAP TO CAPTURE</div>
         </div>
+        <!-- VISION CLOSE BUTTON -->
+        <button id="visionCloseBtn" onclick="openVisionEye()" aria-label="Close Camera">
+            <i class="fas fa-times"></i>
+        </button>
 
         <div class="container">
             <div id="tab-leads" class="tab-panel active">
@@ -305,50 +319,49 @@
         async function openVisionEye() {
             const overlay = document.getElementById('visionOverlay');
             const video = document.getElementById('visionVideo');
+            const closeBtn = document.getElementById('visionCloseBtn');
+
             if (visionStream) {
-                visionStream.getTracks().forEach(track => track.stop());
+                visionStream.getTracks().forEach(t => t.stop());
                 visionStream = null;
+                video.srcObject = null;
                 overlay.style.display = 'none';
-                showToast('Eye Closed', 'Vision sensor deactivated.', 'fa-eye-slash');
+                closeBtn.style.display = 'none';
+                showToast('Eye Closed', 'Camera off.', 'fa-eye-slash');
                 return;
             }
-            
-            // Proactive UI - show the scanner immediately
+
             overlay.style.display = 'block';
-            showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin');
-            
+            closeBtn.style.display = 'flex';
+            showToast('Initializing Eye', 'Starting camera...', 'fa-circle-notch fa-spin', 2000);
+
             try {
-                // Try Back Camera (Environment) first
                 try {
-                    visionStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: 'environment' } 
+                    visionStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
                     });
-                    console.log('Environment camera connected');
-                } catch (e) {
-                    console.warn('Back camera failed, trying standard sensor...');
+                } catch(e) {
                     visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
 
                 video.srcObject = visionStream;
-                video.onloadedmetadata = async () => {
-                    try {
-                        await video.play();
-                        showToast('Vision Active', 'Holographic lens connected.', 'fa-eye');
-                        if (window.speechSynthesis) speakText("My eye is active. Tap the screen to scan.");
-                    } catch (playErr) {
-                        console.error('Playback nudge failed:', playErr);
-                    }
-                };
-                
-                // Secondary nudge for strict browsers
-                setTimeout(() => { if(video.paused) video.play(); }, 500);
+                // Nudge 1
+                video.onloadedmetadata = () => { video.play().catch(()=>{}); };
+                // Nudge 2
+                video.oncanplay = () => { if (video.paused) video.play().catch(()=>{}); };
+                // Nudge 3
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 600);
+                // Nudge 4
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 1500);
 
-            } catch (err) {
-                console.error('Final Camera Error:', err);
+            } catch(err) {
                 overlay.style.display = 'none';
-                let msg = 'Could not access sensors.';
-                if (err.name === 'NotAllowedError') msg = 'Permission Denied. Please unblock camera.';
-                showToast('Camera Error', msg, 'fa-exclamation-triangle');
+                closeBtn.style.display = 'none';
+                let msg = 'Camera access failed.';
+                if (err.name === 'NotAllowedError') msg = 'Permission denied. Tap lock icon in browser.';
+                else if (err.name === 'NotFoundError') msg = 'No camera found.';
+                else if (err.name === 'NotReadableError') msg = 'Camera busy. Close other apps.';
+                showToast('Camera Error', msg, 'fa-exclamation-triangle', 6000);
             }
         }
 
