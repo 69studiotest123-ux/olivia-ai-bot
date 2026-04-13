@@ -3040,11 +3040,17 @@
         }
 
         function applySettingsToUI() {
-            document.getElementById('botToggle').checked = currentSettings.autoReply;
-            document.getElementById('voiceToggle').checked = currentSettings.voiceEnabled;
-            document.getElementById('bioToggle').checked = currentSettings.biometricEnabled || false;
-            document.getElementById('modelSelector').value = currentSettings.currentModel;
-            document.getElementById('currentModel').innerText = modelNames[currentSettings.currentModel];
+            const botToggle = document.getElementById('botToggle');
+            const voiceToggle = document.getElementById('voiceToggle');
+            const bioToggle = document.getElementById('bioToggle');
+            const modelSel = document.getElementById('modelSelector');
+            const currentModelEl = document.getElementById('currentModel');
+
+            if (botToggle) botToggle.checked = currentSettings.autoReply;
+            if (voiceToggle) voiceToggle.checked = currentSettings.voiceEnabled;
+            if (bioToggle) bioToggle.checked = currentSettings.biometricEnabled || false;
+            if (modelSel) modelSel.value = currentSettings.currentModel;
+            if (currentModelEl) currentModelEl.innerText = modelNames[currentSettings.currentModel] || currentSettings.currentModel;
 
             // Potions UI
             const pots = currentSettings.potions || {};
@@ -3053,13 +3059,17 @@
             updatePotionUI('homeHub', pots.homeHub);
             
             // Show bio registration row if enabled
-            if (currentSettings.biometricEnabled) {
-                document.getElementById('bioRegRow').style.display = 'flex';
-                if (localStorage.getItem('olivia_bio_id')) {
-                    document.getElementById('bioStatus').innerText = '✅ Device securely linked.';
+            const bioRegRow = document.getElementById('bioRegRow');
+            const bioStatus = document.getElementById('bioStatus');
+            if (bioRegRow) {
+                if (currentSettings.biometricEnabled) {
+                    bioRegRow.style.display = 'flex';
+                    if (bioStatus && localStorage.getItem('olivia_bio_id')) {
+                        bioStatus.innerText = '✅ Device securely linked.';
+                    }
+                } else {
+                    bioRegRow.style.display = 'none';
                 }
-            } else {
-                document.getElementById('bioRegRow').style.display = 'none';
             }
         }
 
