@@ -87,19 +87,11 @@
         /* VISION EYE OVERLAY */
         #visionOverlay {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            border: 3px solid var(--primary);
-            overflow: hidden;
-            z-index: 2000;
+            inset: 0;
             background: black;
+            z-index: 10006;
             display: none;
-            box-shadow: 0 0 30px var(--primary-glow);
-            transition: 0.3s;
-            cursor: pointer;
+            overflow: hidden;
         }
         #visionOverlay video {
             width: 100%;
@@ -108,31 +100,18 @@
             filter: grayscale(0.4) contrast(1.2) brightness(1.2);
         }
         .eye-scanner {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: var(--primary);
-            box-shadow: 0 0 10px var(--primary);
-            animation: scan 2s linear infinite;
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+            box-shadow: 0 0 20px var(--primary);
+            animation: visionScan 3s linear infinite;
+            z-index: 2;
         }
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
+        @keyframes visionScan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
         .eye-label {
-            position: absolute;
-            bottom: 5px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 0.5rem;
-            color: var(--primary);
-            font-weight: 700;
-            background: rgba(0,0,0,0.5);
-            text-transform: uppercase;
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px);
+            padding: 8px 20px; border-radius: 20px; border: 1px solid var(--primary);
+            color: var(--primary); font-size: 0.75rem; font-weight: 800;
         }
 
         #loginScreen {
@@ -2268,7 +2247,7 @@
     <div id="visionOverlay" onclick="captureVisionFrame()">
         <video id="visionVideo" autoplay muted playsinline></video>
         <div class="eye-scanner"></div>
-        <div class="eye-label">LIVE EYE</div>
+        <div class="eye-label">LIVE EYE | TAP TO CAPTURE</div>
     </div>
 
     <!-- ===== MAIN APP ===== -->
@@ -4081,7 +4060,6 @@
             const video = document.getElementById('visionVideo');
             
             if (visionStream) {
-                // Toggle off
                 visionStream.getTracks().forEach(track => track.stop());
                 visionStream = null;
                 overlay.style.display = 'none';
@@ -4089,53 +4067,43 @@
                 return;
             }
 
+            // PROACTIVE UI: Show scanner immediately while hardware wakes up
+            overlay.style.display = 'block';
             showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin', 2000);
 
             try {
-                // Primary: Try BACK CAMERA (Lenient)
+                // Try BACK CAMERA first
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({ 
                         video: { facingMode: 'environment' } 
                     });
                 } catch (e) {
-                    console.warn('Environment camera failed, trying fallback...');
-                    // Fallback: Just get any video
+                    console.warn('Back camera failed, trying fallback...');
                     visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
 
                 video.srcObject = visionStream;
                 
-                // CRITICAL FIX: Explicit Playback for Mobile
-                video.onloadedmetadata = async () => {
-                    try {
-                        await video.play();
-                        overlay.style.display = 'block';
-                        showToast('Camera Connected', 'Holographic lens active.', 'fa-eye');
-                        speakText("My eye is always on. Tap it whenever you want me to analyze something for you.");
-                    } catch (playErr) {
-                        console.error('Video Playback Error:', playErr);
-                        showToast('Hardware Busy', 'Please close other camera apps.', 'fa-exclamation-triangle');
-                    }
+                // AGGRESSIVE PLAYBACK NUDGE (Fixes black screens on slow mobile hardware)
+                video.onloadedmetadata = () => {
+                    video.play().catch(e => console.error('Auto-play blocked, retrying...', e));
                 };
+
+                // Secondary nudge after 500ms
+                setTimeout(() => {
+                    if (video.paused && visionStream) {
+                        video.play().catch(e => console.warn('Secondary play nudge failed. User interaction might be required.'));
+                    }
+                }, 500);
+
+                speakText("My eye is active. Point me at something and tap the screen.");
 
             } catch (err) {
                 console.error('Camera Access Error:', err);
-                
+                overlay.style.display = 'none';
                 let errorMsg = 'Could not access camera.';
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    errorMsg = 'Permission Denied. Please check your browser settings.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMsg = 'No camera detected.';
-                } else if (err.name === 'NotReadableError') {
-                    errorMsg = 'Camera is Busy. Close other apps.';
-                }
-                
-                showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
-            }
-        }
-                
-                showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
-                speakText("I'm sorry, I can't see right now because your browser is blocking camera access.");
+                if (err.name === 'NotAllowedError') errorMsg = 'Camera permission denied.';
+                showToast('Hardware Error', errorMsg, 'fa-exclamation-triangle');
             }
         }
 
