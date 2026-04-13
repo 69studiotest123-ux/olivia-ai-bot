@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.4">
+    <link rel="manifest" href="/manifest.json?v=8.5">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.4" defer></script>
+    <script src="/push-notifications.js?v=8.5" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.4')
+                navigator.serviceWorker.register('/sw.js?v=8.5')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -4098,57 +4098,80 @@
             }
         }
 
-        let visionStream = null;
+        let visionChecking = false;
 
         async function openVisionEye() {
             const overlay = document.getElementById('visionOverlay');
             const video = document.getElementById('visionVideo');
             const closeBtn = document.getElementById('visionCloseBtn');
             
-            if (visionStream) {
+            if (visionStream || overlay.style.display === 'block') {
                 // CLOSE CAMERA
-                visionStream.getTracks().forEach(track => track.stop());
+                if (visionStream) visionStream.getTracks().forEach(track => track.stop());
                 visionStream = null;
                 video.srcObject = null;
                 overlay.style.display = 'none';
-                closeBtn.style.display = 'none';
+                if (closeBtn) closeBtn.style.display = 'none';
                 showToast('Eye Closed', 'Vision Assistant Off.', 'fa-eye-slash');
                 return;
             }
 
-            // PROACTIVE UI: Show scanner + close button immediately
+            // PROACTIVE UI: Show scanner + close button immediately so the UI doesn't get stuck
             overlay.style.display = 'block';
-            closeBtn.style.display = 'flex';
+            if (closeBtn) closeBtn.style.display = 'flex';
             showToast('Initializing Eye', 'Waking up camera...', 'fa-circle-notch fa-spin', 2000);
 
+            // Cross-browser strict auto-play fixes explicitly in JS
+            video.setAttribute('autoplay', '');
+            video.setAttribute('muted', '');
+            video.setAttribute('playsinline', '');
+            video.muted = true;
+
             try {
-                // Try BACK CAMERA first (rear lens on phone)
+                // Try BACK CAMERA first
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } 
+                        video: { facingMode: { ideal: 'environment' } }, audio: false 
                     });
                 } catch (e) {
-                    console.warn('Rear camera failed, trying any camera...');
-                    visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    console.warn('Rear camera failed, trying any camera...', e);
+                    visionStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                 }
+
+                if (!visionStream) throw new Error("No stream returned");
 
                 video.srcObject = visionStream;
                 
-                // Nudge 1: onloadedmetadata
-                video.onloadedmetadata = () => { video.play().catch(()=>{}); };
-                // Nudge 2: oncanplay
-                video.oncanplay = () => { if (video.paused) video.play().catch(()=>{}); };
-                // Nudge 3: after 600ms
-                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 600);
-                // Nudge 4: after 1500ms
-                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 1500);
+                // Aggressive Playback Forces
+                const forcePlay = async () => {
+                    if (!video.paused) return;
+                    try {
+                        await video.play();
+                    } catch (err) {
+                        console.warn("Autoplay strict block caught:", err);
+                    }
+                };
+
+                video.onloadedmetadata = forcePlay;
+                video.oncanplay = forcePlay;
+                
+                // Backup polling for iOS strict policies
+                let retries = 0;
+                const checkPlay = setInterval(() => {
+                    if (retries > 10 || !visionStream) {
+                        clearInterval(checkPlay);
+                        return;
+                    }
+                    forcePlay();
+                    retries++;
+                }, 500);
 
                 speakText("Eye is open. Point me at something and tap the screen to analyze.");
 
             } catch (err) {
-                console.error('Camera Error:', err.name, err.message);
+                console.error('Camera Error Detailed:', err);
                 overlay.style.display = 'none';
-                closeBtn.style.display = 'none';
+                if (closeBtn) closeBtn.style.display = 'none';
                 let errorMsg = 'Camera access failed.';
                 if (err.name === 'NotAllowedError') errorMsg = 'Permission denied. Tap the lock icon in your browser address bar.';
                 else if (err.name === 'NotFoundError') errorMsg = 'No camera detected on this device.';
@@ -4159,6 +4182,10 @@
 
         async function captureVisionFrame() {
             const video = document.getElementById('visionVideo');
+            if(!video || !video.videoWidth) {
+                showToast('Camera Error', 'Camera feed not ready yet.', 'fa-times');
+                return;
+            }
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
