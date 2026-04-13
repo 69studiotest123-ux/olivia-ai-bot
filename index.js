@@ -185,11 +185,11 @@ const xiClient = process.env.ELEVENLABS_API_KEY
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Update: Using professional cors package for cross-domain stability
+// Update: Using professional cors package with expanded header support for PWA stability
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires']
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -208,8 +208,11 @@ app.get('/api/stream', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('X-Accel-Buffering', 'no'); // Critical for Render/Nginx streaming
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control, Pragma, Expires, Content-Type');
     res.flushHeaders();
 
     // Send initial keep-alive comment
