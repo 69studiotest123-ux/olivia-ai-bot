@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.5">
+    <link rel="manifest" href="/manifest.json?v=8.6">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.5" defer></script>
+    <script src="/push-notifications.js?v=8.6" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.5')
+                navigator.serviceWorker.register('/sw.js?v=8.6')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -4098,6 +4098,7 @@
             }
         }
 
+        let visionStream = null;
         let visionChecking = false;
 
         async function openVisionEye() {
@@ -4179,6 +4180,7 @@
                 showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
             }
         }
+
 
         async function captureVisionFrame() {
             const video = document.getElementById('visionVideo');
