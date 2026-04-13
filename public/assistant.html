@@ -211,6 +211,9 @@
     </div>
 
     <script>
+        const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
+        const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
+
         let password = new URLSearchParams(window.location.search).get('pass');
         if(!password) password = localStorage.getItem('olivia_pass');
 
@@ -220,7 +223,7 @@
             if(!pw) return;
 
             try {
-                const res = await fetch(`/api/logs?pass=${pw}`);
+                const res = await fetch(`${API_BASE}/api/logs?pass=${pw}`);
                 if(res.ok) {
                     password = pw;
                     localStorage.setItem('olivia_pass', pw);
@@ -240,7 +243,7 @@
         async function syncLeads() {
             if(!password) return;
             try {
-                const res = await fetch(`/api/logs?pass=${password}`);
+                const res = await fetch(`${API_BASE}/api/logs?pass=${password}`);
                 if(!res.ok) return;
                 const dataRaw = await res.json();
                 const data = dataRaw.logs || dataRaw; // Handle both old and new API
@@ -271,7 +274,7 @@
         async function updateStatusUI() {
             if(!password) return;
             try {
-                const res = await fetch(`/api/status?pass=${password}`);
+                const res = await fetch(`${API_BASE}/api/status?pass=${password}`);
                 if(!res.ok) return;
                 const data = await res.json();
                 const el = document.getElementById('waStatus');
@@ -364,7 +367,7 @@
             showToast('Analyzing...', 'Processing visual data...', 'fa-brain-circuit fa-spin');
             try {
                 const model = document.getElementById('modelSelector').value;
-                const res = await fetch(`/api/assistant/ask?pass=${password}&q=What+do+you+see?&image=${encodeURIComponent(dataUrl)}&model=${model}`);
+                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=What+do+you+see?&image=${encodeURIComponent(dataUrl)}&model=${model}`);
                 const data = await res.json();
                 if(data.answer) {
                     showToast('Analysis Complete', 'Olivia has processed the image.', 'fa-check');
@@ -382,7 +385,7 @@
             const statusText = document.getElementById('waStatusText');
             
             console.log('Connecting to SSE stream...');
-            const source = new EventSource(`/api/stream?pass=${password}`);
+            const source = new EventSource(`${API_BASE}/api/stream?pass=${password}`);
             
             source.onopen = () => {
                 statusPill.className = 'status-pill status-connected';
@@ -421,7 +424,7 @@
             
             try {
                 const model = document.getElementById('modelSelector').value;
-                const res = await fetch(`/api/assistant/ask?pass=${password}&q=${encodeURIComponent(q)}&model=${model}`);
+                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(q)}&model=${model}`);
                 const data = await res.json();
                 msgContainer.innerHTML += `<div style="text-align:left; margin-bottom:10px;"><span style="background:var(--card); border:1px solid var(--border); padding:8px 12px; border-radius:12px; display:inline-block;">${data.answer}</span></div>`;
                 msgContainer.scrollTop = msgContainer.scrollHeight;
