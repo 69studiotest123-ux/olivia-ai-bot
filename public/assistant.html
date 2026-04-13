@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="manifest" href="manifest.json">
 
-    <!-- Push Notifications Script (Critical Fix) -->
+    <!-- Push Notifications Script -->
     <script src="push-notifications.js" defer></script>
 
     <style>
@@ -87,6 +87,57 @@
         .sync-btn { background: rgba(255,255,255,0.05); color: var(--primary); border: 1px solid var(--border); padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
         .sync-btn:active { transform: scale(0.95); }
 
+        /* VISION EYE (v8.3 UPGRADE) */
+        #visionTrigger {
+            width: 32px; height: 32px;
+            background: rgba(255, 77, 77, 0.1);
+            border: 1.5px solid var(--primary);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary);
+            cursor: pointer;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: eyePulse 2.5s infinite;
+            margin-right: 10px;
+        }
+        #visionTrigger:active { transform: scale(0.85); }
+        @keyframes eyePulse {
+            0% { box-shadow: 0 0 5px var(--primary-glow); transform: scale(1); }
+            50% { box-shadow: 0 0 15px var(--primary-glow); transform: scale(1.05); }
+            100% { box-shadow: 0 0 5px var(--primary-glow); transform: scale(1); }
+        }
+
+        #visionOverlay {
+            position: fixed; inset: 0; background: black; z-index: 10006;
+            display: none; overflow: hidden;
+        }
+        #visionVideo { width: 100%; height: 100%; object-fit: cover; }
+        .eye-scanner {
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+            box-shadow: 0 0 20px var(--primary);
+            animation: visionScan 3s linear infinite;
+            z-index: 2;
+        }
+        @keyframes visionScan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+        .eye-label {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px);
+            padding: 8px 20px; border-radius: 20px; border: 1px solid var(--primary);
+            color: var(--primary); font-size: 0.75rem; font-weight: 800;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            background: rgba(18, 18, 20, 0.95); backdrop-filter: blur(15px);
+            border: 1px solid var(--border); border-radius: 16px;
+            padding: 12px 20px; color: white; display: flex; align-items: center; gap: 12px;
+            z-index: 10007; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes slideUp { from { transform: translate(-50%, 50px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
         /* Leads Styling */
         .lead-card { background: var(--card); border-radius: 20px; border: 1px solid var(--border); margin-bottom: 15px; padding: 15px; }
         .lead-info { display: flex; align-items: center; gap: 12px; }
@@ -112,15 +163,28 @@
             <div class="brand">
                 <h1>Olivia <span>AI</span></h1>
             </div>
-            <div class="status-pill status-disconnected" id="waStatus">
-                <div class="status-dot"></div>
-                <span id="waStatusText">OFFLINE</span>
+            
+            <div style="display:flex; align-items:center;">
+                <div id="visionTrigger" onclick="openVisionEye()" title="Vision Eye">
+                    <i class="fas fa-eye"></i>
+                </div>
+                <div class="status-pill status-disconnected" id="waStatus">
+                    <div class="status-dot"></div>
+                    <span id="waStatusText">OFFLINE</span>
+                </div>
+                <select id="modelSelector" class="model-select" style="margin-left:8px;">
+                    <option value="groq">Groq</option>
+                    <option value="gemini">Gemini</option>
+                </select>
             </div>
-            <select id="modelSelector" class="model-select">
-                <option value="groq">Groq</option>
-                <option value="gemini">Gemini</option>
-            </select>
         </header>
+
+        <!-- VISION EYE OVERLAY -->
+        <div id="visionOverlay" onclick="captureVisionFrame()">
+            <video id="visionVideo" autoplay muted playsinline></video>
+            <div class="eye-scanner"></div>
+            <div class="eye-label">LIVE EYE | TAP TO CAPTURE</div>
+        </div>
 
         <div class="container">
             <div id="tab-leads" class="tab-panel active">
@@ -178,7 +242,8 @@
             try {
                 const res = await fetch(`/api/logs?pass=${password}`);
                 if(!res.ok) return;
-                const data = await res.json();
+                const dataRaw = await res.json();
+                const data = dataRaw.logs || dataRaw; // Handle both old and new API
                 const list = document.getElementById('leadsList');
                 let html = '';
                 Object.keys(data).sort((a,b)=>{
@@ -216,17 +281,89 @@
             } catch(e) {}
         }
 
+        function showToast(title, msg, icon = 'fa-info-circle', duration = 3000) {
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.innerHTML = `<i class="fas ${icon}" style="color:var(--primary)"></i><div><b style="display:block;font-size:0.85rem">${title}</b><span style="font-size:0.75rem;opacity:0.8">${msg}</span></div>`;
+            document.body.appendChild(t);
+            setTimeout(() => {
+                t.style.opacity = '0';
+                t.style.transform = 'translate(-50%, 20px)';
+                setTimeout(() => t.remove(), 500);
+            }, duration);
+        }
+
+        let visionStream = null;
+        async function openVisionEye() {
+            const overlay = document.getElementById('visionOverlay');
+            const video = document.getElementById('visionVideo');
+            if (visionStream) {
+                visionStream.getTracks().forEach(track => track.stop());
+                visionStream = null;
+                overlay.style.display = 'none';
+                showToast('Eye Closed', 'Vision sensor deactivated.', 'fa-eye-slash');
+                return;
+            }
+            showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin');
+            try {
+                visionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = visionStream;
+                video.onloadedmetadata = async () => {
+                    await video.play();
+                    overlay.style.display = 'block';
+                    showToast('Vision Active', 'Holographic lens connected.', 'fa-eye');
+                };
+            } catch (err) {
+                showToast('Camera Error', 'Could not access sensors.', 'fa-exclamation-triangle');
+            }
+        }
+
+        async function captureVisionFrame() {
+            const video = document.getElementById('visionVideo');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            showToast('Analyzing...', 'Processing visual data...', 'fa-brain-circuit fa-spin');
+            try {
+                const model = document.getElementById('modelSelector').value;
+                const res = await fetch(`/api/assistant/ask?pass=${password}&q=What+do+you+see?&image=${encodeURIComponent(dataUrl)}&model=${model}`);
+                const data = await res.json();
+                if(data.answer) {
+                    showToast('Analysis Complete', 'Olivia has processed the image.', 'fa-check');
+                    switchTab('assistant', document.getElementById('nav-assistant'));
+                    const msgContainer = document.getElementById('chatMessages');
+                    msgContainer.innerHTML += `<div style="text-align:left; margin-bottom:10px;"><span style="background:var(--card); border:1px solid var(--border); padding:8px 12px; border-radius:12px; display:inline-block;">👁️ <b>Visual Analysis:</b> ${data.answer}</span></div>`;
+                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                }
+            } catch(e) { showToast('Vision Error', 'Could not analyze image.', 'fa-times'); }
+        }
+
         function initSSE() {
             if(!password) return;
+            const statusPill = document.getElementById('waStatus');
+            const statusText = document.getElementById('waStatusText');
+            
             console.log('Connecting to SSE stream...');
             const source = new EventSource(`/api/stream?pass=${password}`);
+            
+            source.onopen = () => {
+                statusPill.className = 'status-pill status-connected';
+                statusText.innerText = 'CONNECTED';
+                console.log('SSE Stream Online');
+            };
+
             source.onmessage = (e) => {
                 const data = e.data.toLowerCase();
-                if(data.includes('update') || data.includes('appointment')) syncLeads();
+                if(data.includes('update')) syncLeads();
                 if(data.includes('status')) updateStatusUI();
             };
+
             source.onerror = (e) => {
-                console.error('SSE connection lost. Reconnecting...');
+                statusPill.className = 'status-pill status-connecting';
+                statusText.innerText = 'RECONNECTING...';
             };
         }
 
