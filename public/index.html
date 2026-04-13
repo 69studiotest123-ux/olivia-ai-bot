@@ -4089,35 +4089,50 @@
                 return;
             }
 
-            showToast('Initializing Eye', 'Waking up camera sensors...', 'fa-circle-notch fa-spin', 2000);
+            showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin', 2000);
 
             try {
-                // Primary: Try Back Camera
+                // Primary: Try BACK CAMERA (Lenient)
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: { exact: 'environment' } } 
+                        video: { facingMode: 'environment' } 
                     });
                 } catch (e) {
-                    console.warn('Back camera failed, trying standard camera...');
-                    // Fallback: Try any camera
+                    console.warn('Environment camera failed, trying fallback...');
+                    // Fallback: Just get any video
                     visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
 
                 video.srcObject = visionStream;
-                overlay.style.display = 'block';
-                showToast('Vision Eye Active', 'Tap the eye to analyze.', 'fa-eye');
-                speakText("My eye is always on. Tap it whenever you want me to analyze something for you.");
+                
+                // CRITICAL FIX: Explicit Playback for Mobile
+                video.onloadedmetadata = async () => {
+                    try {
+                        await video.play();
+                        overlay.style.display = 'block';
+                        showToast('Camera Connected', 'Holographic lens active.', 'fa-eye');
+                        speakText("My eye is always on. Tap it whenever you want me to analyze something for you.");
+                    } catch (playErr) {
+                        console.error('Video Playback Error:', playErr);
+                        showToast('Hardware Busy', 'Please close other camera apps.', 'fa-exclamation-triangle');
+                    }
+                };
+
             } catch (err) {
                 console.error('Camera Access Error:', err);
                 
                 let errorMsg = 'Could not access camera.';
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    errorMsg = 'Permission Denied. Please unblock the camera in your browser settings (top left of URL bar).';
+                    errorMsg = 'Permission Denied. Please check your browser settings.';
                 } else if (err.name === 'NotFoundError') {
-                    errorMsg = 'No camera detected on this device.';
+                    errorMsg = 'No camera detected.';
                 } else if (err.name === 'NotReadableError') {
-                    errorMsg = 'Camera is Busy. Close other apps using the camera (WhatsApp, Zoom, etc).';
+                    errorMsg = 'Camera is Busy. Close other apps.';
                 }
+                
+                showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
+            }
+        }
                 
                 showToast('Camera Error', errorMsg, 'fa-exclamation-triangle', 6000);
                 speakText("I'm sorry, I can't see right now because your browser is blocking camera access.");
