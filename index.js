@@ -166,6 +166,17 @@ function saveBiometrics() {
 const biometricKeysRaw = loadBiometrics();
 biometricKeys = biometricKeysRaw;
 
+// --- AI CLIENT INITIALIZATION ---
+let groq, genAI, openai;
+try {
+    if (process.env.GROQ_API_KEY) groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    if (process.env.GEMINI_API_KEY) genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    if (process.env.OPENAI_API_KEY) openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log('✅ AI Clients (Groq, Gemini, OpenAI) Initialized successfully.');
+} catch (e) {
+    console.error('❌ AI Initialization Error:', e.message);
+}
+
 // --- ELEVENLABS CLIENT ---
 const xiClient = process.env.ELEVENLABS_API_KEY 
     ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }) 
@@ -395,6 +406,9 @@ async function sendPushToAll(title, body) {
                 const data = await response.json();
                 if (data.error) {
                     console.error('Push failed for token:', token, data.error.message);
+                    if (data.error.message.includes('denied') || data.error.status === 'PERMISSION_DENIED') {
+                        console.error('🔑 ACTION REQUIRED: Your service account is missing the "Firebase Cloud Messaging API (V1) Admin" role.');
+                    }
                 } else {
                     console.log('✅ Push sent successfully to:', token.substring(0, 10) + '...');
                 }
