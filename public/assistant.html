@@ -304,18 +304,53 @@
                 showToast('Eye Closed', 'Vision sensor deactivated.', 'fa-eye-slash');
                 return;
             }
+            
+            // Proactive UI - show the scanner immediately
+            overlay.style.display = 'block';
             showToast('Initializing Eye', 'Waking up holographic sensors...', 'fa-circle-notch fa-spin');
+            
             try {
-                visionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // Try Back Camera (Environment) first
+                try {
+                    visionStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' } 
+                    });
+                    console.log('Environment camera connected');
+                } catch (e) {
+                    console.warn('Back camera failed, trying standard sensor...');
+                    visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                }
+
                 video.srcObject = visionStream;
                 video.onloadedmetadata = async () => {
-                    await video.play();
-                    overlay.style.display = 'block';
-                    showToast('Vision Active', 'Holographic lens connected.', 'fa-eye');
+                    try {
+                        await video.play();
+                        showToast('Vision Active', 'Holographic lens connected.', 'fa-eye');
+                        if (window.speechSynthesis) speakText("My eye is active. Tap the screen to scan.");
+                    } catch (playErr) {
+                        console.error('Playback nudge failed:', playErr);
+                    }
                 };
+                
+                // Secondary nudge for strict browsers
+                setTimeout(() => { if(video.paused) video.play(); }, 500);
+
             } catch (err) {
-                showToast('Camera Error', 'Could not access sensors.', 'fa-exclamation-triangle');
+                console.error('Final Camera Error:', err);
+                overlay.style.display = 'none';
+                let msg = 'Could not access sensors.';
+                if (err.name === 'NotAllowedError') msg = 'Permission Denied. Please unblock camera.';
+                showToast('Camera Error', msg, 'fa-exclamation-triangle');
             }
+        }
+
+        function speakText(text) {
+             try {
+                 const utterance = new SpeechSynthesisUtterance(text);
+                 utterance.rate = 1.0;
+                 utterance.pitch = 1.1;
+                 window.speechSynthesis.speak(utterance);
+             } catch(e) {}
         }
 
         async function captureVisionFrame() {
