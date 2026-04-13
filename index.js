@@ -193,6 +193,11 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+
+// --- HEALTH CHECK (RENDER BOOT STACK) ---
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'active', timestamp: new Date(), version: '8.3.1' });
+});
 app.use(express.static('public')); // Serve frontend files
 
 app.get('/', (req, res) => {
@@ -1469,7 +1474,11 @@ app.listen(PORT, '0.0.0.0', () => {
         }, 10 * 60 * 1000);
     }
 
-    startBot();
+    console.log('⏳ Olivia Core: Waiting 5s for server stabilization before starting AI Bot...');
+    setTimeout(() => {
+        console.log('🤖 AI Bot starting now...');
+        startBot();
+    }, 5000);
 });
 
 function cleanKey(key) {
