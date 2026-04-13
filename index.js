@@ -385,6 +385,7 @@ async function sendPushToAll(title, body) {
 
         for (const token of pushTokens) {
             try {
+                const publicUrl = process.env.RENDER_EXTERNAL_URL || "https://olivia-ai-bot.onrender.com";
                 const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
                     method: 'POST',
                     headers: {
@@ -394,11 +395,36 @@ async function sendPushToAll(title, body) {
                     body: JSON.stringify({
                         message: {
                             token: token,
-                            // Use BOTH notification (for OS) and data (for sw.js)
-                            notification: { title, body },
-                            data: { title, body },
-                            android: { priority: "high" },
-                            apns: { payload: { aps: { sound: "default" } } }
+                            notification: { 
+                                title: `Olivia AI | ${title}`, 
+                                body: body,
+                                image: `${publicUrl}/olivia.png` // Large image for some systems
+                            },
+                            data: { 
+                                title: `Olivia AI | ${title}`, 
+                                body: body,
+                                icon: `${publicUrl}/olivia.png`,
+                                badge: `${publicUrl}/olivia.png`,
+                                click_action: publicUrl
+                            },
+                            android: { 
+                                priority: "high",
+                                notification: {
+                                    icon: "stock_ticker_update",
+                                    color: "#ff4d4d",
+                                    sound: "default",
+                                    vibrate_timings: ["0.2s", "0.1s", "0.2s"]
+                                }
+                            },
+                            apns: { 
+                                payload: { 
+                                    aps: { 
+                                        sound: "default",
+                                        badge: 1,
+                                        "mutable-content": 1
+                                    } 
+                                } 
+                            }
                         }
                     })
                 });
