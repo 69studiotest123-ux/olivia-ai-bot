@@ -1,6 +1,6 @@
 importScripts('/firebase-messaging-sw.js');
 
-const CACHE_NAME = 'olivia-v8.8-elite';
+const CACHE_NAME = 'olivia-v8.9-elite';
 const ASSETS = [
   '/',
   '/index.html',

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.8">
+    <link rel="manifest" href="/manifest.json?v=8.9">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.8" defer></script>
+    <script src="/push-notifications.js?v=8.9" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.8')
+                navigator.serviceWorker.register('/sw.js?v=8.9')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -112,13 +112,37 @@
             border: 2px solid rgba(255,255,255,0.3);
             border-radius: 50%;
             color: white;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
+            cursor: pointer;
             display: none;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: 0.2s;
         }
+
+        #visionTrigger {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 55px; height: 55px;
+            background: rgba(255, 77, 77, 0.15);
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 9998;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: eyePulse 2.5s infinite;
+            box-shadow: 0 5px 25px rgba(255,77,77,0.4);
+        }
+        #visionTrigger:active { transform: scale(0.85); }
+        @keyframes eyePulse {
+            0% { box-shadow: 0 0 5px var(--primary-glow); transform: scale(1); }
+            50% { box-shadow: 0 0 20px var(--primary-glow); transform: scale(1.08); }
+            100% { box-shadow: 0 0 5px var(--primary-glow); transform: scale(1); }
+        }
+
         #visionCloseBtn:active { transform: scale(0.9); }
         .eye-scanner {
             position: absolute; top: 0; left: 0; width: 100%; height: 4px;
@@ -2286,12 +2310,12 @@
 
     <!-- ===== MAIN APP ===== -->
     <div id="mainApp">
-        <!-- Vision Eye Trigger Button -->
+        <div class="bg-glow"></div>
+        
+        <!-- Prominent Floating Vision Eye Trigger -->
         <div id="visionTrigger" onclick="openVisionEye()">
             <i class="fas fa-eye"></i>
         </div>
-        
-        <div class="bg-glow"></div>
 
         <header>
             <div class="brand">
