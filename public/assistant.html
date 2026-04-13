@@ -17,15 +17,18 @@
 
     <style>
         :root {
-            --primary: #ff4d4d;
-            --primary-glow: rgba(255, 77, 77, 0.3);
-            --bg: #0a0a0c;
-            --card: #121214;
-            --border: rgba(255, 255, 255, 0.08);
-            --text-main: #f8f9fa;
-            --text-dim: #94a3b8;
-            --accent: #38bdf8;
+            --primary: #ff3344;
+            --primary-glow: rgba(255, 51, 68, 0.4);
+            --primary-grad: linear-gradient(135deg, #ff3344 0%, #ff7070 100%);
+            --bg: #070709;
+            --card: rgba(20, 20, 24, 0.6);
+            --border: rgba(255, 255, 255, 0.05);
+            --text-main: #ffffff;
+            --text-dim: #a1a1aa;
+            --accent: #0ea5e9;
             --success: #10b981;
+            --glass: rgba(255, 255, 255, 0.02);
+            --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,9 +60,11 @@
             position: fixed; inset: 0; background: var(--bg); z-index: 9999;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .login-card { background: var(--card); padding: 32px; border-radius: 28px; border: 1px solid var(--border); width: 90%; max-width: 380px; }
-        .pw-input { width: 100%; padding: 16px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 16px; color: white; margin-bottom: 20px; outline: none; }
-        .login-btn { width: 100%; padding: 16px; background: var(--primary); border: none; border-radius: 16px; color: white; font-weight: 700; cursor: pointer; }
+        .login-card { background: var(--card); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 40px; border-radius: 32px; border: 1px solid var(--border); width: 90%; max-width: 400px; box-shadow: var(--shadow-glass), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+        .pw-input { width: 100%; padding: 16px 50px 16px 20px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 16px; color: var(--text-main); margin-bottom: 20px; outline: none; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); letter-spacing: 5px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        .pw-input:focus { border-color: var(--primary); background: rgba(255, 51, 68, 0.05); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 0 0 3px rgba(255, 51, 68, 0.2); }
+        .login-btn { width: 100%; padding: 18px; background: var(--primary-grad); border: none; border-radius: 16px; color: #fff; font-weight: 700; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px var(--primary-glow), inset 0 2px 0 rgba(255,255,255,0.2); letter-spacing: 0.5px; }
+        .login-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px var(--primary-glow), inset 0 2px 0 rgba(255,255,255,0.3); }
 
         #mainApp { display: none; }
         #mainApp.visible { display: block; }
