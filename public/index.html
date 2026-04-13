@@ -53,6 +53,8 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         body {
@@ -63,6 +65,22 @@
             overflow-x: hidden;
             padding-top: var(--safe-top);
             padding-bottom: calc(80px + var(--safe-bottom));
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .chat-container, .lead-preview, input, textarea {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        button, .nav-item, .lang-opt, .btn-primary, .action-card, .mic-btn, .bio-btn, .login-btn {
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        button:active, .nav-item:active, .lang-opt:active, .btn-primary:active, .action-card:active, .mic-btn:active, .bio-btn:active, .login-btn:active {
+            transform: scale(0.92) !important;
+            opacity: 0.8;
         }
 
         /* ====== LOGIN SCREEN ====== */
