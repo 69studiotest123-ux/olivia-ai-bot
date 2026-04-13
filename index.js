@@ -857,6 +857,10 @@ async function processAiTools(aiText, jid) {
 }
 
 async function getGroqResponse(message, history = []) {
+    if (!groq) {
+        console.error('❌ Groq client not initialized. GROQ_API_KEY may be missing from Render environment variables.');
+        return "Groq AI is not configured. Please check the server environment variables.";
+    }
     try {
         const tone = globalSettings.personality === 'friendly' 
             ? "Warm, helpful, and friendly. Use a casual but respectful tone." 
@@ -1136,6 +1140,7 @@ app.get('/api/assistant/ask', async (req, res) => {
             });
             answer = completion.choices[0].message.content;
         } else { // Default to Groq Llama
+            if (!groq) throw new Error('Groq client not initialized. Add GROQ_API_KEY to Render environment.');
             const chatCompletion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },
