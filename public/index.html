@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.11">
+    <link rel="manifest" href="/manifest.json?v=8.12">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.11" defer></script>
+    <script src="/push-notifications.js?v=8.12" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.11')
+                navigator.serviceWorker.register('/sw.js?v=8.12')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -2738,8 +2738,14 @@
         };
 
         let DYNAMIC_PROMPT = "";
-
-
+        let attachedFileText = "";
+        let chatHistory = [];
+        let currentLang = 'en-US';
+        let recognition;
+        let visionStream = null;
+        let prevApptCount = -1;
+        let prevLeadCount = -1;
+        let micBtn;
 
         function togglePw() {
             const inp = document.getElementById('pwInput');
@@ -2773,6 +2779,7 @@
                 // Success!
                 password = usePw;
                 localStorage.setItem('olivia_pass', password);
+                micBtn = document.getElementById('micBtn');
                 window.history.replaceState(null, '', `?pass=${password}`);
                 loadChatHistory(); // Load history on login
                 const loginScreen = document.getElementById('loginScreen');
@@ -2799,6 +2806,7 @@
         if (password) {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('mainApp').classList.add('visible');
+            micBtn = document.getElementById('micBtn');
             
             // Show a temporary waking up status if backend takes more than 4 seconds
             const wakeTimeout = setTimeout(() => {
@@ -3338,10 +3346,6 @@
 
         // Speech Recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const micBtn = document.getElementById('micBtn');
-        let recognition;
-        let currentLang = 'en-US';
-        let chatHistory = []; // Initialize global chat history
 
         function setLang(lang, el) {
             currentLang = lang;
@@ -4095,7 +4099,6 @@
             }
         }
 
-        let visionStream = null;
         async function openVisionEye() {
             const overlay = document.getElementById('visionOverlay');
             const video = document.getElementById('visionVideo');
@@ -4510,7 +4513,6 @@
         }
 
 
-        let attachedFileText = "";
 
         function handleFileUpload(event) {
             const file = event.target.files[0];
