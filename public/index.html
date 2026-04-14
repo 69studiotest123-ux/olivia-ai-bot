@@ -4095,35 +4095,54 @@
 
             overlay.style.display = 'block';
             closeBtn.style.display = 'flex';
-            showToast('Initializing Eye', 'Starting camera...', 'fa-circle-notch fa-spin', 2000);
+
+            // Feature detection: Requires HTTPS/localhost
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                overlay.style.display = 'none';
+                closeBtn.style.display = 'none';
+                showToast('Camera Unavailable', 'Camera API blocked. Please ensure you are using HTTPS.', 'fa-exclamation-triangle', 8000);
+                return;
+            }
+
+            // Immediately check and request permission explicitly before trying constraints
+            showToast('Initializing Eye', 'Requesting camera permissions...', 'fa-circle-notch fa-spin', 3000);
 
             try {
+                // Main constraints attempt (Environment/Back camera first)
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({
                         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
                     });
                 } catch(e) {
+                    console.warn("Back camera failed, falling back to any video device", e);
                     visionStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
 
                 video.srcObject = visionStream;
-                // Nudge 1
-                video.onloadedmetadata = () => { video.play().catch(()=>{}); };
-                // Nudge 2
-                video.oncanplay = () => { if (video.paused) video.play().catch(()=>{}); };
-                // Nudge 3
-                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 600);
-                // Nudge 4
-                setTimeout(() => { if (video.paused && visionStream) video.play().catch(()=>{}); }, 1500);
+
+                // Force play
+                try { await video.play(); } catch(e) { console.error("Initial play failed", e); }
+                
+                // Aggressive nudge callbacks
+                video.onloadedmetadata = () => { video.play().catch(console.warn); };
+                video.oncanplay = () => { if (video.paused) video.play().catch(console.warn); };
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(console.warn); }, 500);
+                setTimeout(() => { if (video.paused && visionStream) video.play().catch(console.warn); }, 1500);
+                
+                showToast('Eye Active', 'Camera is ready.', 'fa-eye', 3000);
 
             } catch(err) {
+                console.error("Camera access failed", err);
                 overlay.style.display = 'none';
                 closeBtn.style.display = 'none';
-                let msg = 'Camera access failed.';
-                if (err.name === 'NotAllowedError') msg = 'Permission denied. Tap lock icon in browser.';
-                else if (err.name === 'NotFoundError') msg = 'No camera found.';
-                else if (err.name === 'NotReadableError') msg = 'Camera busy. Close other apps.';
-                showToast('Camera Error', msg, 'fa-exclamation-triangle', 6000);
+                if (visionStream) { visionStream.getTracks().forEach(t => t.stop()); visionStream = null; video.srcObject = null; }
+                
+                let msg = `Camera Error: ${err.name}`;
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = 'Permission explicitly denied. Please tap the lock icon in the browser address bar and allow Camera.';
+                else if (err.name === 'NotFoundError') msg = 'No camera hardware found on this device.';
+                else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') msg = 'Camera is in use by another application. Please close it and try again.';
+                
+                showToast('Camera Blocked', msg, 'fa-exclamation-triangle', 8000);
             }
         }
 
