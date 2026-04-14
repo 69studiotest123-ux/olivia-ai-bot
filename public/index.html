@@ -2776,7 +2776,7 @@
                 initSSE();
             } catch (e) {
                 console.error('Login error:', e);
-                errEl.innerText = 'Connection error. Check network.';
+                errEl.innerText = 'Server offline or waking up... Please wait 50s and click Enter again.';
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-unlock-alt"></i> Enter';
             }
@@ -2786,8 +2786,15 @@
         if (password) {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('mainApp').classList.add('visible');
+            
+            // Show a temporary waking up status if backend takes more than 4 seconds
+            const wakeTimeout = setTimeout(() => {
+                showToast('Server Waking Up', 'Render backend starting up. This might take 50 seconds...', 'fa-server', 10000);
+            }, 4000);
+
             // Validate in background
             fetch(`${API_BASE}/api/logs?pass=${password}`).then(res => {
+                clearTimeout(wakeTimeout);
                 if (res.status === 403) {
                     // Wrong password — show login screen
                     document.getElementById('mainApp').classList.remove('visible');
@@ -2802,6 +2809,13 @@
                     });
                     initSSE();
                 }
+            }).catch(err => {
+                clearTimeout(wakeTimeout);
+                console.error("Auto login network error:", err);
+                document.getElementById('mainApp').classList.remove('visible');
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('loginError').innerText = 'Server asleep or offline. Please refresh the page.';
+                localStorage.removeItem('olivia_pass');
             });
         }
 
