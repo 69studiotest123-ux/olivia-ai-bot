@@ -2248,8 +2248,8 @@
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Olivia&background=ff4d4d&color=fff';">
         </div>
         <h1 class="login-title">Olivia <span>AI</span></h1>
-        <p class="login-sub">Subhash's Personal Intelligence Assistant</p>
-
+        <p class="login-sub">Subhash's Personal Intelligence Assistant <span style="font-size:0.65rem; opacity:0.4;">v8.12 Elite</span></p>
+        
         <div class="login-card">
             <label class="pw-label">Access Key</label>
             <div class="pw-wrapper">
@@ -2263,6 +2263,9 @@
                 <i class="fas fa-unlock-alt"></i> Enter
             </button>
             <p class="login-error" id="loginError"></p>
+            <div style="text-align:center; margin-top:20px;">
+                <button onclick="clearAndRefresh()" style="background:none; border:none; color:var(--text-dim); font-size:0.65rem; text-decoration:underline; cursor:pointer; opacity:0.6;">System Recovery (Clear Cache)</button>
+            </div>
         </div>
     </div>
 
@@ -2745,7 +2748,7 @@
         let visionStream = null;
         let prevApptCount = -1;
         let prevLeadCount = -1;
-        let micBtn;
+        let micBtn = document.getElementById('micBtn');
         let sseSource = null;
         let isAppLocked = false;
         let lastApptsHash = "";
@@ -2759,6 +2762,19 @@
             const icon = document.getElementById('pwEyeIcon');
             if (inp.type === 'password') { inp.type = 'text'; icon.className = 'fas fa-eye-slash'; }
             else { inp.type = 'password'; icon.className = 'fas fa-eye'; }
+        }
+
+        async function clearAndRefresh() {
+            if (!confirm('This will clear the app cache and refresh. Proceed?')) return;
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (let registration of regs) { await registration.unregister(); }
+            }
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.reload(true);
         }
 
         async function doLogin(pw) {
