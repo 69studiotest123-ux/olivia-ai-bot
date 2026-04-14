@@ -2746,6 +2746,13 @@
         let prevApptCount = -1;
         let prevLeadCount = -1;
         let micBtn;
+        let sseSource = null;
+        let isAppLocked = false;
+        let lastApptsHash = "";
+        let lastLeadsHash = "";
+        let audioUnlocked = false;
+        let currentAudio = null;
+        let allLeadsData = {};
 
         function togglePw() {
             const inp = document.getElementById('pwInput');
@@ -2840,8 +2847,7 @@
             });
         }
 
-        let prevApptCount = -1;
-        let prevLeadCount = -1;
+
 
         function setServerStatus(state) {
             const dot = document.getElementById('dot-server');
@@ -2878,7 +2884,6 @@
             }
         }
 
-        let sseSource = null;
         function initSSE() {
             if (!password) return;
             if (sseSource) sseSource.close();
@@ -3223,7 +3228,7 @@
         }
 
         // Text to Speech
-        let audioUnlocked = false;
+
         function unlockAudio() {
             if (audioUnlocked) return;
             // Prime synthesis with silent utterance for Safari/iOS
@@ -3242,7 +3247,6 @@
         // ElevenLabs TTS - Rachel Voice (Real Female AI Voice)
         const ELEVENLABS_API_KEY = 'sk_0a7445afa5ea16e9503fb9bcfeb41ecfe969a0a13415b9c7';
         const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel - Natural Female
-        let currentAudio = null;
 
         async function speakText(text) {
             if (!document.getElementById('voiceToggle').checked) return;
@@ -4298,7 +4302,6 @@
             }
         }
 
-        let lastApptsHash = "";
         function renderAppointments(data) {
             const currentHash = JSON.stringify(data.map(a => a.id));
             if (currentHash === lastApptsHash) return; // Skip if identity hasn't changed
@@ -4368,7 +4371,6 @@
             }
         }
 
-        let allLeadsData = {}; // Store for search/filter
 
         function filterLeads() {
             const q = document.getElementById('leadSearch')?.value.toLowerCase() || '';
@@ -4379,7 +4381,6 @@
             renderLeads(filtered, false);
         }
 
-        let lastLeadsHash = "";
         function renderLeads(data, store = true) {
             if (store) allLeadsData = data;
             
@@ -4770,7 +4771,6 @@
         }
 
         // === BIOMETRIC AUTH (v8.2 ELITE) ===
-        let isAppLocked = false;
 
         async function registerBiometrics() {
             if (!window.PublicKeyCredential) {
