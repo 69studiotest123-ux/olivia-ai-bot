@@ -2545,10 +2545,15 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                <div class="setting-row" style="cursor:pointer;" onclick="document.getElementById('modelSelector').focus(); document.getElementById('modelSelector').click();">
+                <div class="setting-row" style="cursor:pointer;" onclick="document.getElementById('modelSelector').focus();">
                     <div>
                         <h4>AI Model</h4>
-                        <p>Active: <span id="currentModel" style="color:var(--primary)">Groq (Llama 3.3)</span></p>
+                        <p>Active: <span id="currentModel" style="color:var(--primary)">Gemini 2.0 Flash</span></p>
+                        <select id="modelSelector" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; padding: 4px 8px; outline: none; transition: 0.3s all;">
+                            <option value="groq">Groq (Llama 3.3)</option>
+                            <option value="gemini" selected>Gemini 2.0 Flash</option>
+                            <option value="chatgpt">ChatGPT (GPT-4o)</option>
+                        </select>
                     </div>
                     <i class="fas fa-chevron-right" style="color:var(--text-dim)"></i>
                 </div>
@@ -2736,7 +2741,7 @@
         let currentSettings = {
             autoReply: true,
             voiceEnabled: true,
-            currentModel: 'groq',
+            currentModel: 'gemini',
             potions: { visionEye: true, deepMemory: true, homeHub: true }
         };
 
