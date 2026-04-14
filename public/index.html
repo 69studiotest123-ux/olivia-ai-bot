@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.9">
+    <link rel="manifest" href="/manifest.json?v=8.10">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.9" defer></script>
+    <script src="/push-notifications.js?v=8.10" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.9')
+                navigator.serviceWorker.register('/sw.js?v=8.10')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -2702,7 +2702,7 @@
             <h3 style="margin-bottom:10px;">Link WhatsApp</h3>
             <p style="font-size:0.8rem; color:var(--text-dim);">Scan this QR code with your WhatsApp to activate Olivia.</p>
             <div class="qr-img-wrapper" id="qrContainer">
-                <img src="/qr.png?t=${Date.now()}" id="qrImg" onerror="this.src='https://via.placeholder.com/200?text=Generating+QR...'; this.style.filter='invert(1)'">
+                <img src="/qr.png?t=${Date.now()}" id="qrImg" onerror="this.src='https://ui-avatars.com/api/?name=Generatin%20QR&background=121214&color=fff&size=200'; this.style.filter='none'">
             </div>
             <button class="btn btn-primary" onclick="toggleQRModal(false)" style="width:100%;">Close</button>
             <p style="font-size:0.7rem; color:var(--text-dim); margin-top:15px;">Dashboard will refresh automatically after scan.</p>
