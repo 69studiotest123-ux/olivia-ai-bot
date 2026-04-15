@@ -1647,8 +1647,33 @@
         .mic-fab {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             user-select: none;
-            -webkit-tap-highlight-color: transparent;
         }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        button, .nav-item, .mode-tab, .action-card, .btn, .lang-opt, .setting-row {
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s ease;
+            touch-action: manipulation;
+        }
+
+        button:active, .nav-item:active, .mode-tab:active, .action-card:active, .btn:active, .lang-opt:active {
+            transform: scale(0.95);
+        }
+
+        /* Prevent icons from intercepting clicks */
+        button i, .nav-item i, .btn i, .action-card i {
+            pointer-events: none;
+        }
+
         
         .mic-fab:active, .mic-fab.holding {
             transform: scale(0.85);
