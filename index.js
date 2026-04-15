@@ -393,7 +393,7 @@ async function sendPushToAll(title, body) {
 
         for (const token of pushTokens) {
             try {
-                const publicUrl = process.env.RENDER_EXTERNAL_URL || "https://olivia-ai-bot.onrender.com";
+                const publicUrl = process.env.RENDER_EXTERNAL_URL || "https://olivia-ai-bot-1.onrender.com";
                 const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
                     method: 'POST',
                     headers: {
