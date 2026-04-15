@@ -2931,6 +2931,8 @@
                 dot.style.background = 'var(--success)';
                 dot.style.boxShadow = '0 0 8px var(--success)';
                 if (btn) btn.style.display = 'none';
+                toggleQRModal(false);
+                refreshAllData();
             } else {
                 dot.style.background = '#f59e0b';
                 dot.style.boxShadow = '0 0 8px #f59e0b';
