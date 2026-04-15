@@ -45,6 +45,7 @@ let globalSettings = {
     currentModel: 'groq',
     biometricEnabled: false,
     adminPassword: process.env.ADMIN_PASSWORD || '69studio123',
+    OWNER_JID: '94761210164@s.whatsapp.net', // Sir Subhash's Number
     potions: {
         visionEye: true,
         deepMemory: true,
@@ -856,7 +857,7 @@ async function processAiTools(aiText, jid) {
     return finalOutput.trim();
 }
 
-async function getGroqResponse(message, history = []) {
+async function getGroqResponse(message, history = [], from = "") {
     if (!groq) {
         console.error('❌ Groq client not initialized. GROQ_API_KEY may be missing from Render environment variables.');
         return "Groq AI is not configured. Please check the server environment variables.";
@@ -866,12 +867,19 @@ async function getGroqResponse(message, history = []) {
             ? "Warm, helpful, and friendly. Use a casual but respectful tone." 
             : "Professional, witty, and exceptionally intelligent. Act as a digital butler.";
 
+        const isOwner = (from === OWNER_JID || from === OWNER_LID);
+        const addressing = isOwner 
+            ? "Always address Subhash as 'Sir' or 'Sir Subhash'. Use Singlish where appropriate." 
+            : "You are speaking to a Guest/Customer. Be respectful, professional, and helpful. Do NOT call them Sir Subhash. Instead, be helpful with 69 Studio related queries.";
+        
         const messages = [
             {
                 role: "system",
-                content: `Role: You are Olivia, Subhash's highly sophisticated personal AI assistant. 
+                content: `Role: You are Olivia, the high-end virtual concierge for 69 Studio. 
+                Focus: You assist Subhash (Owner) and also handle customer leads.
+                Current Interlocutor: ${isOwner ? "Subhash (Your Boss)" : "A Guest/Customer"}
                 Tone: ${tone}
-                Addressing: Always address Subhash as "Sir" or "Sir Subhash".
+                Addressing: ${addressing}
                 
                 Preference Vault:
                 - You MUST remember Subhash's favorites (colors, food, hobbies).
@@ -1404,8 +1412,8 @@ async function startBot() {
                         console.error('❌ Push System Error:', pushErr.message);
                     }
 
-                    // Get AI Response using Groq
-                    let aiResponse = await getGroqResponse(body, history);
+                    // Get AI Response using Groq - Pass the 'from' JID for identity checks
+                    let aiResponse = await getGroqResponse(body, history, from);
                     aiResponse = processAiResponseForTodos(aiResponse);
                     aiResponse = processAiResponseForBookings(aiResponse, from);
                     aiResponse = await processAiTools(aiResponse, from);
