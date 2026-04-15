@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="/manifest.json?v=8.12">
+    <link rel="manifest" href="/manifest.json?v=8.15">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
     <!-- iOS PWA Specific Meta Tags -->
@@ -21,11 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="Olivia">
     <meta name="format-detection" content="telephone=no">
 
-    <script src="/push-notifications.js?v=8.12" defer></script>
+    <script src="/push-notifications.js?v=8.15" defer></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=8.12')
+                navigator.serviceWorker.register('/sw.js?v=8.15')
                     .then(reg => console.log('SW Registered', reg))
                     .catch(err => console.log('SW Error', err));
             });
@@ -2252,7 +2252,7 @@
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Olivia&background=ff4d4d&color=fff';">
         </div>
         <h1 class="login-title">Olivia <span>AI</span></h1>
-        <p class="login-sub">Subhash's Personal Intelligence Assistant <span style="font-size:0.65rem; opacity:0.4;">v8.12 Elite</span></p>
+        <p class="login-sub">Subhash's Personal Intelligence Assistant <span style="font-size:0.65rem; opacity:0.4;">v8.15 Elite</span></p>
         
         <div class="login-card">
             <label class="pw-label">Access Key</label>
