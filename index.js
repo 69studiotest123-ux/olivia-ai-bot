@@ -1200,17 +1200,24 @@ app.get('/api/assistant/ask', async (req, res) => {
         let answer = "";
 
         if (modelType === "gemini") {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const chat = model.startChat({
-                history: history.map(h => ({
-                    role: h.role === "assistant" ? "model" : "user",
-                    parts: [{ text: h.content }]
-                }))
-            });
-            const result = await chat.sendMessage(`${systemPrompt}\n\nUser: ${query}`);
-            const response = await result.response;
-            answer = response.text();
-        } else if (modelType === "chatgpt") {
+            if (!genAI) {
+                console.warn('⚠️ Gemini requested but not initialized. Falling back to Groq.');
+                // Fallback logic below will handle it
+            } else {
+                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                const chat = model.startChat({
+                    history: history.map(h => ({
+                        role: h.role === "assistant" ? "model" : "user",
+                        parts: [{ text: h.content }]
+                    }))
+                });
+                const result = await chat.sendMessage(`${systemPrompt}\n\nUser: ${query}`);
+                const response = await result.response;
+                answer = response.text();
+            }
+        } 
+        
+        if (!answer && modelType === "chatgpt") {
             const completion = await openai.chat.completions.create({
                 model: "gpt-4o",
                 messages: [
@@ -1549,6 +1556,7 @@ app.listen(PORT, '0.0.0.0', () => {
     // --- DIAGNOSTICS ---
     console.log('📊 Environment Status:');
     console.log(`  - GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✅ set' : '❌ missing'}`);
+    console.log(`  - GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ set' : '❌ missing'}`);
     console.log(`  - ELEVENLABS_API_KEY: ${process.env.ELEVENLABS_API_KEY ? '✅ set' : '❌ missing'}`);
     console.log(`  - GOOGLE_CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL ? '✅ set' : '❌ missing'}`);
     console.log(`  - GOOGLE_PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? '✅ set' : '❌ missing'}`);

@@ -288,14 +288,22 @@
         }
 
         async function processCommand(msg) {
+            if (!password) {
+                window.location.href = '/?error=session_expired';
+                return;
+            }
             try {
-                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=gemini`);
+                const model = localStorage.getItem('olivia_currentModel') || 'groq';
+                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}`);
                 const data = await res.json();
                 
                 if (data.answer) {
                     document.getElementById('status-text').innerText = "Olivia";
-                    document.getElementById('sub-status').innerText = "Replying...";
+                    document.getElementById('sub-status').innerText = "Responding...";
                     await speakText(data.answer);
+                } else if (data.error) {
+                    document.getElementById('status-text').innerText = "System Error";
+                    document.getElementById('sub-status').innerText = data.error;
                 }
             } catch (e) {
                 document.getElementById('status-text').innerText = "Downlink Lost";
