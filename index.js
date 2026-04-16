@@ -52,6 +52,9 @@ let globalSettings = {
         homeHub: true
     }
 };
+
+const OWNER_JID = '94761210164@s.whatsapp.net';
+const OWNER_LID = '94761210164@lid';
 const adminMuteMap = new Map(); // Tracks last manual reply time per JID
 
 // Load Settings
