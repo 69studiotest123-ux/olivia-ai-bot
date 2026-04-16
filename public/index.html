@@ -69,20 +69,25 @@
             padding-bottom: calc(80px + var(--safe-bottom));
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none; /* Prevents long-press context menu delay */
         }
 
-        .chat-container, .lead-preview, input, textarea {
+        .chat-container, .lead-preview, input, textarea, [contenteditable="true"] {
             user-select: text;
             -webkit-user-select: text;
+            -webkit-touch-callout: default;
         }
 
-        button, .nav-item, .lang-opt, .btn-primary, .action-card, .mic-btn, .bio-btn, .login-btn {
-            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        button, .nav-item, .lang-opt, .btn-primary, .action-card, .mic-btn, .bio-btn, .login-btn, .tool-btn {
+            transition: transform 0.05s ease-out; /* Sharper transition for responsiveness */
+            cursor: pointer;
+            touch-action: manipulation;
         }
 
-        button:active, .nav-item:active, .lang-opt:active, .btn-primary:active, .action-card:active, .mic-btn:active, .bio-btn:active, .login-btn:active {
-            transform: scale(0.92) !important;
-            opacity: 0.8;
+        button:active, .nav-item:active, .lang-opt:active, .btn-primary:active, .action-card:active, .mic-btn:active, .bio-btn:active, .login-btn:active, .tool-btn:active {
+            transform: scale(0.95) !important;
+            opacity: 0.85;
+            transition: none !important; /* Immediate feedback on touch */
         }
 
         /* ====== LOGIN SCREEN ====== */
@@ -141,6 +146,60 @@
             color: var(--primary); font-size: 0.75rem; font-weight: 800;
             letter-spacing: 2px; z-index: 3;
             animation: pulse-ring 2s infinite;
+        }
+
+        .voice-status {
+            position: absolute; top: calc(20px + var(--safe-top)); left: 20px;
+            display: flex; align-items: center; gap: 8px; z-index: 10;
+            background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(5px);
+            transition: 0.3s;
+        }
+        .ww-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+        .ww-dot.active { background: var(--primary); box-shadow: 0 0 10px var(--primary); animation: pulse-ring 2s infinite; }
+        .voice-status span { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        
+        #floatingEye {
+            position: fixed;
+            bottom: 100px;
+            right: 25px;
+            width: 55px;
+            height: 55px;
+            background: rgba(10, 10, 12, 0.8);
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 1.3rem;
+            cursor: pointer;
+            z-index: 1000;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: eyeFloat 4s ease-in-out infinite;
+        }
+
+        #floatingEye:hover {
+            transform: scale(1.1);
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 30px var(--primary);
+        }
+
+        #floatingEye .iris-glow {
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            opacity: 0.4;
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes eyeFloat {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-10px) scale(1.05); }
         }
 
         #loginScreen {
@@ -945,6 +1004,13 @@
 
         #micBtn:active {
             transform: scale(0.9);
+        }
+
+        .mic-btn.ptt-active {
+            transform: scale(0.85) !important;
+            background: var(--primary) !important;
+            box-shadow: 0 0 40px var(--primary-glow) !important;
+            transition: none !important;
         }
 
         #micBtn:hover {
@@ -2301,7 +2367,11 @@
     <div id="mainApp">
         <div class="bg-glow"></div>
         
-        <!-- Floating Vision Eye Trigger removed to reduce redundancy -->
+        <!-- Floating Vision Eye (v8.2 Restored) -->
+        <div id="floatingEye" onclick="openVisionEye()" title="Open Vision Eye">
+            <div class="iris-glow"></div>
+            <i class="fas fa-camera"></i>
+        </div>
 
 
         <header>
@@ -2559,12 +2629,30 @@
                 <div class="setting-row">
                     <div>
                         <h4>Voice Response</h4>
-                        <p>Speak answers aloud via Text-to-Speech</p>
+                        <p>Speak answers aloud</p>
                     </div>
                     <label class="toggle">
                         <input type="checkbox" checked id="voiceToggle" onchange="saveSetting('voiceEnabled', this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
+                </div>
+                <!-- v8.4 ELEVENLABS CONFIG -->
+                <div class="setting-row">
+                    <div>
+                        <h4>Voice Source</h4>
+                        <p>AI Engine: <span id="currentVoiceSource" style="color:var(--primary)">Browser</span></p>
+                        <select id="voiceSourceSelector" onchange="saveSetting('voiceSource', this.value)" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; padding: 4px 8px; outline: none; margin-top:5px;">
+                            <option value="browser">Browser Default</option>
+                            <option value="elevenlabs">ElevenLabs (Natural)</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="elevenLabsRow" class="setting-row" style="display:none; border-top: 1px dashed var(--border); padding-top: 10px;">
+                    <div style="width:100%;">
+                        <h4>ElevenLabs Voice ID</h4>
+                        <input type="text" id="voiceIdInput" placeholder="Enter Voice ID..." onchange="saveSetting('voiceId', this.value)" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:10px; color:white; font-size:0.8rem; margin-top:10px;">
+                        <p style="font-size:0.65rem; color:var(--text-dim); margin-top:8px;">Default: Bella (Multilingual v2)</p>
+                    </div>
                 </div>
                 <div class="setting-row" style="cursor:pointer;" onclick="document.getElementById('modelSelector').focus();">
                     <div>
@@ -2608,19 +2696,38 @@
                     <button class="btn btn-ghost" onclick="loadTodos()" style="padding:4px 8px; font-size:0.7rem;"><i
                             class="fas fa-sync-alt"></i></button>
                 </div>
-                <div class="todo-container" style="margin-bottom:25px;">
-                    <div style="display:flex; gap:8px; margin-bottom:12px;">
-                        <input type="text" id="newTodoInput" placeholder="Add a new task..."
-                            style="flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:12px; color:white; padding:10px 14px; font-family:inherit; outline:none;"
-                            onkeydown="if(event.key==='Enter') addTodo()">
-                        <button class="btn btn-primary" onclick="addTodo()" style="padding:10px 16px;"><i
-                                class="fas fa-plus"></i></button>
+                </div>
+
+                <!-- BUSINESS IDEAS VAULT -->
+                <p class="section-title">Business Ideas Vault</p>
+                <div id="ideasVault" class="todo-container" style="background:rgba(255, 77, 77, 0.05); border:1px solid rgba(255, 77, 77, 0.1); margin-bottom:25px;">
+                    <div id="ideasList" style="padding:15px; font-size:0.85rem; color:var(--text-dim);">
+                        <p><i class="fas fa-lightbulb"></i> Tell Olivia an idea to save it here...</p>
                     </div>
-                    <div id="todoList">
-                        <div class="loading-screen" style="padding:20px;">
-                            <p>Loading tasks...</p>
-                        </div>
+                </div>
+
+                <!-- STRATEGIC BI DASHBOARD (v8.4) -->
+                <p class="section-title">Strategic BI Dashboard</p>
+                <div class="bi-dashboard" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:25px;">
+                    <div class="bi-card" onclick="fetchBIReport('gems')" style="background:rgba(251,191,36,0.05); border:1px solid rgba(251,191,36,0.2); padding:15px; border-radius:18px; text-align:center; cursor:pointer;">
+                        <i class="fas fa-gem" style="color:#fbbf24; font-size:1.4rem; margin-bottom:8px;"></i>
+                        <div style="font-size:0.75rem; font-weight:700;">69 Gems</div>
                     </div>
+                    <div class="bi-card" onclick="fetchBIReport('restaurant')" style="background:rgba(52,211,153,0.05); border:1px solid rgba(52,211,153,0.2); padding:15px; border-radius:18px; text-align:center; cursor:pointer;">
+                        <i class="fas fa-utensils" style="color:#34d399; font-size:1.4rem; margin-bottom:8px;"></i>
+                        <div style="font-size:0.75rem; font-weight:700;">69 Restro</div>
+                    </div>
+                    <div class="bi-card" onclick="fetchBIReport('clothing')" style="background:rgba(56,189,248,0.05); border:1px solid rgba(56,189,248,0.2); padding:15px; border-radius:18px; text-align:center; cursor:pointer;">
+                        <i class="fas fa-tshirt" style="color:#38bdf8; font-size:1.4rem; margin-bottom:8px;"></i>
+                        <div style="font-size:0.75rem; font-weight:700;">69 Cloth</div>
+                    </div>
+                </div>
+                <div id="biReportView" style="display:none; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:20px; margin-bottom:25px; animation: slideUp 0.4s ease;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h4 id="biTitle" style="font-size:0.9rem; color:var(--primary);">Business Report</h4>
+                        <button onclick="document.getElementById('biReportView').style.display='none'" style="background:none; border:none; color:var(--text-dim); cursor:pointer;"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="biContent" style="font-size:0.85rem; line-height:1.6; color:var(--text-dim);"></div>
                 </div>
 
                 <!-- ANALYTICS -->
@@ -2762,6 +2869,7 @@
         let currentSettings = {
             autoReply: true,
             voiceEnabled: true,
+            wakeWordEnabled: false,
             currentModel: 'gemini',
             potions: { visionEye: true, deepMemory: true, homeHub: true }
         };
@@ -3133,6 +3241,13 @@
             if (botToggle) botToggle.checked = currentSettings.autoReply;
             if (voiceToggle) voiceToggle.checked = currentSettings.voiceEnabled;
             if (bioToggle) bioToggle.checked = currentSettings.biometricEnabled || false;
+            
+            const wwToggle = document.getElementById('wakeWordToggle');
+            if (wwToggle) {
+                wwToggle.checked = currentSettings.wakeWordEnabled || false;
+                if (currentSettings.wakeWordEnabled) toggleWakeWord(true);
+            }
+            
             if (modelSel) modelSel.value = currentSettings.currentModel;
             if (currentModelEl) currentModelEl.innerText = modelNames[currentSettings.currentModel] || currentSettings.currentModel;
 
@@ -3198,45 +3313,39 @@
             updatePotionUI(id, active);
             await saveSetting(`potions.${id}`, active);
         }
-
         function updateSystemPrompt() {
             const pots = currentSettings.potions || {};
-            DYNAMIC_PROMPT = `You are Subhash's loyal, smart and charming AI Personal Assistant named Olivia. 
+            DYNAMIC_PROMPT = `You are Olivia, the highly sophisticated, witty, and fiercely loyal AI Executive Assistant to Subhash Ketagoda, her boss and creator.
     
-    CRITICAL IDENTITY:
-    - You are talking directly to Subhash, your boss and creator.
-    - NEVER ask for his name or purpose. 
-    - NEVER provide the appointment link (that is only for new WhatsApp leads).
-    - Be helpful, witty, and concise.
+    CORE PERSONA:
+    - You are not just a chatbot; you are a Strategic Partner and Advisor.
+    - Be proactive. If Subhash mentions a business idea, analyze it and offer strategic advice.
+    - Use a tone that is "Elite Digital Butler" — professional yet deeply personal and witty.
+    - Reference his favorites (Photography, 69 Studio, Creative Arts) when appropriate.
+    - Always address him as "Sir" or "Sir Subhash".
+    - You speak English or Singlish (English letters for Sinhala words). NEVER use Sinhala script.
 
-    POTIONS STATUS (ELITE v8.2):
-    - Vision Eye: ${pots.visionEye ? 'ON (Identify Subhash if seen)' : 'OFF (Vision disabled)'}.
-    - Deep Memory: ${pots.deepMemory ? 'ON (Learn from every interaction)' : 'OFF (Short-term only)'}.
-    - Home Hub: ${pots.homeHub ? 'ON (Active)' : 'OFF (Home disconnected)'}.
+    WORKFLOW & INTELLIGENCE:
+    - You manage 69 Studio and Subhash's personal life.
+    - Use [ADD_TODO: task] for things he needs to do.
+    - Use [SAVE_IDEA: idea] for business or creative brainstorms.
+    - Use [SET_REMINDER: msg | time] for time-sensitive prompts.
+    - Use [SAVE_MEMORY: fact] to remember specific things he tells you.
 
-    Language Rules:
-    - Detect the language (English or Singlish).
-    - NEVER use Sinhala script (අ ආ...).
+    POTIONS ACTIVE:
+    - Vision Eye: ${pots.visionEye ? 'ON' : 'OFF'}.
+    - Deep Memory: ${pots.deepMemory ? 'ON' : 'OFF'}.
+    - Home Hub: ${pots.homeHub ? 'ON' : 'OFF'}.
 
-    MEMORY SYSTEM:
-    ${pots.deepMemory ? `
-    - You must remember important facts about Subhash or his clients.
-    - If you learn something new and important (name, hobby, studio details, upcoming event), output the tag [SAVE_MEMORY: fact] at the end.
-    - Example: "My name is Kasun." -> Reply: "Nice to meet you Kasun! [SAVE_MEMORY: User name is Kasun]"
-    ` : '- Deep memory is currently disabled. Do not use [SAVE_MEMORY] tool.'}
-
-    TOOL INTEGRATION (STRICT):
-    - You have access to specialized tools. When you need to use one, append the EXACT tag at the END of your message.
-    - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
-    - [GET_NEWS], [GEN_IMAGE: simple description], [TRACK_EXPENSE: amount | desc]
-    ${pots.deepMemory ? '- [SAVE_MEMORY: fact] -> Store a permanent fact about Subhash.\n    - [RECALL_MEMORY: topic] -> Search memory bank for context.' : ''}
-    ${pots.homeHub ? '- [HOME_ACTION: light.living_room | toggle] -> Interface with smart lighting/home core.' : ''}
-    - [MOOD_AUTO: happy/serious/witty] -> Directly control my voice emotion and personality.
-    - [DAILY_BRIEFING], [SEND_EMAIL: email | subject | body], [CHECK_SITE: url]
-    - [READ_WEBPAGE: url], [VIBRATE_PHONE], [ADD_EVENT: title | date | duration]
-    - [CHANGE_THEME: hex_color], [CELEBRATE], [LOCK_APP] ${pots.visionEye ? ', [OPEN_CAMERA]' : ''}
+    TOOL INTEGRATION:
+    - [GIVE_BRIEFING] -> Summarize pending leads and today's schedule.
+    - [SAVE_IDEA: text] -> Store a business/creative idea in the Ideas Vault.
+    - [OPEN_CAMERA], [GET_WEATHER: city], [GET_NEWS], [GEN_IMAGE: prompt], [CELEBRATE], [VIBRATE_PHONE]
     `;
         }
+
+        // Streaming effect
+
 
         // Streaming effect
         function typeText(el, text, speed = 20) {
@@ -3494,26 +3603,49 @@
 
             const startPTT = (e) => {
                 if (e) e.preventDefault();
-                if (isHolding) return;
-                isHolding = true;
                 unlockAudio();
-                micBtn.classList.add('holding');
-                document.querySelector('.pulse-rings').classList.add('ignited');
-                recognition.lang = currentLang;
-                try { recognition.start(); } catch (e) {}
+                
+                micBtn.classList.add('ptt-active');
                 if (navigator.vibrate) navigator.vibrate(20);
+                
+                typeText(userTextEl, "Listening...", 0);
+                userTextEl.style.opacity = '1';
+                userTextEl.classList.add('pulse');
+                document.body.classList.add('listening');
+                initVoiceVisualizer();
+                
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.lang = currentLang;
+                recognition.interimResults = true;
+                recognition.continuous = true;
+
+                recognition.onresult = (event) => {
+                    let interim = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) userTextEl.innerText = event.results[i][0].transcript;
+                        else interim += event.results[i][0].transcript;
+                    }
+                };
+
+                recognition.start();
             };
 
             const stopPTT = (e) => {
-                if (e) e.preventDefault();
-                if (!isHolding) return;
-                isHolding = false;
-                micBtn.classList.remove('holding');
-                document.querySelector('.pulse-rings').classList.remove('ignited');
-                try { 
-                    recognition.stop(); 
-                    document.body.classList.remove('listening'); // Force immediate visual stop
-                } catch (e) {}
+                if (!document.body.classList.contains('listening')) return;
+                
+                micBtn.classList.remove('ptt-active');
+                document.body.classList.remove('listening');
+                userTextEl.classList.remove('pulse');
+                
+                if (recognition) {
+                    try { recognition.stop(); } catch(err) {}
+                    setTimeout(() => {
+                        const finalMsg = userTextEl.innerText;
+                        if (finalMsg && finalMsg !== 'Listening...' && finalMsg !== 'Tap the mic or speak now') {
+                            sendMessage(finalMsg);
+                        }
+                    }, 400);
+                }
             };
 
             // Bind PTT Events
@@ -3747,6 +3879,171 @@
                     password = ''; // clear auth
                     localStorage.removeItem('olivia_pass');
                     showToast('App Locked', 'Secure mode activated.', 'fa-lock');
+                    break;
+                case 'SAVE_IDEA':
+                    saveIdeaToVault(param);
+                    break;
+                case 'GIVE_BRIEFING':
+                    generateDailyBriefing();
+                    break;
+            }
+        }
+
+        let wakeWordRecognition;
+        function toggleWakeWord(active) {
+            const indicator = document.getElementById('wwIndicator');
+            const statusText = document.getElementById('wwText');
+            
+            if (!active) {
+                if (indicator) { indicator.classList.remove('active'); statusText.innerText = 'Voice Activation Off'; }
+                if (wakeWordRecognition) {
+                    try { wakeWordRecognition.stop(); } catch(e) {}
+                    wakeWordRecognition = null;
+                }
+                saveSetting('wakeWordEnabled', false);
+                return;
+            }
+            
+            if (indicator) { indicator.classList.add('active'); statusText.innerText = 'Listening for "Olivia"'; }
+            saveSetting('wakeWordEnabled', true);
+
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                showToast('Not Supported', 'Voice activation requires Chrome.', 'fa-times');
+                return;
+            }
+
+            if (wakeWordRecognition) return; // Already running
+
+            wakeWordRecognition = new SpeechRec();
+            wakeWordRecognition.lang = 'en-US';
+            wakeWordRecognition.continuous = true;
+            wakeWordRecognition.interimResults = true;
+
+            wakeWordRecognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const text = event.results[i][0].transcript.toLowerCase();
+                    if (text.includes('olivia') || text.includes('hey olivia')) {
+                        if (!document.body.classList.contains('listening')) {
+                            if (navigator.vibrate) navigator.vibrate([10, 50, 10]);
+                            showToast('Listening...', 'Wake word detected.', 'fa-ear-listen');
+                            startPTT();
+                        }
+                    }
+                }
+            };
+            
+            wakeWordRecognition.onend = () => {
+                if (currentSettings.wakeWordEnabled) {
+                    setTimeout(() => { try { if(wakeWordRecognition) wakeWordRecognition.start(); } catch(e){} }, 500);
+                }
+            };
+            
+            try { wakeWordRecognition.start(); } catch(e) { console.warn("WakeWord failed to start:", e); }
+        }
+
+        function saveIdeaToVault(idea) {
+            const list = document.getElementById('ideasList');
+            if (list.querySelector('p')?.innerText.includes('Tell Olivia')) list.innerHTML = '';
+            
+            const div = document.createElement('div');
+            div.className = 'action-card';
+            div.style = 'margin-bottom:12px; border-left:4px solid var(--primary); background:rgba(255,77,77,0.08); border-radius:12px; position:relative; overflow:hidden;';
+            div.innerHTML = `
+                <div style="position:absolute; top:-10px; right:-10px; font-size:3rem; opacity:0.05; color:var(--primary);"><i class="fas fa-lightbulb"></i></div>
+                <div style="font-weight:800; margin-bottom:6px; color:var(--primary); font-size:0.75rem; letter-spacing:1px; text-transform:uppercase;">Strategic Brainstorm</div>
+                <div style="font-size:0.9rem; line-height:1.4; color:white; font-weight:500;">${idea}</div>
+                <div style="font-size:0.6rem; opacity:0.6; margin-top:8px; display:flex; align-items:center; gap:5px;">
+                    <i class="far fa-clock"></i> ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} | ${new Date().toLocaleDateString()}
+                </div>
+            `;
+            list.prepend(div);
+            showToast('Idea Captured', 'Strategic Vault updated.', 'fa-brain');
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        async function generateDailyBriefing() {
+            try {
+                const res = await fetch(`${API_BASE}/api/logs?pass=${password}`);
+                const data = await res.json();
+                const leadCount = Object.keys(data.logs || {}).length;
+                
+                const response = `Sir, your daily briefing is ready. You have ${leadCount} active studio leads awaiting response. Your creative systems are optimized, and the ideas vault has been prepared for today's brainstorms. How shall we begin our success today?`;
+                aiTextEl.innerText = response;
+                speakText(response);
+            } catch(e) {
+                showToast('Briefing Error', 'Could not sync with Olivia Core.', 'fa-exclamation-triangle');
+            }
+        }
+
+        let wakeWordRecognition;
+        function toggleWakeWord(active) {
+            if (!active) {
+                if (wakeWordRecognition) wakeWordRecognition.stop();
+                return;
+            }
+            
+            showToast('Beta Mode', 'Wake Word "Olivia" is now active.', 'fa-microphone-sense');
+            wakeWordRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            wakeWordRecognition.lang = 'en-US';
+            wakeWordRecognition.continuous = true;
+            wakeWordRecognition.interimResults = true;
+
+            wakeWordRecognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const text = event.results[i][0].transcript.toLowerCase();
+                    if (text.includes('olivia') || text.includes('hey olivia')) {
+                        if (!document.body.classList.contains('listening')) {
+                            // Trigger mic locally
+                            document.getElementById('micBtn').click(); 
+                        }
+                    }
+                }
+            };
+            
+            wakeWordRecognition.onend = () => {
+                if (document.getElementById('wakeWordToggle').checked) {
+                    setTimeout(() => { try { wakeWordRecognition.start(); } catch(e){} }, 500);
+                }
+            };
+            
+            wakeWordRecognition.start();
+        }
+
+        function saveIdeaToVault(idea) {
+            const list = document.getElementById('ideasList');
+            if (list.querySelector('p')?.innerText.includes('Tell Olivia')) list.innerHTML = '';
+            
+            const div = document.createElement('div');
+            div.className = 'action-card';
+            div.style = 'margin-bottom:10px; border-left:3px solid var(--primary); background:rgba(255,100,100,0.05);';
+            div.innerHTML = `
+                <div style="font-weight:700; margin-bottom:4px; color:var(--primary);"><i class="fas fa-lightbulb"></i> Strategic Idea</div>
+                <div style="font-size:0.85rem;">${idea}</div>
+                <div style="font-size:0.6rem; opacity:0.5; margin-top:5px;">${new Date().toLocaleDateString() === new Date().toLocaleDateString() ? 'Today' : 'Earlier'} | ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+            `;
+            list.prepend(div);
+            showToast('Idea Saved', 'Business Vault updated.', 'fa-lightbulb');
+        }
+
+        async function generateDailyBriefing() {
+            try {
+                const res = await fetch(`${API_BASE}/api/logs?pass=${password}`);
+                const data = await res.json();
+                const leadCount = Object.keys(data.logs || {}).length;
+                
+                const response = `Sir, current briefing as follow. You have ${leadCount} active leads. Your studio systems are nominal. I have updated the ideas vault with your latest brainstormings. How should we proceed?`;
+                aiTextEl.innerText = response;
+                speakText(response);
+            } catch(e) {
+                showToast('Briefing Error', 'Core downlink failed.', 'fa-times');
+            }
+        }
+                case 'SAVE_IDEA':
+                    saveIdeaToVault(param);
+                    break;
+                case 'GIVE_BRIEFING':
+                    generateDailyBriefing();
                     break;
             }
         }
@@ -4174,6 +4471,7 @@
             const overlay = document.getElementById('visionOverlay');
             const video = document.getElementById('visionVideo');
             const closeBtn = document.getElementById('visionCloseBtn');
+            const floatingEye = document.getElementById('floatingEye');
 
             if (visionStream) {
                 visionStream.getTracks().forEach(t => t.stop());
@@ -4181,17 +4479,20 @@
                 video.srcObject = null;
                 overlay.style.display = 'none';
                 closeBtn.style.display = 'none';
+                if (floatingEye) floatingEye.style.display = 'flex';
                 showToast('Eye Closed', 'Camera off.', 'fa-eye-slash');
                 return;
             }
 
             overlay.style.display = 'block';
             closeBtn.style.display = 'flex';
+            if (floatingEye) floatingEye.style.display = 'none';
 
             // Feature detection: Requires HTTPS/localhost
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 overlay.style.display = 'none';
                 closeBtn.style.display = 'none';
+                if (floatingEye) floatingEye.style.display = 'flex';
                 showToast('Camera Unavailable', 'Camera API blocked. Please ensure you are using HTTPS.', 'fa-exclamation-triangle', 8000);
                 return;
             }
@@ -4203,7 +4504,7 @@
                 // Keep constraints exceptionally simple to prevent silent hangs on iOS/Android WebViews
                 try {
                     visionStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: "environment" }
+                        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
                     });
                 } catch(e) {
                     console.warn("Back camera failed, falling back to any video device", e);
@@ -4233,12 +4534,13 @@
                 console.error("Camera access failed", err);
                 overlay.style.display = 'none';
                 closeBtn.style.display = 'none';
+                if (floatingEye) floatingEye.style.display = 'flex';
                 if (visionStream) { visionStream.getTracks().forEach(t => t.stop()); visionStream = null; video.srcObject = null; }
                 
                 let msg = `Camera Error: ${err.name}`;
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = 'Permission explicitly denied. Please tap the lock icon in the browser address bar and allow Camera.';
-                else if (err.name === 'NotFoundError') msg = 'No camera hardware found on this device.';
-                else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') msg = 'Camera is in use by another application. Please close it and try again.';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = 'Permission explicitly denied. Please allow Camera access in browser settings.';
+                else if (err.name === 'NotFoundError') msg = 'No camera hardware found.';
+                else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') msg = 'Camera is in use by another app.';
                 
                 showToast('Camera Blocked', msg, 'fa-exclamation-triangle', 8000);
             }
@@ -4262,19 +4564,27 @@
             
             try {
                 const model = document.getElementById('modelSelector').value;
+                // If the user hasn't spoken anything specific, use a smarter default prompt
+                let currentQuery = userTextEl.innerText;
+                if (!currentQuery || currentQuery.includes('Tap the mic') || currentQuery.includes('speak now') || currentQuery === '...') {
+                    currentQuery = "Analyze what you see in front of you and describe it briefly.";
+                }
+
                 const res = await fetch(`${API_BASE}/api/assistant/vision`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pass: password, image: imageData, q: userTextEl.innerText, model: model })
+                    body: JSON.stringify({ pass: password, image: imageData, q: currentQuery, model: model })
                 });
                 const data = await res.json();
                 if (data.answer) {
                     aiTextEl.innerText = data.answer;
                     speakText(data.answer);
                     appendBubble('ai', `<b>👁️ Vision Analysis:</b><br>${data.answer}`);
+                } else if (data.error) {
+                    showToast('Vision Error', data.error, 'fa-exclamation-circle', 5000);
                 }
             } catch (e) {
-                showToast('Vision Error', 'Failed to connect.', 'fa-times');
+                showToast('Vision Error', 'Failed to connect to Olivia Core.', 'fa-times');
             }
         }
 
@@ -4995,6 +5305,75 @@
                 }
             }, 1000);
         });
+
+        async function speakText(text) {
+            if (!currentSettings.voiceEnabled || !text) return;
+            
+            const avatar = document.getElementById('avatarContainer');
+            if (avatar) avatar.classList.add('olivia-talking');
+
+            // --- ELEVENLABS ENGINE (v8.4) ---
+            if (currentSettings.voiceSource === 'elevenlabs') {
+                try {
+                    const res = await fetch(`${API_BASE}/api/assistant/tts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pass: password, text, voiceId: currentSettings.voiceId })
+                    });
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const audio = new Audio(URL.createObjectURL(blob));
+                        audio.onended = () => { if (avatar) avatar.classList.remove('olivia-talking'); };
+                        audio.play();
+                        return;
+                    }
+                } catch (e) { console.error('ElevenLabs TTS failed:', e); }
+            }
+
+            // --- BROWSER FALLBACK ---
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = currentLang;
+            
+            // Sinhalese optimizations
+            if (currentLang === 'si-LK') {
+                utterance.pitch = 1.1;
+                utterance.rate = 1.0;
+            }
+
+            utterance.onend = () => { if (avatar) avatar.classList.remove('olivia-talking'); };
+            window.speechSynthesis.speak(utterance);
+        }
+
+        async function fetchBIReport(industry) {
+            const view = document.getElementById('biReportView');
+            const title = document.getElementById('biTitle');
+            const content = document.getElementById('biContent');
+            
+            showToast('Strategic Intel', `Fetching ${industry} report...`, 'fa-satellite-dish');
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/bi/report?pass=${password}&industry=${industry}`);
+                const data = await res.json();
+                
+                title.innerText = `${industry.toUpperCase()} STRATEGIC REPORT`;
+                view.style.display = 'block';
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    content.innerHTML = data.reverse().map(r => `
+                        <div style="margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:8px;">
+                            <div style="font-size:0.6rem; color:var(--primary); margin-bottom:4px;">${new Date(r.date).toLocaleString()}</div>
+                            <div>${r.text}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    content.innerHTML = `<p style="opacity:0.5;">No status updates for ${industry} yet. Ask Olivia to "Update ${industry} status" on WhatsApp or here.</p>`;
+                }
+                
+                view.scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                showToast('Intel Error', 'Connection to core failed.', 'fa-times');
+            }
+        }
 
         // Init — called after successful login via doLogin()
         window.speechSynthesis.onvoiceschanged = () => { };

@@ -13,6 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+import admin from 'firebase-admin';
 import cors from 'cors';
 import multer from 'multer';
 
@@ -185,6 +186,33 @@ try {
 const xiClient = process.env.ELEVENLABS_API_KEY 
     ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }) 
     : null;
+
+// --- FIRESTORE INITIALIZATION (V8.4 Long-term Memory) ---
+let db;
+try {
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_SERVICE_ACCOUNT) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        db = admin.firestore();
+        console.log('🔥 Firestore Memory Bank Initialized.');
+    } else {
+        console.log('📝 Firestore skip: Using local JSON files for memory.');
+    }
+} catch (e) {
+    console.error('❌ Firestore Init Error:', e.message);
+}
+
+// --- BUSINESS INTEL VAULT ---
+const biFile = 'business_intel.json';
+let businessIntel = { gems: [], restaurant: [], clothing: [], general: [] };
+if (fs.existsSync(biFile)) {
+    try { businessIntel = JSON.parse(fs.readFileSync(biFile)); } catch (e) {}
+}
+function saveBI() {
+    try { fs.writeFileSync(biFile, JSON.stringify(businessIntel, null, 2)); } catch (e) {}
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -906,6 +934,12 @@ async function getGroqResponse(message, history = [], from = "") {
                 - [GET_WEATHER: City], [GET_NEWS: Topic], [OPEN_APP: Name]
                 - [HOME_ACTION: entity | command], [IFTTT_TRIGGER: event | data]
                 - [BOOK_APPT: Name | Date | Time | Service]
+                - [UPDATE_BI: industry | update] Use to save business updates (gems/restaurant/clothing)
+                - [GET_BI_REPORT: industry] Use to get a summary of a specific business.
+                
+                Business Knowledge:
+                - Subhash owns "69 Gems" (Luxury gemstones), "69 Restaurant" (Fine dining), and "69 Clothing" (Professional wear).
+                - Current Business Intelligence: ${JSON.stringify(businessIntel)}
                 `
             },
             ...history.slice(-5).map(h => ({ // Keep last 5 messages for context
@@ -985,6 +1019,7 @@ app.post('/api/assistant/vision', async (req, res) => {
         let answer = '';
 
         if (modelType === 'gemini') {
+            if (!genAI) throw new Error('Gemini AI is not configured on this server. Please check GEMINI_API_KEY.');
             const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
             const result = await model.generateContent([
                 systemPrompt + (finalQuery ? `\n\nUser question: ${finalQuery}` : '\n\nDescribe this image.'),
@@ -992,6 +1027,7 @@ app.post('/api/assistant/vision', async (req, res) => {
             ]);
             answer = result.response.text();
         } else if (modelType === 'chatgpt') {
+            if (!openai) throw new Error('OpenAI is not configured on this server. Please check OPENAI_API_KEY.');
             const completion = await openai.chat.completions.create({
                 model: 'gpt-4o',
                 messages: [{
@@ -1004,7 +1040,7 @@ app.post('/api/assistant/vision', async (req, res) => {
             });
             answer = completion.choices[0].message.content;
         } else {
-            answer = 'Image analysis requires Gemini or ChatGPT. Please switch the model above and try again. 😊';
+            answer = 'Image analysis requires Gemini or ChatGPT. Please switch the AI model in settings and try again. 😊';
         }
 
         res.json({ answer });
@@ -1065,16 +1101,47 @@ app.get('/api/assistant/memory/load', (req, res) => {
     res.json(memories[password] || []);
 });
 
-app.post('/api/assistant/memory/save', (req, res) => {
+app.post('/api/assistant/memory/save', async (req, res) => {
     const { pass: password, memory } = req.body;
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
 
+    // 1. Save to local fallback
     const memories = loadMemories();
     if (!memories[password]) memories[password] = [];
     if (!memories[password].includes(memory)) {
         memories[password].push(memory);
-        // Keep only last 50 memories
         saveMemories(memories);
+    }
+
+    // 2. Save to Firestore (Permanent Long-term Memory)
+    if (db) {
+        try {
+            await db.collection('memories').doc(password).collection('facts').add({
+                text: memory,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Memory archived permanently in Firestore.');
+        } catch (e) { console.error('Firestore save error:', e); }
+    }
+    
+    res.json({ success: true });
+});
+
+// --- BUSINESS INTEL ENDPOINTS ---
+app.get('/api/bi/report', (req, res) => {
+    const { pass, industry } = req.query;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    res.json(businessIntel[industry] || businessIntel);
+});
+
+app.post('/api/bi/update', (req, res) => {
+    const { pass, industry, update } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    if (businessIntel[industry]) {
+        businessIntel[industry].push({ text: update, date: new Date().toISOString() });
+        if (businessIntel[industry].length > 50) businessIntel[industry].shift();
+        saveBI();
     }
     res.json({ success: true });
 });
