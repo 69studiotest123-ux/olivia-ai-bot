@@ -86,9 +86,13 @@
 
         button:active, .nav-item:active, .lang-opt:active, .btn-primary:active, .action-card:active, .mic-btn:active, .bio-btn:active, .login-btn:active, .tool-btn:active {
             transform: scale(0.95) !important;
-            opacity: 0.85;
+            opacity: 0.7;
             transition: none !important; /* Immediate feedback on touch */
         }
+        
+        /* Ensure no ghost clicks on mobile */
+        * { -webkit-tap-highlight-color: transparent; }
+        input, select { font-size: 16px !important; } /* Stop iOS auto-zoom on focus */
 
         /* ====== LOGIN SCREEN ====== */
         /* VISION EYE OVERLAY */
@@ -5378,6 +5382,21 @@
                 showToast('Intel Error', 'Connection to core failed.', 'fa-times');
             }
         }
+
+        // MOBILE TOUCH ACCELERATOR
+        document.addEventListener('DOMContentLoaded', () => {
+            const buttons = document.querySelectorAll('button, .nav-item, .lang-opt, .action-card');
+            buttons.forEach(btn => {
+                btn.addEventListener('touchstart', function() {
+                    // Visual feedback
+                    this.style.opacity = '0.5';
+                    if (navigator.vibrate) navigator.vibrate(5);
+                }, {passive: true});
+                btn.addEventListener('touchend', function() {
+                    this.style.opacity = '1';
+                }, {passive: true});
+            });
+        });
 
         // Init — called after successful login via doLogin()
         window.speechSynthesis.onvoiceschanged = () => { };
