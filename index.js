@@ -225,6 +225,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.static('public'));
 
 // --- HEALTH CHECK (RENDER BOOT STACK) ---
 app.get('/health', (req, res) => {
