@@ -262,7 +262,7 @@
     <script>
         const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
         const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
-        let password = localStorage.getItem('olivia_pass') || '';
+        let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
 
         function updateClock() {
             const now = new Date();
