@@ -31,7 +31,13 @@ const biometricFile = './biometrics.json';
 const tokensFile = path.join(__dirname, 'push-tokens.json');
 const settingsFile = path.join(__dirname, 'settings.json');
 const prefsFile = 'preferences.json';
+const remindersFile = 'reminders.json';
+const notesFile = 'notes.json';
+const expensesFile = 'expenses.json';
 let chatHistory = new Map();
+let reminders = [];
+let notes = [];
+let expenses = [];
 let appointments = [];
 let todos = [];
 let pushTokens = [];
@@ -156,6 +162,22 @@ function saveTrends() {
 
 function savePrefs() {
     try { fs.writeFileSync(prefsFile, JSON.stringify(preferences, null, 2)); } catch (e) {}
+}
+
+// --- REMINDERS, NOTES, EXPENSES LOAD/SAVE ---
+function loadData(file, defaultVal = []) {
+    if (fs.existsSync(file)) {
+        try { return JSON.parse(fs.readFileSync(file)); } catch (e) { return defaultVal; }
+    }
+    return defaultVal;
+}
+
+reminders = loadData(remindersFile);
+notes = loadData(notesFile);
+expenses = loadData(expensesFile);
+
+function saveData(file, data) {
+    try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
 function loadBiometrics() {
@@ -886,6 +908,55 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(deskRegex, '');
 
+    // 9. Reminders - Format: [SET_REMINDER: message | 2024-05-10 14:00]
+    const remindRegex = /\[SET_REMINDER:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let rMatch;
+    while ((rMatch = remindRegex.exec(aiText)) !== null) {
+        reminders.push({ id: Date.now(), msg: rMatch[1].trim(), time: rMatch[2].trim(), sent: false });
+        saveData(remindersFile, reminders);
+        finalOutput += `\n\n[REMINDER SET: ${rMatch[1]} at ${rMatch[2]}, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(remindRegex, '');
+
+    // 10. Notes
+    const noteRegex = /\[SAVE_NOTE:\s*(.+?)\]/gi;
+    let noteMatch;
+    while ((noteMatch = noteRegex.exec(aiText)) !== null) {
+        notes.push({ id: Date.now(), text: noteMatch[1].trim(), timestamp: new Date().toISOString() });
+        saveData(notesFile, notes);
+        finalOutput += `\n\n[NOTE ARCHIVED: Memory bank updated, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(noteRegex, '');
+
+    // 11. Expenses
+    const expenseRegex = /\[TRACK_EXPENSE:\s*(.+?)\s*\|\s*(.+?)\]/gi;
+    let eMatch;
+    while ((eMatch = expenseRegex.exec(aiText)) !== null) {
+        expenses.push({ id: Date.now(), amount: eMatch[1].trim(), desc: eMatch[2].trim(), date: new Date().toISOString() });
+        saveData(expensesFile, expenses);
+        finalOutput += `\n\n[EXPENSE TRACKED: Ledger updated for ${eMatch[1]}, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(expenseRegex, '');
+
+    // 12. Timers (For Web UI)
+    const timerRegex = /\[SET_TIMER:\s*(\d+)\]/gi;
+    let tMatch;
+    while ((tMatch = timerRegex.exec(aiText)) !== null) {
+        // We notify clients so the HomePod UI can show a visual timer
+        notifyClients('timer', { duration: parseInt(tMatch[1]) });
+        finalOutput += `\n\n[TIMER ACTIVATED: ${tMatch[1]} seconds, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(timerRegex, '');
+
+    // 13. Music/Sound
+    const musicRegex = /\[PLAY_MUSIC:\s*(.+?)\]/gi;
+    let mMatch;
+    while ((mMatch = musicRegex.exec(aiText)) !== null) {
+        notifyClients('music', { query: mMatch[1].trim() });
+        finalOutput += `\n\n[MUSIC ACTIVATED: Searching for ${mMatch[1]}, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(musicRegex, '');
+
     return finalOutput.trim();
 }
 
@@ -932,11 +1003,18 @@ async function getGroqResponse(message, history = [], from = "") {
                 Tool Integration:
                 - [SET_REMINDER: msg | time], [ADD_TODO: task], [SAVE_NOTE: text]
                 - [SAVE_PREF: category | value], [GET_CALENDAR], [GET_EMAILS], [GET_TRENDS]
-                - [GET_WEATHER: City], [GET_NEWS: Topic], [OPEN_APP: Name]
+                - [GET_WEATHER: City], [GET_NEWS: Topic]
                 - [HOME_ACTION: entity | command], [IFTTT_TRIGGER: event | data]
                 - [BOOK_APPT: Name | Date | Time | Service]
-                - [UPDATE_BI: industry | update] Use to save business updates (gems/restaurant/clothing)
-                - [GET_BI_REPORT: industry] Use to get a summary of a specific business.
+                - [UPDATE_BI: industry | update], [TRACK_EXPENSE: amount | desc]
+                - [SET_TIMER: seconds], [PLAY_MUSIC: search query]
+                
+                CRITICAL INSTRUCTION:
+                1. ALWAYS reply with a natural language sentence in Singlish BEFORE using any tool tags.
+                2. NEVER just output a tool tag alone. Sir wants to hear your voice/see your reply.
+                3. DO NOT try to open apps unless specifically asked to "Launch" or "Open" an app on the host machine.
+                
+                Time Format: Use YYYY-MM-DD HH:mm for reminders.
                 
                 Business Knowledge:
                 - Subhash owns "69 Gems" (Luxury gemstones), "69 Restaurant" (Fine dining), and "69 Clothing" (Professional wear).
@@ -1180,8 +1258,16 @@ app.get('/api/assistant/ask', async (req, res) => {
         ${memoryContext}
         
         TOOL INTEGRATION:
-        - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
-        - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc]
+        - [SET_REMINDER: msg | 2024-05-10 14:00], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
+        - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
+        - [GET_CALENDAR], [HOME_ACTION: entity | cmd], [PLAY_MUSIC: query]
+        
+        SIRI CAPABILITIES: You now have full Siri parity. You can set reminders, track expenses, save notes, play music and run home automation.
+        
+        CRITICAL: 
+        - Always address Subhash as "Sir" or "Sir Subhash".
+        - ALWAYS provide a natural Singlish reply (e.g., "Dannam karannam Sir", "Wede iwarayi Sir") along with the tool tag.
+        - NEVER reply with ONLY a tool tag.
         `;
 
         const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
@@ -1318,6 +1404,25 @@ async function monitorTrends() {
 
 // Update trends ogni 6 ore
 setInterval(monitorTrends, 6 * 60 * 60 * 1000);
+
+// --- REMINDER CHECKER JOB ---
+import cron from 'node-cron';
+cron.schedule('* * * * *', () => { // Every minute
+    const now = new Date();
+    let changed = false;
+    reminders.forEach(r => {
+        if (!r.sent) {
+            const rTime = new Date(r.time);
+            if (rTime <= now) {
+                console.log(`⏰ REMINDER TRIGGERED: ${r.msg}`);
+                sendPushToAll("Olivia Reminder ⏰", r.msg).catch(e => {});
+                r.sent = true;
+                changed = true;
+            }
+        }
+    });
+    if (changed) saveData(remindersFile, reminders);
+});
 
 async function startBot() {
     const { version, isLatest } = await fetchLatestBaileysVersion();

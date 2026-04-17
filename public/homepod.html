@@ -13,6 +13,9 @@
             --bg: #000000;
             --text-main: #ffffff;
             --text-dim: #9ca3af;
+            --siri-blue: #23d5ab;
+            --siri-purple: #9b59b6;
+            --siri-cyan: #2980b9;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -74,17 +77,25 @@
         }
 
         .orb-inner {
-            width: 200px;
-            height: 200px;
-            background: linear-gradient(135deg, #ff4d4d 0%, #ff8080 100%);
+            width: 220px;
+            height: 220px;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
             border-radius: 50%;
-            box-shadow: 0 0 60px var(--primary-glow), inset 0 0 30px rgba(0,0,0,0.5);
+            box-shadow: 0 0 80px rgba(0,0,0,0.5), inset 0 0 40px rgba(255,255,255,0.2);
             position: relative;
             z-index: 5;
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .orb-inner i {
@@ -99,14 +110,54 @@
         }
 
         @keyframes orbPulse {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 0.8; }
+            0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.5; filter: blur(40px); }
+            50% { transform: scale(1.3) rotate(180deg); opacity: 0.9; filter: blur(60px); }
         }
 
         @keyframes orbListen {
             0%, 100% { box-shadow: 0 0 60px var(--primary-glow); }
             50% { box-shadow: 0 0 100px var(--primary); }
         }
+
+        /* TIMER DISPLAY */
+        #timer-box {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.05);
+            padding: 15px 30px;
+            border-radius: 50px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+            align-items: center;
+            gap: 15px;
+            z-index: 20;
+            animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #timer-val { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        #timer-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+        @keyframes slideUp {
+            from { transform: translate(-50%, 100px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        /* MUSIC STATUS */
+        #music-status {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            opacity: 0.6;
+            font-size: 0.9rem;
+        }
+        .bar { width: 3px; height: 10px; background: var(--primary); border-radius: 5px; animation: barMove 1s infinite alternate; }
+        .bar:nth-child(2) { animation-delay: 0.2s; }
+        .bar:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes barMove { from { height: 5px; } to { height: 15px; } }
 
         #status-text {
             margin-top: 50px;
@@ -193,6 +244,19 @@
 
         <div id="status-text">"Olivia"</div>
         <div id="sub-status">Ready to serve, Sir Subhash.</div>
+
+        <div id="music-status">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            <span>HomePod Active</span>
+        </div>
+    </div>
+
+    <div id="timer-box">
+        <i class="fas fa-hourglass-half" style="color: var(--primary);"></i>
+        <div>
+            <div id="timer-val">00:00</div>
+            <div id="timer-label">Timer Active</div>
+        </div>
     </div>
 
     <script>
@@ -223,6 +287,61 @@
                 return;
             }
             startWakeWordListening();
+            initSSE();
+        }
+
+        // --- REAL-TIME SYNC ---
+        function initSSE() {
+            if (!password) return;
+            const eventSource = new EventSource(`${API_BASE}/api/stream?pass=${password}`);
+            eventSource.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'timer') {
+                        startVisualTimer(data.duration);
+                    } else if (data.type === 'music') {
+                        playMusic(data.query);
+                    }
+                } catch(err) {}
+            };
+            eventSource.onerror = () => {
+                eventSource.close();
+                setTimeout(initSSE, 5000);
+            };
+        }
+
+        let timerInterval;
+        function startVisualTimer(seconds) {
+            clearInterval(timerInterval);
+            const box = document.getElementById('timer-box');
+            const val = document.getElementById('timer-val');
+            box.style.display = 'flex';
+            
+            let remaining = seconds;
+            const updateUI = () => {
+                const m = Math.floor(remaining / 60);
+                const s = remaining % 60;
+                val.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                if (remaining <= 0) {
+                    clearInterval(timerInterval);
+                    box.style.background = 'rgba(255, 51, 68, 0.2)';
+                    setTimeout(() => box.style.display = 'none', 5000);
+                    new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play();
+                }
+                remaining--;
+            };
+            updateUI();
+            timerInterval = setInterval(updateUI, 1000);
+        }
+
+        function playMusic(query) {
+            const status = document.getElementById('music-status');
+            status.innerHTML = `<div class="bar"></div><div class="bar"></div><div class="bar"></div><span>Playing: ${query}</span>`;
+            status.style.opacity = "1";
+            
+            // Open YouTube Music search in a popup/new tab
+            const url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
+            window.open(url, '_blank');
         }
 
         function startWakeWordListening() {
@@ -298,9 +417,15 @@
                 const data = await res.json();
                 
                 if (data.answer) {
+                    const fullText = data.answer;
+                    // Extract natural text (remove anything in [BRACKETS])
+                    const naturalText = fullText.replace(/\[.+?\]/g, '').trim();
+                    const systemInfo = (fullText.match(/\[.+?\]/g) || []).join(' ');
+
                     document.getElementById('status-text').innerText = "Olivia";
-                    document.getElementById('sub-status').innerText = "Responding...";
-                    await speakText(data.answer);
+                    document.getElementById('sub-status').innerText = systemInfo || "Responding...";
+                    
+                    await speakText(naturalText || "Command executed, Sir.");
                 } else if (data.error) {
                     document.getElementById('status-text').innerText = "System Error";
                     document.getElementById('sub-status').innerText = data.error;
