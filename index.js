@@ -807,6 +807,18 @@ async function triggerIFTTT(event, value) {
     } catch (e) { return "IFTTT uplink error, Sir."; }
 }
 
+async function handleSmartHome(action) {
+    const key = process.env.IFTTT_WEBHOOK_KEY;
+    const event = process.env[`SONOFF_LIGHT_${action.toUpperCase()}_EVENT`];
+    if (!key || !event) return "Smart home protocols incomplete, Sir.";
+    
+    try {
+        const url = `https://maker.ifttt.com/trigger/${event}/with/key/${key}`;
+        const res = await fetch(url, { method: 'POST' });
+        return res.ok ? `Done Sir! Light eka ${action} kala.` : "Sorry Sir, smart home system ekata connect wenna bari una.";
+    } catch (e) { return "Home link downlink error, Sir."; }
+}
+
 async function executeDesktopCmd(app) {
     // SECURITY WARNING: This ONLY works if Olivia is running on your local machine.
     // It will not work on Render.com.
@@ -863,7 +875,15 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(homeRegex, '');
 
-    // 4. IFTTT
+    // 4. IFTTT & Smart Home
+    const smartHomeRegex = /\[SMART_HOME:\s*(on|off)\]/gi;
+    let sMatch;
+    while ((sMatch = smartHomeRegex.exec(aiText)) !== null) {
+        const res = await handleSmartHome(sMatch[1].toLowerCase());
+        finalOutput += `\n\n[SMART HOME: ${res}]`;
+    }
+    finalOutput = finalOutput.replace(smartHomeRegex, '');
+
     const iftttRegex = /\[IFTTT_TRIGGER:\s*(.+?)\s*\|\s*(.+?)\]/gi;
     let iMatch;
     while ((iMatch = iftttRegex.exec(aiText)) !== null) {
@@ -1018,8 +1038,8 @@ async function getGroqResponse(message, history = [], from = "") {
                 
                 Smart Home: 
                 - Sir has a Sonoff Smart Light connected via IFTTT.
-                - To turn ON: Use [IFTTT_TRIGGER: light_on | true]
-                - To turn OFF: Use [IFTTT_TRIGGER: light_off | true]
+                - To turn ON: Use [SMART_HOME: on]
+                - To turn OFF: Use [SMART_HOME: off]
 
                 Business Knowledge:
                 - Subhash owns "69 Gems" (Luxury gemstones), "69 Restaurant" (Fine dining), and "69 Clothing" (Professional wear).
@@ -1266,7 +1286,8 @@ app.get('/api/assistant/ask', async (req, res) => {
         - [SET_REMINDER: msg | 2024-05-10 14:00], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
         - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
         - [GET_CALENDAR], [HOME_ACTION: entity | cmd], [PLAY_MUSIC: query]
-        - [IFTTT_TRIGGER: event | data] (Sonoff Light: 'light_on', 'light_off')
+        - [SMART_HOME: on/off] (Use for Sir's Sonoff Light)
+        - [IFTTT_TRIGGER: event | data]
         
         SIRI CAPABILITIES: You now have full Siri parity. You can set reminders, track expenses, save notes, play music and run home automation.
         
