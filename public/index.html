@@ -3523,14 +3523,21 @@
         // Fallback to browser TTS if ElevenLabs fails
         function fallbackSpeak(text, avatar) {
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = 1.05;
-            utterance.rate = 0.95;
+            const voices = window.speechSynthesis.getVoices();
+            
+            // Priority Selection for Quality Female Voices
+            const preferredVoice = voices.find(v => v.name.includes('Google US English') && v.name.includes('Female')) ||
+                                 voices.find(v => v.name.includes('Samantha')) || 
+                                 voices.find(v => v.name.includes('Microsoft Zira')) ||
+                                 voices.find(v => (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('girl')) && v.lang.includes('en'));
+            
+            if (preferredVoice) utterance.voice = preferredVoice;
+            
+            utterance.pitch = 1.1; // Slightly higher pitch for a more feminine tone
+            utterance.rate = 1.0;
             utterance.onstart = () => avatar.classList.add('olivia-talking');
             utterance.onend = () => avatar.classList.remove('olivia-talking');
             utterance.onerror = () => avatar.classList.remove('olivia-talking');
-            const voices = window.speechSynthesis.getVoices();
-            const femaleVoice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Female') || v.name.includes('Zira'));
-            if (femaleVoice) utterance.voice = femaleVoice;
             window.speechSynthesis.speak(utterance);
         }
 

@@ -454,6 +454,17 @@
                     audio.play();
                 } else {
                     const ut = new SpeechSynthesisUtterance(text);
+                    const voices = window.speechSynthesis.getVoices();
+                    
+                    const preferredVoice = voices.find(v => v.name.includes('Google US English') && v.name.includes('Female')) ||
+                                         voices.find(v => v.name.includes('Microsoft Zira')) ||
+                                         voices.find(v => v.name.includes('Samantha')) ||
+                                         voices.find(v => (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('girl')) && v.lang.includes('en'));
+                    
+                    if (preferredVoice) ut.voice = preferredVoice;
+                    ut.pitch = 1.1; // More feminine
+                    ut.rate = 1.0;
+
                     ut.onend = () => { document.getElementById('orbBtn').classList.remove('listening'); };
                     document.getElementById('orbBtn').classList.add('listening');
                     window.speechSynthesis.speak(ut);
