@@ -3696,7 +3696,9 @@
                 const data = await res.json();
                 aiTextEl.classList.remove('thinking-shimmer');
                 if (data.answer) {
-                    const cleanReply = data.answer.replace(/\[[A-Z_]+(?::\s*[^\]]+)?\]/g, '').trim();
+                    // Filter out tools [TAGS] for the natural text reply
+                    const cleanReply = data.answer.replace(/\[[A-Z_]+(?::\s*[^\]]+)?\]/g, '').trim() || "Done, Sir! Protocol executed.";
+                    
                     // Add AI response to history
                     chatHistory.push({ role: 'ai', text: cleanReply });
                     

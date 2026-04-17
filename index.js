@@ -977,7 +977,9 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(musicRegex, '');
 
-    return finalOutput.trim();
+    const resultText = finalOutput.trim();
+    // If the model only output tags and they were all removed, provide a fallback natural reply
+    return resultText || "Wede iwarayi Sir! (Command executed successfully)";
 }
 
 async function getGroqResponse(message, history = [], from = "") {
