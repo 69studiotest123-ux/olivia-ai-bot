@@ -1016,6 +1016,11 @@ async function getGroqResponse(message, history = [], from = "") {
                 
                 Time Format: Use YYYY-MM-DD HH:mm for reminders.
                 
+                Smart Home: 
+                - Sir has a Sonoff Smart Light connected via IFTTT.
+                - To turn ON: Use [IFTTT_TRIGGER: light_on | true]
+                - To turn OFF: Use [IFTTT_TRIGGER: light_off | true]
+
                 Business Knowledge:
                 - Subhash owns "69 Gems" (Luxury gemstones), "69 Restaurant" (Fine dining), and "69 Clothing" (Professional wear).
                 - Current Business Intelligence: ${JSON.stringify(businessIntel)}
@@ -1261,6 +1266,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         - [SET_REMINDER: msg | 2024-05-10 14:00], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
         - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
         - [GET_CALENDAR], [HOME_ACTION: entity | cmd], [PLAY_MUSIC: query]
+        - [IFTTT_TRIGGER: event | data] (Sonoff Light: 'light_on', 'light_off')
         
         SIRI CAPABILITIES: You now have full Siri parity. You can set reminders, track expenses, save notes, play music and run home automation.
         
