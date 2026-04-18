@@ -3638,7 +3638,8 @@
             let isHolding = false;
 
             const startPTT = (e) => {
-                if (e) e.preventDefault();
+                // Only prevent default on micBtn touch to avoid blocking other taps
+                if (e && e.type === 'touchstart' && e.currentTarget === micBtn) e.preventDefault();
                 unlockAudio();
                 
                 micBtn.classList.add('ptt-active');
@@ -3686,11 +3687,14 @@
 
             // Bind PTT Events
             micBtn.addEventListener('mousedown', startPTT);
-            micBtn.addEventListener('touchstart', startPTT);
+            micBtn.addEventListener('touchstart', startPTT, { passive: false });
             
             window.addEventListener('mouseup', stopPTT);
-            window.addEventListener('touchend', stopPTT);
+            // CRITICAL: passive:true so this NEVER blocks mobile taps/clicks on other elements
+            window.addEventListener('touchend', stopPTT, { passive: true });
             micBtn.addEventListener('mouseleave', stopPTT);
+            // Dedicated micBtn touchend for clean PTT stop on mobile
+            micBtn.addEventListener('touchend', (e) => { stopPTT(e); }, { passive: true });
 
         } else {
             micBtn.onclick = () => alert('Voice not supported. Use Chrome.');
