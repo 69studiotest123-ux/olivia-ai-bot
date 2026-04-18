@@ -56,7 +56,6 @@
             margin: 0;
             padding: 0;
             -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
         }
 
         body {
@@ -67,9 +66,21 @@
             overflow-x: hidden;
             padding-top: var(--safe-top);
             padding-bottom: calc(80px + var(--safe-bottom));
+        }
+
+        /* Fix for mobile touch delays and selection without blocking click events */
+        a, button, .btn, .nav-item, .action-card, .mode-tab, .template-chip {
+            touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
-            -webkit-touch-callout: none; /* Prevents long-press context menu delay */
+            -webkit-touch-callout: none;
+            cursor: pointer;
+        }
+
+        input, textarea {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            touch-action: manipulation;
         }
 
         .chat-container, .lead-preview, input, textarea, [contenteditable="true"] {
