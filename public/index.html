@@ -2346,7 +2346,7 @@
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=Olivia&background=ff4d4d&color=fff';">
         </div>
         <h1 class="login-title">Olivia <span>AI</span></h1>
-        <p class="login-sub">Subhash's Personal Intelligence Assistant <span style="font-size:0.65rem; opacity:0.4;">v8.18 Elite</span></p>
+        <p class="login-sub">Subhash's Personal Intelligence Assistant <span id="appVersionDisplay" style="font-size:0.65rem; opacity:0.4;"></span></p>
         
         <div class="login-card">
             <label class="pw-label">Access Key</label>
@@ -2882,6 +2882,24 @@
     </div>
 
     <script>
+        const APP_VERSION = "v8.19 Elite";
+        
+        // Version Check & Update Notification
+        document.addEventListener('DOMContentLoaded', () => {
+            const displaySpan = document.getElementById('appVersionDisplay');
+            if(displaySpan) displaySpan.innerText = APP_VERSION;
+            
+            const lastVersion = localStorage.getItem('olivia_app_version');
+            if (lastVersion !== APP_VERSION) {
+                setTimeout(() => {
+                    if(typeof showToast === 'function') {
+                        showToast('System Updated', `Olivia successfully updated to ${APP_VERSION}`, 'fa-rocket');
+                    }
+                }, 1500);
+                localStorage.setItem('olivia_app_version', APP_VERSION);
+            }
+        });
+
         const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
         const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
