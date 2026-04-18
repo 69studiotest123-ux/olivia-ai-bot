@@ -2882,9 +2882,25 @@
             autoReply: true,
             voiceEnabled: true,
             wakeWordEnabled: false,
+            biometricEnabled: false,
+            voiceSource: 'browser',
+            voiceId: '',
             currentModel: 'gemini',
             potions: { visionEye: true, deepMemory: true, homeHub: true }
         };
+
+        // Settings persistence helpers
+        function saveSetting(key, val) {
+            currentSettings[key] = val;
+            try { localStorage.setItem('olivia_settings', JSON.stringify(currentSettings)); } catch(e) {}
+        }
+
+        function loadSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('olivia_settings') || '{}');
+                Object.assign(currentSettings, saved);
+            } catch(e) {}
+        }
 
         let DYNAMIC_PROMPT = "";
         let attachedFileText = "";
@@ -3998,77 +4014,7 @@
             }
         }
 
-        let wakeWordRecognition;
-        function toggleWakeWord(active) {
-            if (!active) {
-                if (wakeWordRecognition) wakeWordRecognition.stop();
-                return;
-            }
-            
-            showToast('Beta Mode', 'Wake Word "Olivia" is now active.', 'fa-microphone-sense');
-            wakeWordRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            wakeWordRecognition.lang = 'en-US';
-            wakeWordRecognition.continuous = true;
-            wakeWordRecognition.interimResults = true;
 
-            wakeWordRecognition.onresult = (event) => {
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    const text = event.results[i][0].transcript.toLowerCase();
-                    if (text.includes('olivia') || text.includes('hey olivia')) {
-                        if (!document.body.classList.contains('listening')) {
-                            // Trigger mic locally
-                            document.getElementById('micBtn').click(); 
-                        }
-                    }
-                }
-            };
-            
-            wakeWordRecognition.onend = () => {
-                if (document.getElementById('wakeWordToggle').checked) {
-                    setTimeout(() => { try { wakeWordRecognition.start(); } catch(e){} }, 500);
-                }
-            };
-            
-            wakeWordRecognition.start();
-        }
-
-        function saveIdeaToVault(idea) {
-            const list = document.getElementById('ideasList');
-            if (list.querySelector('p')?.innerText.includes('Tell Olivia')) list.innerHTML = '';
-            
-            const div = document.createElement('div');
-            div.className = 'action-card';
-            div.style = 'margin-bottom:10px; border-left:3px solid var(--primary); background:rgba(255,100,100,0.05);';
-            div.innerHTML = `
-                <div style="font-weight:700; margin-bottom:4px; color:var(--primary);"><i class="fas fa-lightbulb"></i> Strategic Idea</div>
-                <div style="font-size:0.85rem;">${idea}</div>
-                <div style="font-size:0.6rem; opacity:0.5; margin-top:5px;">${new Date().toLocaleDateString() === new Date().toLocaleDateString() ? 'Today' : 'Earlier'} | ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-            `;
-            list.prepend(div);
-            showToast('Idea Saved', 'Business Vault updated.', 'fa-lightbulb');
-        }
-
-        async function generateDailyBriefing() {
-            try {
-                const res = await fetch(`${API_BASE}/api/logs?pass=${password}`);
-                const data = await res.json();
-                const leadCount = Object.keys(data.logs || {}).length;
-                
-                const response = `Sir, current briefing as follow. You have ${leadCount} active leads. Your studio systems are nominal. I have updated the ideas vault with your latest brainstormings. How should we proceed?`;
-                aiTextEl.innerText = response;
-                speakText(response);
-            } catch(e) {
-                showToast('Briefing Error', 'Core downlink failed.', 'fa-times');
-            }
-        }
-                case 'SAVE_IDEA':
-                    saveIdeaToVault(param);
-                    break;
-                case 'GIVE_BRIEFING':
-                    generateDailyBriefing();
-                    break;
-            }
-        }
 
         async function generateStudioContent(type, topic) {
             showToast('Studio Engine', `Generating ${type} for ${topic}...`, 'fa-magic');
@@ -5328,43 +5274,7 @@
             }, 1000);
         });
 
-        async function speakText(text) {
-            if (!currentSettings.voiceEnabled || !text) return;
-            
-            const avatar = document.getElementById('avatarContainer');
-            if (avatar) avatar.classList.add('olivia-talking');
-
-            // --- ELEVENLABS ENGINE (v8.4) ---
-            if (currentSettings.voiceSource === 'elevenlabs') {
-                try {
-                    const res = await fetch(`${API_BASE}/api/assistant/tts`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ pass: password, text, voiceId: currentSettings.voiceId })
-                    });
-                    if (res.ok) {
-                        const blob = await res.blob();
-                        const audio = new Audio(URL.createObjectURL(blob));
-                        audio.onended = () => { if (avatar) avatar.classList.remove('olivia-talking'); };
-                        audio.play();
-                        return;
-                    }
-                } catch (e) { console.error('ElevenLabs TTS failed:', e); }
-            }
-
-            // --- BROWSER FALLBACK ---
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = currentLang;
-            
-            // Sinhalese optimizations
-            if (currentLang === 'si-LK') {
-                utterance.pitch = 1.1;
-                utterance.rate = 1.0;
-            }
-
-            utterance.onend = () => { if (avatar) avatar.classList.remove('olivia-talking'); };
-            window.speechSynthesis.speak(utterance);
-        }
+        // speakText is defined above at the main TTS function (ElevenLabs + fallback)
 
         async function fetchBIReport(industry) {
             const view = document.getElementById('biReportView');
