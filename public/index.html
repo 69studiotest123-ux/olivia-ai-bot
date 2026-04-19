@@ -2390,6 +2390,18 @@
     <div id="mainApp">
         <div class="bg-glow"></div>
         
+        <!-- MUSIC PLAYER (Mini Player) -->
+        <div id="musicContainer" style="display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--primary); border-radius:20px; padding:15px; z-index:10000; flex-direction:column; align-items:center; backdrop-filter:blur(30px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:10px;">
+                <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                    <span style="font-size:0.8rem; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px;"><i class="fas fa-compact-disc fa-spin"></i> Now Playing</span>
+                    <span id="musicSub" style="font-size:0.7rem; color:var(--text-dim);">Loading...</span>
+                </div>
+                <button onclick="document.getElementById('musicContainer').style.display='none'; document.getElementById('musicPlayer').src='';" style="background:rgba(255,255,255,0.1); border-radius:50%; width:28px; height:28px; border:none; color:white; cursor:pointer;"><i class="fas fa-times"></i></button>
+            </div>
+            <iframe id="musicPlayer" width="280" height="80" style="border-radius:10px;" frameborder="0" allow="autoplay; encrypted-media"></iframe>
+        </div>
+
         <!-- Vision Eye button available in Quick Actions grid below -->
 
 
@@ -3133,6 +3145,9 @@
                                 setWhatsAppStatus(payload.wa);
                                 setServerStatus('live');
                                 return;
+                            } else if (payload.type === 'music') {
+                                playMusic(payload.query, payload.videoId);
+                                return;
                             }
                         }
                     } catch (e) {
@@ -3236,6 +3251,20 @@
                 document.title = `(${notificationCount}) ${originalTitle}`;
             } else {
                 document.title = originalTitle;
+            }
+        }
+
+        function playMusic(query, videoId) {
+            const player = document.getElementById('musicPlayer');
+            const container = document.getElementById('musicContainer');
+            if (player && container) {
+                const url = videoId 
+                    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${window.location.origin}`
+                    : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&origin=${window.location.origin}`;
+                player.src = url;
+                container.style.display = 'flex';
+                document.getElementById('musicSub').innerText = query;
+                showToast('Music Started', 'Now playing: ' + query, 'fa-music');
             }
         }
 
