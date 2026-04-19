@@ -335,9 +335,10 @@
     <div id="homepod-ui">
         <div id="kiosk-status">Always-On Display Active</div>
         
-        <!-- Embedded Music Engine (v8.27) -->
-        <div id="musicContainer" style="display:none; position:fixed; bottom:0; left:0; width:100%; height:80px; z-index:5; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); border-top:1px solid rgba(255,255,255,0.1); align-items:center; justify-content:center; padding:0 20px;">
-            <iframe id="musicPlayer" width="100%" height="60" src="" frameborder="0" allow="autoplay; encrypted-media"></iframe>
+        <!-- Embedded Music Engine (v8.28) -->
+        <div id="musicContainer" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); width:90%; max-width:400px; height:120px; z-index:100; background:rgba(255,255,255,0.05); backdrop-filter:blur(30px); border:1px solid rgba(255,255,255,0.1); border-radius:24px; align-items:center; justify-content:center; padding:15px; box-shadow:0 20px 50px rgba(0,0,0,0.5); animation: fadeInUp 0.5s ease;">
+            <div style="position:absolute; top:-10px; right:10px; background:var(--primary); color:white; font-size:0.6rem; padding:4px 10px; border-radius:20px; font-weight:800; text-transform:uppercase;">Live Audio Stream</div>
+            <iframe id="musicPlayer" width="100%" height="80" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border-radius:15px;"></iframe>
         </div>
 
         <!-- Embedded Silent Video (v8.25) -->
@@ -474,15 +475,15 @@
             const player = document.getElementById('musicPlayer');
             const container = document.getElementById('musicContainer');
             if (player && container) {
-                // Use YouTube search embed hack with autoplay
-                const url = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1`;
+                // Use robust YouTube search embed
+                const url = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&origin=${window.location.origin}`;
                 player.src = url;
                 container.style.display = 'flex';
                 
-                const status = document.getElementById('music-status');
-                status.innerHTML = `<div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><span>Playing: ${query}</span>`;
-                status.style.opacity = "1";
-                console.log("In-Pod Music started: " + query);
+                const status = document.getElementById('status-text');
+                const sub = document.getElementById('sub-status');
+                status.innerText = "Music On";
+                sub.innerText = "Now playing: " + query;
             }
         }
 
