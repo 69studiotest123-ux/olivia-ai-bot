@@ -339,9 +339,9 @@
 
     <div id="homepod-ui">
         <div id="kiosk-status">Always-On Display Active</div>
-        <!-- Silent Video Hack for Wake Lock fallback -->
-        <video id="wakeLockVideo" loop muted playsinline style="display:none;">
-            <source src="https://raw.githubusercontent.com/69studiotest123-ux/olivia-ai-bot/main/silent.mp4" type="video/mp4">
+        <!-- Embedded Silent Video (v8.25) -->
+        <video id="wakeLockVideo" loop muted playsinline style="position:fixed; top:0; left:0; width:1px; height:1px; opacity:0.01; pointer-events:none;">
+            <source src="data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21pc28yYXZjMWFhYmMAAABkbW9vdvAAAABsbXZoZAAAAADREu8A0RLvAAACWAAAAnEAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAABB0cmFrAAAAXHRraGQAAAAD0RLvANES7wAAAAEAAAAAAAAnEAAAAAAAAAAAAAAAAAABAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAApBtZGlhAAAAIG1kaGQAAAAA0RLvANES7wAAALhAAAC4AFhlAAAAAAAAbWhscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAAAgkaG1oZAAAAAAAc3RibAAAAFBzdHNkAAAAAAAAAAEAAABQYXZjMQAAAAAAAAAAAAAAAAAAAAAAAQAWAAAAFAAAABQAAABhdmNDAVQAKv/hABhnVAAK78AsAtIAAAMEAAACvA8SLP8AAbO9AAAAEHBhc3AAAAABAAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAAAOAAAABxzdHNjAAAAAAAAAAEAAAABAAAAAQAAAAEAAAAUc3RzeAAAAAAAAAEAAAABAAAADHN0c28AAAAAAAAAAhAAABBzdHN6AAAAAAAAAAAAAAABAAAALnN0Y28AAAAAAAAAAQAAADQAAABIdWR0YQAAADBtZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyAAAAAAAAAAAAAAAAAAAAAAAAYXBwbAAAAAhtbm90AAAAAA==" type="video/mp4">
         </video>
         <div class="time-container">
             <div id="clock">00:00</div>
@@ -358,7 +358,7 @@
         </div>
 
         <div class="status-glass">
-            <div id="status-text">"Olivia v8.23"</div>
+            <div id="status-text">"Olivia v8.25"</div>
             <div id="sub-status">Ready for your command, Sir.</div>
         </div>
 
@@ -634,18 +634,24 @@
         async function requestWakeLock() {
             // Approach 1: Try Native WakeLock API
             try {
-                if ('wakeLock' in navigator) {
+                if ('wakeLock' in navigator && navigator.wakeLock.request) {
                     wakeLock = await navigator.wakeLock.request('screen');
                     console.log("Native Wake Lock Active.");
                 }
             } catch (err) { console.warn("Native WakeLock failed."); }
 
-            // Approach 2: Silent Video Fallback (Highly effective on iOS/Safari)
+            // Approach 2: Embedded Silent Video (v8.25)
             const video = document.getElementById('wakeLockVideo');
             if (video) {
                 video.play().then(() => {
-                    console.log("Video Wake Lock Fallback Active.");
-                }).catch(e => console.warn("Video Wake Lock failed.", e));
+                    console.log("Embedded Video Wake Lock Active.");
+                    // Heartbeat to ensure video playback isn't killed by OS
+                    setInterval(() => {
+                        if (video.paused && !document.hidden) video.play().catch(() => {});
+                    }, 5000);
+                }).catch(e => {
+                    console.warn("Video Wake Lock activation failed on this device.", e);
+                });
             }
         }
 
