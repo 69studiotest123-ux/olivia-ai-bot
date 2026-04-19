@@ -254,6 +254,38 @@
 
         .glass-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-3px); }
 
+        /* --- BRANDING --- */
+        .brand-top {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 100;
+            animation: fadeIn 1.5s ease;
+        }
+
+        .brand-top img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 1px solid var(--primary);
+        }
+
+        .brand-top h2 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #fff;
+            margin: 0;
+        }
+
+        .brand-top span { color: var(--primary); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
         /* ANIMATIONS */
         @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -272,6 +304,11 @@
         <div class="light-blob blob-1"></div>
         <div class="light-blob blob-2"></div>
         <div class="light-blob blob-3"></div>
+    </div>
+
+    <div class="brand-top">
+        <img src="https://media.discordapp.net/attachments/1118181655655780442/1206587440407711754/avatar.png?ex=65db39f2&is=65c8c4f2&hm=9408013d49265eb6348f070624007137f61688888888877&" alt="Olivia">
+        <h2>OLIVIA <span>AI</span></h2>
     </div>
 
     <div class="top-dash">
