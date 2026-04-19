@@ -437,7 +437,7 @@
                     if (data.type === 'timer') {
                         startVisualTimer(data.duration);
                     } else if (data.type === 'music') {
-                        playMusic(data.query);
+                        playMusic(data.query, data.videoId);
                     }
                 } catch(err) {}
             };
@@ -471,12 +471,14 @@
             timerInterval = setInterval(updateUI, 1000);
         }
 
-        function playMusic(query) {
+        function playMusic(query, videoId) {
             const player = document.getElementById('musicPlayer');
             const container = document.getElementById('musicContainer');
             if (player && container) {
-                // Use robust YouTube search embed
-                const url = `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&origin=${window.location.origin}`;
+                // Use specific videoId if found, else robust YouTube search embed
+                const url = videoId
+                    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${window.location.origin}`
+                    : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&origin=${window.location.origin}`;
                 player.src = url;
                 container.style.display = 'flex';
                 
@@ -607,10 +609,11 @@
                     const ut = new SpeechSynthesisUtterance(text);
                     const voices = window.speechSynthesis.getVoices();
                     
-                    const preferredVoice = voices.find(v => v.name.includes('Google US English') && v.name.includes('Female')) ||
+                    const preferredVoice = voices.find(v => v.name === 'Google US English') ||
+                                         voices.find(v => v.name.includes('Google UK English Female')) ||
                                          voices.find(v => v.name.includes('Microsoft Zira')) ||
                                          voices.find(v => v.name.includes('Samantha')) ||
-                                         voices.find(v => (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('girl')) && v.lang.includes('en'));
+                                         voices.find(v => (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('girl')));
                     
                     if (preferredVoice) ut.voice = preferredVoice;
                     ut.pitch = 1.1; // More feminine

@@ -16,6 +16,7 @@ import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import admin from 'firebase-admin';
 import cors from 'cors';
 import multer from 'multer';
+import ytSearch from 'yt-search';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -972,7 +973,13 @@ async function processAiTools(aiText, jid) {
     const musicRegex = /\[PLAY_MUSIC:\s*(.+?)\]/gi;
     let mMatch;
     while ((mMatch = musicRegex.exec(aiText)) !== null) {
-        notifyClients('music', { query: mMatch[1].trim() });
+        try {
+            const result = await ytSearch(mMatch[1].trim());
+            const videoId = result.videos && result.videos.length > 0 ? result.videos[0].videoId : null;
+            notifyClients('music', { query: mMatch[1].trim(), videoId: videoId });
+        } catch (e) {
+            notifyClients('music', { query: mMatch[1].trim() });
+        }
         finalOutput += `\n\n[MUSIC ACTIVATED: Searching for ${mMatch[1]}, Sir.]`;
     }
     finalOutput = finalOutput.replace(musicRegex, '');
