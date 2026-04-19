@@ -339,6 +339,10 @@
 
     <div id="homepod-ui">
         <div id="kiosk-status">Always-On Display Active</div>
+        <!-- Silent Video Hack for Wake Lock fallback -->
+        <video id="wakeLockVideo" loop muted playsinline style="display:none;">
+            <source src="https://raw.githubusercontent.com/69studiotest123-ux/olivia-ai-bot/main/silent.mp4" type="video/mp4">
+        </video>
         <div class="time-container">
             <div id="clock">00:00</div>
             <div id="date">SYNCING INTEL...</div>
@@ -611,31 +615,44 @@
         let inactivityTimer;
         function resetInactivity() {
             const dash = document.querySelector('.top-dash');
-            dash.classList.remove('hide');
+            if (dash) dash.classList.remove('hide');
             document.body.classList.remove('kiosk-mode');
             clearTimeout(inactivityTimer);
             inactivityTimer = setTimeout(() => {
-                dash.classList.add('hide');
+                const dash = document.querySelector('.top-dash');
+                if (dash) dash.classList.add('hide');
                 if (document.fullscreenElement) document.body.classList.add('kiosk-mode');
-            }, 5000);
+            }, 8000);
         }
 
         window.addEventListener('mousemove', resetInactivity);
         window.addEventListener('touchstart', resetInactivity);
         resetInactivity();
 
-        // NO-SLEEP LOGIC (Simple Hack: Play tiny silent video if needed, or keep activity)
+        // NO-SLEEP LOGIC (Dual approach: WakeLock API + Silent Video)
         let wakeLock = null;
         async function requestWakeLock() {
+            // Approach 1: Try Native WakeLock API
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log("Wake Lock set to active.");
+                    console.log("Native Wake Lock Active.");
                 }
-            } catch (err) {
-                console.warn(`Wake Lock failed: ${err.name}, ${err.message}`);
+            } catch (err) { console.warn("Native WakeLock failed."); }
+
+            // Approach 2: Silent Video Fallback (Highly effective on iOS/Safari)
+            const video = document.getElementById('wakeLockVideo');
+            if (video) {
+                video.play().then(() => {
+                    console.log("Video Wake Lock Fallback Active.");
+                }).catch(e => console.warn("Video Wake Lock failed.", e));
             }
         }
+
+        // Re-request on visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') requestWakeLock();
+        });
 
         // Trigger wake lock and fullscreen on first interaction
         const originalStartManualListening = startManualListening;
