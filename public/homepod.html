@@ -381,6 +381,10 @@
             ? window.location.origin 
             : 'https://olivia-ai-bot-1.onrender.com';
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
+        // Persist password for always-on stability
+        if (new URLSearchParams(window.location.search).get('pass')) {
+            localStorage.setItem('olivia_pass', password);
+        }
 
         function updateClock() {
             const now = new Date();
@@ -472,7 +476,8 @@
             
             // Open YouTube Music search in a popup/new tab
             const url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
-            window.open(url, '_blank');
+            // window.open(url, '_blank');
+            console.log("Music requested: " + query);
         }
 
         function startWakeWordListening() {
