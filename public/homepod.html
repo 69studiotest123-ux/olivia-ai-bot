@@ -10,12 +10,12 @@
         :root {
             --primary: #ff3344;
             --primary-glow: rgba(255, 51, 68, 0.4);
-            --bg: #000000;
+            --bg: #050508;
             --text-main: #ffffff;
-            --text-dim: #9ca3af;
-            --siri-blue: #23d5ab;
-            --siri-purple: #9b59b6;
-            --siri-cyan: #2980b9;
+            --text-dim: rgba(255, 255, 255, 0.5);
+            --accent: #38bdf8;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -32,222 +32,276 @@
             overflow: hidden;
             user-select: none;
             -webkit-user-select: none;
+            position: relative;
+        }
+
+        /* --- DYNAMIC BACKGROUND --- */
+        .ambient-engine {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 50%, #111, #000);
+        }
+
+        .light-blob {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+            animation: float 25s infinite alternate ease-in-out;
+        }
+
+        .blob-1 { background: var(--primary); top: -20%; left: -10%; animation-delay: 0s; }
+        .blob-2 { background: var(--accent); bottom: -20%; right: -10%; animation-delay: -5s; }
+        .blob-3 { background: #a855f7; top: 40%; left: 30%; width: 600px; height: 600px; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, 50px) scale(1.2); }
         }
 
         #homepod-ui {
             text-align: center;
             position: relative;
             z-index: 10;
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
         }
 
-        /* DIGITAL CLOCK */
+        /* --- TIME & DATE --- */
+        .time-container {
+            margin-bottom: 40px;
+            animation: fadeInDown 1s ease-out;
+        }
+
         #clock {
-            font-size: 5rem;
-            font-weight: 700;
-            letter-spacing: -2px;
-            margin-bottom: 5px;
-            opacity: 0.9;
-        }
-        #date {
-            font-size: 1.2rem;
-            color: var(--text-dim);
-            margin-bottom: 50px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            font-size: 6.5rem;
+            font-weight: 800;
+            letter-spacing: -4px;
+            line-height: 1;
+            background: linear-gradient(to bottom, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            drop-shadow: 0 10px 20px rgba(0,0,0,0.5);
         }
 
-        /* GLOWING ORB */
-        .orb-wrapper {
+        #date {
+            font-size: 1rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        /* --- THE ULTIMATE ORB --- */
+        .orb-portal {
             position: relative;
-            width: 350px;
-            height: 350px;
+            width: 320px;
+            height: 320px;
+            margin: 0 auto;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            transition: 0.5s;
         }
 
-        .orb-outer {
+        .orb-portal:active { transform: scale(0.95); }
+
+        .orb-ring {
             position: absolute;
             inset: 0;
-            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            border: 1px solid rgba(255, 51, 68, 0.1);
             border-radius: 50%;
-            filter: blur(40px);
-            animation: orbPulse 4s ease-in-out infinite;
+            animation: ringRotate 10s linear infinite;
         }
 
-        .orb-inner {
-            width: 220px;
-            height: 220px;
-            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+        .ring-2 { inset: 20px; border-color: rgba(56, 189, 248, 0.1); animation-duration: 15s; animation-direction: reverse; }
+        .ring-3 { inset: 40px; border-color: rgba(168, 85, 247, 0.1); animation-duration: 20s; }
+
+        @keyframes ringRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .orb-core {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(-45deg, #ff3344, #ff7744, #38bdf8, #a855f7);
             background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
             border-radius: 50%;
-            box-shadow: 0 0 80px rgba(0,0,0,0.5), inset 0 0 40px rgba(255,255,255,0.2);
             position: relative;
             z-index: 5;
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: 
+                0 0 100px rgba(255, 51, 68, 0.3),
+                inset 0 0 50px rgba(0,0,0,0.5);
+            animation: coreMorph 15s ease infinite alternate, coreGlow 4s infinite;
+            transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        @keyframes coreMorph {
+            0% { border-radius: 50% 50% 50% 50%; background-position: 0% 50%; }
+            50% { border-radius: 45% 55% 48% 52%; background-position: 100% 50%; }
+            100% { border-radius: 52% 48% 55% 45%; background-position: 0% 50%; }
         }
 
-        .orb-inner i {
-            font-size: 4rem;
+        @keyframes coreGlow {
+            0%, 100% { box-shadow: 0 0 80px rgba(255, 51, 68, 0.2); }
+            50% { box-shadow: 0 0 120px rgba(255, 51, 68, 0.5); }
+        }
+
+        .orb-core i {
+            font-size: 3.5rem;
             color: white;
-            filter: drop-shadow(0 2px 10px rgba(0,0,0,0.3));
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
         }
 
-        .orb-wrapper.listening .orb-inner {
-            transform: scale(1.1);
-            animation: orbListen 1.5s infinite;
+        /* LISTENING STATE */
+        .listening .orb-core {
+            transform: scale(1.15);
+            animation: coreListen 1s infinite alternate;
         }
 
-        @keyframes orbPulse {
-            0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.5; filter: blur(40px); }
-            50% { transform: scale(1.3) rotate(180deg); opacity: 0.9; filter: blur(60px); }
+        @keyframes coreListen {
+            from { box-shadow: 0 0 100px var(--primary); }
+            to { box-shadow: 0 0 150px var(--primary); }
         }
 
-        @keyframes orbListen {
-            0%, 100% { box-shadow: 0 0 60px var(--primary-glow); }
-            50% { box-shadow: 0 0 100px var(--primary); }
+        /* --- STATUS BAR --- */
+        .status-glass {
+            margin-top: 50px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+            padding: 20px 40px;
+            border-radius: 100px;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 5px;
+            animation: fadeInUp 1s ease-out;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
         }
-
-        /* TIMER DISPLAY */
-        #timer-box {
-            position: fixed;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255,255,255,0.05);
-            padding: 15px 30px;
-            border-radius: 50px;
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.1);
-            display: none;
-            align-items: center;
-            gap: 15px;
-            z-index: 20;
-            animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        #timer-val { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        #timer-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
-
-        @keyframes slideUp {
-            from { transform: translate(-50%, 100px); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
-        }
-
-        /* MUSIC STATUS */
-        #music-status {
-            margin-top: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            opacity: 0.6;
-            font-size: 0.9rem;
-        }
-        .bar { width: 3px; height: 10px; background: var(--primary); border-radius: 5px; animation: barMove 1s infinite alternate; }
-        .bar:nth-child(2) { animation-delay: 0.2s; }
-        .bar:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes barMove { from { height: 5px; } to { height: 15px; } }
 
         #status-text {
-            margin-top: 50px;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: white;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #fff;
             letter-spacing: -0.5px;
-            min-height: 2rem;
         }
 
         #sub-status {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-dim);
-            margin-top: 10px;
-            opacity: 0.6;
+            letter-spacing: 0.5px;
         }
 
-        /* AMBIENT BACKGROUND */
-        .ambient-bg {
-            position: fixed;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-        }
-        .blob {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: rgba(255, 51, 68, 0.05);
-            filter: blur(100px);
-            border-radius: 50%;
-            animation: blobFloat 20s infinite alternate;
-        }
-        @keyframes blobFloat {
-            from { transform: translate(-20%, -20%); }
-            to { transform: translate(20%, 20%); }
-        }
-
-        /* CONTROL OVERLAY */
-        .top-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
-            display: flex;
-            gap: 15px;
-        }
-        .btn-round {
-            width: 50px;
-            height: 50px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 50%;
-            backdrop-filter: blur(10px);
-            color: white;
+        /* --- MUSIC VISUALIZER --- */
+        #music-status {
+            margin-top: 25px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 12px;
+            opacity: 0.8;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 12px;
+            background: var(--primary);
+            border-radius: 10px;
+            animation: waveBounce 1s infinite alternate;
+        }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; background: #ff7744; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; background: #a855f7; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; background: var(--accent); }
+
+        @keyframes waveBounce {
+            from { height: 10px; opacity: 0.4; }
+            to { height: 24px; opacity: 1; }
+        }
+
+        /* --- TOP CONTROLS --- */
+        .top-dash {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .glass-btn {
+            width: 54px;
+            height: 54px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            backdrop-filter: blur(10px);
             cursor: pointer;
+            transition: 0.3s;
             text-decoration: none;
+        }
+
+        .glass-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-3px); }
+
+        /* ANIMATIONS */
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- MOBILE ADAPTATION --- */
+        @media (max-width: 480px) {
+            #clock { font-size: 4.5rem; }
+            .orb-portal { width: 280px; height: 280px; }
+            .orb-core { width: 160px; height: 160px; }
+            .status-glass { padding: 15px 25px; width: 90%; }
         }
     </style>
 </head>
 <body>
-    <div class="ambient-bg">
-        <div class="blob"></div>
+    <div class="ambient-engine">
+        <div class="light-blob blob-1"></div>
+        <div class="light-blob blob-2"></div>
+        <div class="light-blob blob-3"></div>
     </div>
 
-    <div class="top-controls">
-        <a href="/" class="btn-round" title="Back to App"><i class="fas fa-home"></i></a>
-        <button class="btn-round" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+    <div class="top-dash">
+        <a href="/" class="glass-btn" title="Back to App"><i class="fas fa-home"></i></a>
+        <button class="glass-btn" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
     </div>
 
     <div id="homepod-ui">
-        <div id="clock">00:00</div>
-        <div id="date">LOADING INTEL...</div>
+        <div class="time-container">
+            <div id="clock">00:00</div>
+            <div id="date">SYNCING INTEL...</div>
+        </div>
 
-        <div class="orb-wrapper" id="orbBtn" onclick="startManualListening()">
-            <div class="orb-outer"></div>
-            <div class="orb-inner">
+        <div class="orb-portal" id="orbBtn" onclick="startManualListening()">
+            <div class="orb-ring ring-1"></div>
+            <div class="orb-ring ring-2"></div>
+            <div class="orb-ring ring-3"></div>
+            <div class="orb-core">
                 <i class="fas fa-microphone"></i>
             </div>
         </div>
 
-        <div id="status-text">"Olivia"</div>
-        <div id="sub-status">Ready to serve, Sir Subhash.</div>
+        <div class="status-glass">
+            <div id="status-text">"Olivia v8.23"</div>
+            <div id="sub-status">Ready for your command, Sir.</div>
+        </div>
 
         <div id="music-status">
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-            <span>HomePod Active</span>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <span style="font-size:0.75rem; text-transform:uppercase; letter-spacing:1px; font-weight:700; opacity:0.6;">HomePod Active</span>
         </div>
     </div>
 
@@ -408,7 +462,7 @@
             };
 
             pttRec.onend = () => {
-                orb.classList.remove('listening');
+                document.getElementById('orbBtn').classList.remove('listening');
                 pttRec = null;
                 setTimeout(startWakeWordListening, 1000);
             };
