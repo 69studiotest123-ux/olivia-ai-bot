@@ -1145,8 +1145,21 @@ app.post('/api/assistant/vision', async (req, res) => {
                 }]
             });
             answer = completion.choices[0].message.content;
+        } else if (modelType === 'groq') {
+            if (!groq) throw new Error('Groq AI is not configured on this server. Please check GROQ_API_KEY.');
+            const completion = await groq.chat.completions.create({
+                model: 'llama-3.2-11b-vision-preview',
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: systemPrompt + (finalQuery ? `\n\nUser question: ${finalQuery}` : '\n\nDescribe this image.') },
+                        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${finalImage}` } }
+                    ]
+                }]
+            });
+            answer = completion.choices[0].message.content;
         } else {
-            answer = 'Image analysis requires Gemini or ChatGPT. Please switch the AI model in settings and try again. 😊';
+            answer = 'Image analysis requires a Vision-capable model. Gemini is currently hitting quota limits; please switch to Groq (Llama 3.2 Vision) or ChatGPT in settings and try again. 😊';
         }
 
         res.json({ answer });
