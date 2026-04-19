@@ -260,8 +260,9 @@
     </div>
 
     <script>
-        const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
-        const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? window.location.origin 
+            : 'https://olivia-ai-bot-1.onrender.com';
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
 
         function updateClock() {
@@ -287,7 +288,9 @@
                 document.getElementById('status-text').innerText = "Vocal Core Not Supported";
                 return;
             }
-            startWakeWordListening();
+            // We wait for first click to start listening to comply with browser policies
+            document.getElementById('status-text').innerText = "V8.23 Active";
+            document.getElementById('sub-status').innerText = "Tap Orb to initialize Voice core.";
             initSSE();
         }
 
@@ -376,8 +379,14 @@
         async function startManualListening() {
             if (pttRec) return;
             
-            // Stop wake word while thinking
-            if (wakeWordRec) { try { wakeWordRec.stop(); } catch(e){} wakeWordRec = null; }
+            // Ensure wake word core is stopped or at least not already running
+            if (wakeWordRec) { 
+                try { wakeWordRec.stop(); } catch(e){} 
+                wakeWordRec = null; 
+            } else {
+                // If it wasn't running, it means this is the first interaction - let's toast!
+                console.log("Voice Engine Initialized via Interaction.");
+            }
 
             const orb = document.getElementById('orbBtn');
             const status = document.getElementById('status-text');
