@@ -2382,11 +2382,7 @@
     <div id="mainApp">
         <div class="bg-glow"></div>
         
-        <!-- Floating Vision Eye (v8.2 Restored) -->
-        <div id="floatingEye" onclick="openVisionEye()" title="Open Vision Eye">
-            <div class="iris-glow"></div>
-            <i class="fas fa-camera"></i>
-        </div>
+        <!-- Vision Eye button available in Quick Actions grid below -->
 
 
         <header>
@@ -2886,7 +2882,7 @@
     </div>
 
     <script>
-        const APP_VERSION = "v8.20 Elite";
+        const APP_VERSION = "v8.21 Elite";
         
         // Version Check & Update Notification
         document.addEventListener('DOMContentLoaded', () => {
@@ -2904,8 +2900,9 @@
             }
         });
 
-        const IS_FIREBASE = window.location.hostname.includes('firebaseapp.com') || window.location.hostname.includes('web.app');
-        const API_BASE = IS_FIREBASE ? 'https://olivia-ai-bot-1.onrender.com' : window.location.origin;
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? window.location.origin 
+            : 'https://olivia-ai-bot-1.onrender.com';
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
         const aiTextEl = document.getElementById('aiText');
         const userTextEl = document.getElementById('userText');
