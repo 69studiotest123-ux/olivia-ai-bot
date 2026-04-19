@@ -545,7 +545,9 @@
 
         async function processCommand(msg) {
             if (!password) {
-                window.location.href = '/?error=session_expired';
+                document.getElementById('status-text').innerText = "Session Expired";
+                document.getElementById('sub-status').innerText = "Please open HomePod from the main app.";
+                setTimeout(() => window.location.href = '/?error=session_expired', 3000);
                 return;
             }
             try {
