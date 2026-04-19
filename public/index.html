@@ -109,11 +109,18 @@
         /* VISION EYE OVERLAY */
         #visionOverlay {
             position: fixed;
-            inset: 0;
-            background: black;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            background: #000;
             z-index: 10006;
             display: none;
             overflow: hidden;
+            border-radius: 50%;
+            border: 4px solid var(--primary);
+            box-shadow: 0 0 50px var(--primary-glow), inset 0 0 20px rgba(255,255,255,0.1);
         }
         #visionVideo {
             width: 100%;
@@ -122,14 +129,15 @@
         }
         #visionCloseBtn {
             position: fixed;
-            top: 20px;
-            left: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(110px, -135px);
             z-index: 10010;
-            width: 48px;
-            height: 48px;
-            background: rgba(0,0,0,0.7);
+            width: 44px;
+            height: 44px;
+            background: rgba(0,0,0,0.8);
             backdrop-filter: blur(10px);
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 50%;
             color: white;
             font-size: 1.5rem;
@@ -2369,9 +2377,9 @@
 
     <!-- VISION EYE -->
     <div id="visionOverlay" onclick="captureVisionFrame()">
-        <video id="visionVideo" autoplay muted playsinline webkit-playsinline></video>
+        <video id="visionVideo" autoplay muted playsinline webkit-playsinline style="width:100%; height:100%; object-fit:cover;"></video>
         <div class="eye-scanner"></div>
-        <div class="eye-label">LIVE EYE | TAP TO CAPTURE</div>
+        <div class="eye-label" style="font-size:0.5rem; letter-spacing:1px;">LIVE EYE | TAP TO CAPTURE</div>
     </div>
     <!-- VISION CLOSE BUTTON (always on top) -->
     <button id="visionCloseBtn" onclick="openVisionEye()" aria-label="Close Camera">
@@ -2882,7 +2890,7 @@
     </div>
 
     <script>
-        const APP_VERSION = "v8.21 Elite";
+        const APP_VERSION = "v8.22 Elite";
         
         // Version Check & Update Notification
         document.addEventListener('DOMContentLoaded', () => {
