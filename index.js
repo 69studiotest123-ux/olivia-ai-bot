@@ -459,17 +459,15 @@ async function sendPushToAll(title, body) {
                     body: JSON.stringify({
                         message: {
                             token: token,
-                            notification: { 
-                                title: `Olivia AI | ${title}`, 
-                                body: body,
-                                image: `${publicUrl}/olivia.png` // Large image for some systems
-                            },
                             data: { 
                                 title: `Olivia AI | ${title}`, 
                                 body: body,
                                 icon: `${publicUrl}/olivia.png`,
                                 badge: `${publicUrl}/olivia.png`,
-                                click_action: publicUrl
+                                click_action: publicUrl,
+                                // Adding lockscreen-specific hints for the SW
+                                urgency: "high",
+                                requireInteraction: "true"
                             },
                             android: { 
                                 priority: "high",

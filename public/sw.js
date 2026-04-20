@@ -1,6 +1,6 @@
 importScripts('/firebase-messaging-sw.js');
 
-const CACHE_NAME = 'olivia-elite-v8.26';
+const CACHE_NAME = 'olivia-elite-v8.27';
 const ASSETS = [
   '/',
   '/index.html',
@@ -50,17 +50,18 @@ self.addEventListener('fetch', (event) => {
 
 // Handle Push Notifications for Lock Screen
 self.addEventListener('push', event => {
-  let data = { title: 'Olivia AI', body: 'New alert received.' };
+  let data = {};
   if (event.data) {
     try {
-      data = event.data.json();
+      const raw = event.data.json();
+      data = raw.data || raw; 
     } catch (e) {
       data = { title: 'Olivia AI', body: event.data.text() };
     }
   }
 
   const options = {
-    body: data.body,
+    body: data.body || 'New alert received.',
     icon: '/olivia.png',
     badge: '/olivia.png',
     vibrate: [300, 100, 300, 100, 300],
@@ -68,7 +69,7 @@ self.addEventListener('push', event => {
     renotify: true,
     requireInteraction: true,
     data: {
-      url: data.url || (data.fcmOptions ? data.fcmOptions.link : '/') || '/'
+      url: data.click_action || data.url || '/'
     },
     actions: [
       { action: 'open', title: 'View Details', icon: '/olivia.png' }
@@ -76,7 +77,7 @@ self.addEventListener('push', event => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(data.title || 'Olivia AI', options)
   );
 });
 
