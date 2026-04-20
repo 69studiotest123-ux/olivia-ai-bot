@@ -2960,6 +2960,7 @@
         let visionStream = null;
         let prevApptCount = -1;
         let prevLeadCount = -1;
+        let prevMsgCount = -1;
         let micBtn = document.getElementById('micBtn');
         let sseSource = null;
         let isAppLocked = false;
@@ -4821,11 +4822,22 @@
             lastLeadsHash = currentHash;
 
             const total = Object.keys(data).length;
+            const msgCount = Object.values(data).reduce((acc, curr) => acc + curr.length, 0);
             
             if (prevLeadCount !== -1 && total > prevLeadCount) {
                 const newOnes = total - prevLeadCount;
-                showToast('New WhatsApp Lead! 💬', `You have ${newOnes} new incoming chat intelligence message${newOnes > 1 ? 's' : ''}.`, 'fa-comments');
+                showToast('New WhatsApp Lead! 💬', `You have ${newOnes} new incoming contact intelligence message${newOnes > 1 ? 's' : ''}.`, 'fa-comments');
                 updateGlobalBadge(newOnes);
+                
+                const leadsTab = document.getElementById('tab-leads');
+                if (!leadsTab.classList.contains('active')) {
+                    document.getElementById('leadsBadge').style.display = 'block';
+                }
+            } else if (prevMsgCount !== -1 && msgCount > prevMsgCount) {
+                // If the contact count hasn't changed but message count has
+                const newMsgs = msgCount - prevMsgCount;
+                showToast('New Message! 💬', `Received ${newMsgs} new response${newMsgs > 1 ? 's' : ''} in existing conversations.`, 'fa-comment-alt');
+                updateGlobalBadge(newMsgs);
                 
                 const leadsTab = document.getElementById('tab-leads');
                 if (!leadsTab.classList.contains('active')) {
@@ -4833,6 +4845,7 @@
                 }
             }
             prevLeadCount = total;
+            prevMsgCount = msgCount;
 
             document.getElementById('totalChats').innerText = total;
             const statLeads = document.getElementById('quickStatLeads');
