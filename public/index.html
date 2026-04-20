@@ -3155,19 +3155,28 @@
                     }
 
                     setServerStatus('live');
-                    const eventData = event.data.toLowerCase();
                     const now = Date.now();
                     
-                    // Throttled refresh (min 2 seconds between full syncs)
-                    if (eventData.includes('update') || eventData.includes('appointment')) {
-                        if (now - lastRefreshTime < 2000) return;
-                        lastRefreshTime = now;
-                        
-                        console.log('🔄 Triggering Smart Sync...');
-                        syncLeads();
-                        refreshAppointments();
-                        loadTodos();
-                        loadChatHistory();
+                    try {
+                        const payload = JSON.parse(event.data);
+                        if (payload.type === 'update' || payload.type === 'appointment') {
+                             if (now - lastRefreshTime < 1000) return;
+                             lastRefreshTime = now;
+                             console.log('🔄 Triggering Smart Sync...');
+                             syncLeads();
+                             refreshAppointments();
+                             loadTodos();
+                             loadChatHistory();
+                        }
+                    } catch (e) {
+                         // Fallback for non-json strings if any
+                         const eventData = event.data.toLowerCase();
+                         if (eventData.includes('update') || eventData.includes('appointment')) {
+                             if (now - lastRefreshTime < 1000) return;
+                             lastRefreshTime = now;
+                             syncLeads();
+                             refreshAppointments();
+                         }
                     }
                 };
 
@@ -4719,7 +4728,7 @@
         }
 
         function renderAppointments(data) {
-            const currentHash = JSON.stringify(data.map(a => a.id));
+            const currentHash = JSON.stringify(data.map(a => ({ id: a.id, status: a.status, time: a.time })));
             if (currentHash === lastApptsHash) return; // Skip if identity hasn't changed
             lastApptsHash = currentHash;
 
@@ -4806,7 +4815,8 @@
             if (store) allLeadsData = data;
             
             // Fast check if we really need to re-render
-            const currentHash = Object.keys(data).length + "-" + JSON.stringify(Object.keys(data).slice(0, 5));
+            const totalMsgs = Object.values(data).reduce((acc, curr) => acc + curr.length, 0);
+            const currentHash = Object.keys(data).length + "-" + totalMsgs;
             if (currentHash === lastLeadsHash && store) return;
             lastLeadsHash = currentHash;
 

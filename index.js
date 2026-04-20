@@ -81,7 +81,7 @@ let streamClients = [];
 let waConnectionStatus = 'disconnected'; // Current WhatsApp connection status
 
 function notifyClients(type = 'update', data = null) {
-    const payload = data ? JSON.stringify({ type, ...data }) : (typeof type === 'object' ? JSON.stringify(type) : type);
+    const payload = JSON.stringify({ type, ...data });
     streamClients.forEach(client => {
         try { client.write(`data: ${payload}\n\n`); } catch (e) {}
     });
