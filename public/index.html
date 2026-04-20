@@ -1481,6 +1481,52 @@
             background: rgba(255, 255, 255, 0.04);
         }
 
+        .nav-badge {
+            position: absolute;
+            background: #ef4444;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 800;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            border: 2px solid #0a0a0c;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+            z-index: 10;
+        }
+
+        #headerNotif {
+            position: relative;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: 0.3s;
+            margin-right: 15px;
+        }
+
+        #headerNotif:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #headerNotif.has-notif i {
+            color: var(--primary);
+            animation: bell-swing 2s infinite ease-in-out;
+        }
+
+        @keyframes bell-swing {
+            0% { transform: rotate(0); }
+            10% { transform: rotate(15deg); }
+            20% { transform: rotate(-15deg); }
+            30% { transform: rotate(10deg); }
+            40% { transform: rotate(-10deg); }
+            50% { transform: rotate(0); }
+            100% { transform: rotate(0); }
+        }
+
         /* TABS */
         .tab-panel {
             display: none;
@@ -4747,6 +4793,11 @@
                 const newOnes = data.length - prevApptCount;
                 showToast('New Appointment! 📅', `You received ${newOnes} new studio booking${newOnes > 1 ? 's' : ''}.`, 'fa-calendar-check');
                 updateGlobalBadge(newOnes);
+                
+                const leadsTab = document.getElementById('tab-leads');
+                if (!leadsTab.classList.contains('active')) {
+                    document.getElementById('leadsBadge').style.display = 'block';
+                }
                 
                 // Dashboard Alert Card
                 const latest = data[0];
