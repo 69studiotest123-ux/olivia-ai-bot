@@ -29,3 +29,30 @@ try {
   console.log('Firebase background messaging initialization error:', e);
 }
 
+// Handle notification clicks
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  
+  // Default URL to open
+  let urlToOpen = '/';
+  if (event.notification.data && event.notification.data.click_action) {
+    urlToOpen = event.notification.data.click_action;
+  } else if (event.notification.fcmOptions && event.notification.fcmOptions.link) {
+      urlToOpen = event.notification.fcmOptions.link;
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      for (let i = 0; i < clientList.length; i++) {
+        let client = clientList[i];
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+

@@ -477,7 +477,27 @@ async function sendPushToAll(title, body) {
                                     icon: "stock_ticker_update",
                                     color: "#ff4d4d",
                                     sound: "default",
-                                    vibrate_timings: ["0.2s", "0.1s", "0.2s"]
+                                    vibrate_timings: ["0.2s", "0.1s", "0.2s"],
+                                    notification_priority: "PRIORITY_MAX",
+                                    visibility: "PUBLIC"
+                                }
+                            },
+                            webpush: {
+                                headers: {
+                                    Urgency: "high"
+                                },
+                                notification: {
+                                    body: body,
+                                    icon: `${publicUrl}/olivia.png`,
+                                    badge: `${publicUrl}/olivia.png`,
+                                    vibrate: [200, 100, 200],
+                                    requireInteraction: true,
+                                    actions: [
+                                        { action: 'open', title: 'Open Olivia' }
+                                    ]
+                                },
+                                fcm_options: {
+                                    link: publicUrl
                                 }
                             },
                             apns: { 
@@ -485,7 +505,8 @@ async function sendPushToAll(title, body) {
                                     aps: { 
                                         sound: "default",
                                         badge: 1,
-                                        "mutable-content": 1
+                                        "mutable-content": 1,
+                                        "content-available": 1
                                     } 
                                 } 
                             }

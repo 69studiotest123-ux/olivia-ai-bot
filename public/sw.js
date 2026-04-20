@@ -1,6 +1,6 @@
 importScripts('/firebase-messaging-sw.js');
 
-const CACHE_NAME = 'olivia-elite-v8.22';
+const CACHE_NAME = 'olivia-elite-v8.26';
 const ASSETS = [
   '/',
   '/index.html',
@@ -63,14 +63,15 @@ self.addEventListener('push', event => {
     body: data.body,
     icon: '/olivia.png',
     badge: '/olivia.png',
-    vibrate: [200, 100, 200],
+    vibrate: [300, 100, 300, 100, 300],
     tag: 'olivia-alert',
     renotify: true,
+    requireInteraction: true,
     data: {
-      url: data.url || '/'
+      url: data.url || (data.fcmOptions ? data.fcmOptions.link : '/') || '/'
     },
     actions: [
-      { action: 'open', title: 'Open App', icon: '/olivia.png' }
+      { action: 'open', title: 'View Details', icon: '/olivia.png' }
     ]
   };
 
