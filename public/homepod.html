@@ -210,10 +210,13 @@
         .red-protocol-active .orb-core {
             border: 2px solid #ff0000 !important;
             box-shadow: 0 0 50px #ff0000, 0 0 100px #ff0000, inset 0 0 50px #330000 !important;
-            animation: pulse-red-extreme 1.5s infinite alternate;
         }
 
-        @keyframes pulse-red-extreme {
+        .pulse-animation .orb-core {
+            animation: pulse-animation-extreme 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-animation-extreme {
             from { transform: scale(1); box-shadow: 0 0 40px #ff0000; }
             to { transform: scale(1.08); box-shadow: 0 0 70px #ff0000, 0 0 120px #ff3333; }
         }
@@ -855,9 +858,10 @@
 
         function wakeFromProtocol() {
             isSleeping = false;
-            document.body.classList.remove('sleeping');
-            document.body.classList.add('red-protocol-active');
-            document.getElementById('status-text').innerText = "System Active";
+            const body = document.body;
+            body.classList.remove('sleeping');
+            body.classList.add('red-protocol-active', 'pulse-animation');
+            document.getElementById('status-text').innerText = "Olivia: Online";
             document.getElementById('sub-status').innerText = "Red Protocol Initiated, Sir Subhash.";
             
             speakText("Red Protocol Initiated. Welcome back, Sir.");
@@ -866,7 +870,7 @@
         function initProtocolSleep() {
             isSleeping = true;
             document.body.classList.add('sleeping');
-            document.body.classList.remove('red-protocol-active');
+            document.body.classList.remove('red-protocol-active', 'pulse-animation');
             document.getElementById('status-text').innerText = "Standby Mode";
             document.getElementById('sub-status').innerText = "Monitoring motion for wake-up...";
         }
