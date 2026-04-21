@@ -65,6 +65,38 @@
             100% { transform: translate(100px, 50px) scale(1.2); }
         }
 
+        /* --- RED PROTOCOL ADVANCED UI (CRT & HUD) --- */
+        .red-protocol-active::before {
+            content: " ";
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 10000; /* CRT Overlay */
+        }
+
+        .hud-ring {
+            position: absolute;
+            width: 120%;
+            height: 120%;
+            border: 1px dashed rgba(255, 0, 0, 0.4);
+            border-radius: 50%;
+            opacity: 0;
+            transition: 1s;
+            animation: rotateHUD 20s linear infinite;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        .red-protocol-active .hud-ring { opacity: 0.6; }
+
+        @keyframes rotateHUD {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
         #homepod-ui {
             text-align: center;
             position: relative;
@@ -176,14 +208,24 @@
 
         /* --- RED PROTOCOL (Electric Red Glow) --- */
         .red-protocol-active .orb-core {
-            border: 2px solid #ff0000;
-            box-shadow: 0 0 40px #ff0000, 0 0 100px #ff0000, inset 0 0 40px #ff0000 !important;
-            animation: pulse-red 1s infinite alternate;
+            border: 2px solid #ff0000 !important;
+            box-shadow: 0 0 50px #ff0000, 0 0 100px #ff0000, inset 0 0 50px #330000 !important;
+            animation: pulse-red-extreme 1.5s infinite alternate;
         }
 
-        @keyframes pulse-red {
-            from { transform: scale(1); filter: brightness(1); }
-            to { transform: scale(1.05); filter: brightness(1.5); }
+        @keyframes pulse-red-extreme {
+            from { transform: scale(1); box-shadow: 0 0 40px #ff0000; }
+            to { transform: scale(1.08); box-shadow: 0 0 70px #ff0000, 0 0 120px #ff3333; }
+        }
+
+        .red-protocol-active #status-text {
+            color: #ff0000;
+            text-shadow: 0 0 12px #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+            padding: 5px 25px;
+            border-radius: 20px;
+            border: 1px solid #ff0000;
+            display: inline-block;
         }
 
         .sleeping {
@@ -391,6 +433,7 @@
         </div>
 
         <div class="orb-portal" id="orbBtn" onclick="startManualListening()">
+            <div class="hud-ring"></div>
             <div class="orb-ring ring-1"></div>
             <div class="orb-ring ring-2"></div>
             <div class="orb-ring ring-3"></div>
