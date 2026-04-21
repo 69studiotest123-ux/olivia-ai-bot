@@ -197,8 +197,23 @@
 
         /* LISTENING STATE */
         .listening .orb-core {
-            transform: scale(1.15);
+            transform: scale(1.1);
             animation: coreListen 1s infinite alternate;
+        }
+
+        .orb-visualizer {
+            position: absolute;
+            inset: -20px;
+            border-radius: 50%;
+            border: 4px solid var(--primary);
+            opacity: 0;
+            filter: blur(10px);
+            transition: 0.3s;
+            pointer-events: none;
+        }
+
+        .listening .orb-visualizer {
+            opacity: 0.6;
         }
 
         @keyframes coreListen {
@@ -440,7 +455,8 @@
             <div class="orb-ring ring-1"></div>
             <div class="orb-ring ring-2"></div>
             <div class="orb-ring ring-3"></div>
-            <div class="orb-core">
+            <div class="orb-visualizer" id="orbVis"></div>
+            <div class="orb-core" id="orbCore">
                 <i class="fas fa-microphone"></i>
             </div>
         </div>
@@ -607,16 +623,27 @@
         async function startManualListening() {
             if (pttRec) return;
             
-            // Ensure wake word core is stopped or at least not already running
+            // Audio Context for Visualization
+            let audioContext, analyser, dataArray, source;
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 64;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+            } catch(e) { console.warn("Visualizer failed", e); }
+
+            // Ensure wake word core is stopped
             if (wakeWordRec) { 
                 try { wakeWordRec.stop(); } catch(e){} 
                 wakeWordRec = null; 
-            } else {
-                // If it wasn't running, it means this is the first interaction - let's toast!
-                console.log("Voice Engine Initialized via Interaction.");
             }
 
             const orb = document.getElementById('orbBtn');
+            const orbCore = document.getElementById('orbCore');
+            const orbVis = document.getElementById('orbVis');
             const status = document.getElementById('status-text');
             const sub = document.getElementById('sub-status');
 
@@ -626,12 +653,10 @@
 
             // Siri-like Attentive Sound/Vocal Cue
             try {
-                // Play a subtle listening chime
                 const chime = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
                 chime.volume = 0.5;
                 chime.play();
                 
-                // Optional: Short vocal hint "Mm-hmm?" only if not using ElevenLabs for speed
                 if (localStorage.getItem('olivia_voiceSource') !== 'elevenlabs') {
                     const hmm = new SpeechSynthesisUtterance("Mm-hmm?");
                     hmm.rate = 1.2;
@@ -642,17 +667,43 @@
 
             pttRec = new SpeechRec();
             pttRec.lang = 'en-US';
+            pttRec.interimResults = true; // Show text as you speak
             
+            // Visualization Loop
+            const draw = () => {
+                if (!pttRec) return;
+                requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+                let avg = sum / dataArray.length;
+                let scale = 1 + (avg / 150);
+                orbCore.style.transform = `scale(${scale})`;
+                orbVis.style.transform = `scale(${scale * 1.2})`;
+                orbVis.style.opacity = (avg / 255) + 0.2;
+            };
+            if (analyser) draw();
+
             pttRec.onresult = async (event) => {
-                const text = event.results[0][0].transcript;
-                status.innerText = `"${text}"`;
-                sub.innerText = "Olivia is thinking...";
-                
-                await processCommand(text);
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        const text = event.results[i][0].transcript;
+                        status.innerText = `"${text}"`;
+                        sub.innerText = "Olivia is thinking...";
+                        if (audioContext) audioContext.close();
+                        await processCommand(text);
+                    } else {
+                        interim += event.results[i][0].transcript;
+                        status.innerText = `"${interim}..."`;
+                    }
+                }
             };
 
             pttRec.onend = () => {
                 document.getElementById('orbBtn').classList.remove('listening');
+                orbCore.style.transform = 'scale(1)';
+                if (audioContext) audioContext.close();
                 pttRec = null;
                 setTimeout(startWakeWordListening, 1000);
             };
