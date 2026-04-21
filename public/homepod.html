@@ -469,6 +469,7 @@
             ? window.location.origin 
             : 'https://olivia-ai-bot-1.onrender.com';
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
+        let currentAudio = null; // Fix ReferenceError
         // Persist password for always-on stability
         if (new URLSearchParams(window.location.search).get('pass')) {
             localStorage.setItem('olivia_pass', password);
@@ -763,10 +764,17 @@
             if (document.visibilityState === 'visible') requestWakeLock();
         });
 
-        // Trigger wake lock and fullscreen on first interaction
+        // Trigger components on first interaction
         const originalStartManualListening = startManualListening;
+        let visionInitialized = false;
+        
         startManualListening = async function() {
             requestWakeLock();
+            if (!visionInitialized) {
+                console.log("Safari/Webkit: Initializing Vision Core on first tap.");
+                setupVision();
+                visionInitialized = true;
+            }
             if (!document.fullscreenElement && !document.webkitFullscreenElement) {
                 try { toggleFullscreen(); } catch(e){}
             }
@@ -782,6 +790,11 @@
         const motionCtx = motionCanvas.getContext('2d');
 
         async function setupVision() {
+            if (typeof Hands === 'undefined' || typeof Camera === 'undefined') {
+                console.warn("Vision Core: MediaPipe scripts not ready yet. Retrying...");
+                setTimeout(setupVision, 2000);
+                return;
+            }
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
                 videoElement.srcObject = stream;
@@ -817,8 +830,13 @@
                     }
                 });
 
+                let lastFrameTime = 0;
                 const camera = new Camera(videoElement, {
                     onFrame: async () => { 
+                        const now = Date.now();
+                        if (now - lastFrameTime < 60) return; // ~15 FPS for mobile stability
+                        lastFrameTime = now;
+                        
                         await hands.send({image: videoElement}); 
                         detectMotion();
                     },
@@ -877,7 +895,8 @@
 
         window.onload = () => {
             initHomePod();
-            setupVision();
+            // In Safari, we wait for a click to call setupVision() via startManualListening
+            console.log("Olivia HomePod: Core Loaded. Waiting for user interaction for Vision/Voice.");
         };
     </script>
 </body>
