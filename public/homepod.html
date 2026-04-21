@@ -6,6 +6,8 @@
     <title>Olivia HomePod | Always-On</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <style>
         :root {
             --primary: #ff3344;
@@ -172,6 +174,41 @@
             to { box-shadow: 0 0 150px var(--primary); }
         }
 
+        /* --- RED PROTOCOL (Electric Red Glow) --- */
+        .red-protocol-active .orb-core {
+            border: 2px solid #ff0000;
+            box-shadow: 0 0 40px #ff0000, 0 0 100px #ff0000, inset 0 0 40px #ff0000 !important;
+            animation: pulse-red 1s infinite alternate;
+        }
+
+        @keyframes pulse-red {
+            from { transform: scale(1); filter: brightness(1); }
+            to { transform: scale(1.05); filter: brightness(1.5); }
+        }
+
+        .sleeping {
+            filter: brightness(0.2) grayscale(0.8);
+            transform: scale(0.9);
+            transition: 2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #volume-display {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #ff0000;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #ff0000;
+            opacity: 0;
+            transition: 0.5s;
+            z-index: 1000;
+        }
+
+        #volume-display.visible { opacity: 1; }
+
         /* --- STATUS BAR --- */
         .status-glass {
             margin-top: 50px;
@@ -331,6 +368,9 @@
         <img src="/olivia.png" alt="Olivia" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=O&background=ff4d4d&color=fff';">
         <h2>OLIVIA <span>AI</span></h2>
     </div>
+
+    <video id="input_video" style="display:none;"></video>
+    <div id="volume-display">Gesture Volume: 50%</div>
 
     <div id="homepod-ui">
         <div id="kiosk-status">Always-On Display Active</div>
@@ -687,7 +727,111 @@
             await originalStartManualListening();
         };
 
-        window.onload = initHomePod;
+        // --- MOTION & GESTURE CONTROL (v8.30 Red Protocol) ---
+        const videoElement = document.getElementById('input_video');
+        let isSleeping = false;
+        let lastInteractionTime = Date.now();
+        let prevFrame = null;
+        const motionCanvas = document.createElement('canvas');
+        const motionCtx = motionCanvas.getContext('2d');
+
+        async function setupVision() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                videoElement.srcObject = stream;
+                videoElement.play();
+                
+                // Initialize MediaPipe Hands
+                const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.5 });
+
+                hands.onResults((results) => {
+                    if (!isSleeping && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        lastInteractionTime = Date.now();
+                        const thumb = results.multiHandLandmarks[0][4];
+                        const index = results.multiHandLandmarks[0][8];
+                        const distance = Math.sqrt(Math.pow(index.x - thumb.x, 2) + Math.pow(index.y - thumb.y, 2));
+                        
+                        let vol = Math.round(distance * 350); // Scale distance to 0-100+
+                        if (vol > 100) vol = 100;
+                        
+                        const volEl = document.getElementById('volume-display');
+                        volEl.innerText = `Gesture Volume: ${vol}%`;
+                        volEl.classList.add('visible');
+                        
+                        // Apply volume to active audio/video
+                        if (currentAudio) currentAudio.volume = vol / 100;
+                        const musicPlayer = document.getElementById('musicPlayer');
+                        if (musicPlayer) {
+                            // Note: Cross-origin iframe volume control is restricted, 
+                            // but we can pass messages if supported.
+                        }
+                    } else {
+                        document.getElementById('volume-display').classList.remove('visible');
+                    }
+                });
+
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => { 
+                        await hands.send({image: videoElement}); 
+                        detectMotion();
+                    },
+                    width: 640, height: 480
+                });
+                camera.start();
+                console.log("Vision Core: Red Protocol Monitoring Active.");
+            } catch (err) {
+                console.warn("Vision Core: Camera access denied or not found.");
+            }
+        }
+
+        function detectMotion() {
+            motionCanvas.width = 64;
+            motionCanvas.height = 48;
+            motionCtx.drawImage(videoElement, 0, 0, motionCanvas.width, motionCanvas.height);
+            const currentFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height).data;
+
+            if (prevFrame) {
+                let diff = 0;
+                for (let i = 0; i < currentFrame.length; i += 4) {
+                    diff += Math.abs(currentFrame[i] - prevFrame[i]);
+                }
+
+                if (diff > 500000) { // Threshold for wake
+                    if (isSleeping) wakeFromProtocol();
+                    lastInteractionTime = Date.now();
+                }
+            }
+            prevFrame = currentFrame;
+
+            // Auto-sleep after 2 minutes of absolute silence/stall
+            if (!isSleeping && (Date.now() - lastInteractionTime > 120000)) {
+                initProtocolSleep();
+            }
+        }
+
+        function wakeFromProtocol() {
+            isSleeping = false;
+            document.body.classList.remove('sleeping');
+            document.body.classList.add('red-protocol-active');
+            document.getElementById('status-text').innerText = "System Active";
+            document.getElementById('sub-status').innerText = "Red Protocol Initiated, Sir Subhash.";
+            
+            speakText("Red Protocol Initiated. Welcome back, Sir.");
+        }
+
+        function initProtocolSleep() {
+            isSleeping = true;
+            document.body.classList.add('sleeping');
+            document.body.classList.remove('red-protocol-active');
+            document.getElementById('status-text').innerText = "Standby Mode";
+            document.getElementById('sub-status').innerText = "Monitoring motion for wake-up...";
+        }
+
+        window.onload = () => {
+            initHomePod();
+            setupVision();
+        };
     </script>
 </body>
 </html>

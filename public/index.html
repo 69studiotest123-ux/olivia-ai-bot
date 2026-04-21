@@ -2639,8 +2639,8 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                     <p class="section-title" style="margin:0; font-size:0.75rem; font-weight:700;">WHATSAPP LEADS (<span
                             id="totalLeads">0</span>)</p>
-                    <button class="btn btn-primary" onclick="syncLeads()" style="padding:6px 12px; font-size:0.7rem;">
-                        <i class="fas fa-sync-alt"></i> Sync Logs
+                    <button class="btn btn-primary" onclick="syncLeads()" style="padding:6px 15px; font-size:0.75rem; border-radius:12px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-sync-alt"></i> Sync Leads
                     </button>
                 </div>
                 <input type="text" class="search-bar" id="leadSearch" placeholder="🔍 Search logs..."
@@ -4866,9 +4866,12 @@
         function renderLeads(data, store = true) {
             if (store) allLeadsData = data;
             
-            // Fast check if we really need to re-render
-            const totalMsgs = Object.values(data).reduce((acc, curr) => acc + curr.length, 0);
-            const currentHash = Object.keys(data).length + "-" + totalMsgs;
+            // Advanced Hash: Length + Total Msgs + Latest Message Time
+            const values = Object.values(data);
+            const totalMsgs = values.reduce((acc, curr) => acc + curr.length, 0);
+            const latestTime = values.map(m => m[m.length-1]?.time || "").sort().reverse()[0] || "";
+            const currentHash = Object.keys(data).length + "-" + totalMsgs + "-" + latestTime;
+            
             if (currentHash === lastLeadsHash && store) return;
             lastLeadsHash = currentHash;
 
