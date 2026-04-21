@@ -760,7 +760,11 @@
                         currentAudio = audio;
                         
                         document.getElementById('orbBtn').classList.add('listening');
-                        audio.onended = () => { document.getElementById('orbBtn').classList.remove('listening'); };
+                        audio.onended = () => { 
+                            document.getElementById('orbBtn').classList.remove('listening'); 
+                            // Continuous Conversation: Start listening again after a small delay
+                            setTimeout(startManualListening, 500);
+                        };
                         audio.play();
                         return;
                     } catch (err) {
@@ -793,7 +797,11 @@
                     ut.voice = voice;
                     ut.pitch = 1.1;
                     ut.rate = 1.0;
-                    ut.onend = () => { document.getElementById('orbBtn').classList.remove('listening'); };
+                    ut.onend = () => { 
+                        document.getElementById('orbBtn').classList.remove('listening');
+                        // Continuous Conversation: Start listening again after a small delay
+                        setTimeout(startManualListening, 500);
+                    };
                     document.getElementById('orbBtn').classList.add('listening');
                     window.speechSynthesis.speak(ut);
                 }
