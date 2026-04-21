@@ -680,38 +680,58 @@
                 const voiceSource = localStorage.getItem('olivia_voiceSource') || 'browser';
                 const voiceId = localStorage.getItem('olivia_voiceId') || '';
 
-                if (voiceSource === 'elevenlabs') {
-                    const res = await fetch(`${API_BASE}/api/assistant/tts`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ pass: password, text: text, voiceId: voiceId })
-                    });
-                    const blob = await res.blob();
-                    const audio = new Audio(URL.createObjectURL(blob));
-                    
-                    document.getElementById('orbBtn').classList.add('listening');
-                    audio.onended = () => { document.getElementById('orbBtn').classList.remove('listening'); };
-                    audio.play();
-                } else {
-                    const ut = new SpeechSynthesisUtterance(text);
-                    const voices = window.speechSynthesis.getVoices();
-                    
-                    const preferredVoice = voices.find(v => v.name === 'Google US English') ||
-                                         voices.find(v => v.name.includes('Google UK English Female')) ||
-                                         voices.find(v => v.name.includes('Microsoft Zira')) ||
-                                         voices.find(v => v.name.includes('Samantha')) ||
-                                         voices.find(v => (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('girl')));
-                    
-                    if (preferredVoice) ut.voice = preferredVoice;
-                    ut.pitch = 1.1; // More feminine
-                    ut.rate = 1.0;
+                if (voiceSource === 'elevenlabs' && password) {
+                    try {
+                        const res = await fetch(`${API_BASE}/api/assistant/tts`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pass: password, text: text, voiceId: voiceId })
+                        });
+                        if (!res.ok) throw new Error("TTS API failed");
+                        const blob = await res.blob();
+                        const audio = new Audio(URL.createObjectURL(blob));
+                        currentAudio = audio;
+                        
+                        document.getElementById('orbBtn').classList.add('listening');
+                        audio.onended = () => { document.getElementById('orbBtn').classList.remove('listening'); };
+                        audio.play();
+                        return;
+                    } catch (err) {
+                        console.warn("ElevenLabs failed, falling back to browser TTS", err);
+                    }
+                }
+                
+                // Browser TTS Fallback
+                const ut = new SpeechSynthesisUtterance(text);
+                let voices = window.speechSynthesis.getVoices();
+                
+                // Safari Voice selection fallback
+                const findVoice = () => {
+                    return voices.find(v => v.name.includes('Google US English')) ||
+                           voices.find(v => v.name.includes('Samantha')) ||
+                           voices.find(v => v.name.includes('Google UK English Female')) ||
+                           voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+                           voices.find(v => v.lang.startsWith('en'));
+                };
 
+                let voice = findVoice();
+                if (!voice && voices.length === 0) {
+                    // Critical for Safari: voices might load async
+                    setTimeout(() => {
+                        voices = window.speechSynthesis.getVoices();
+                        ut.voice = findVoice();
+                        window.speechSynthesis.speak(ut);
+                    }, 100);
+                } else {
+                    ut.voice = voice;
+                    ut.pitch = 1.1;
+                    ut.rate = 1.0;
                     ut.onend = () => { document.getElementById('orbBtn').classList.remove('listening'); };
                     document.getElementById('orbBtn').classList.add('listening');
                     window.speechSynthesis.speak(ut);
                 }
             } catch (e) {
-                console.error(e);
+                console.error("Speak Error:", e);
             }
         }
 
@@ -770,6 +790,11 @@
         
         startManualListening = async function() {
             requestWakeLock();
+            
+            // Safari/iOS Speech Synthesis Unlock
+            const silentUtterance = new SpeechSynthesisUtterance("");
+            window.speechSynthesis.speak(silentUtterance);
+
             if (!visionInitialized) {
                 console.log("Safari/Webkit: Initializing Vision Core on first tap.");
                 setupVision();
