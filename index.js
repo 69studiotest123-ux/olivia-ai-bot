@@ -988,17 +988,28 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(timerRegex, '');
 
-    finalOutput = finalOutput.replace(musicRegex, '');
-    
-    // 14. Google Search (Powered by News/Web fallback)
-    const googleRegex = /\[GOOGLE_SEARCH:\s*(.+?)\]/gi;
-    let goMatch;
-    while ((goMatch = googleRegex.exec(aiText)) !== null) {
-        const query = goMatch[1].trim();
-        const info = await getNews(query); // Fallback to News Intel if no dedicated search key
-        finalOutput += `\n\n[GOOGLE SEARCH RESULTS: ${info}]`;
-    }
     finalOutput = finalOutput.replace(googleRegex, '');
+    
+    // 15. Daily Update (Siri Parity)
+    const updateRegex = /\[GET_DAILY_UPDATE\]/gi;
+    if (updateRegex.test(aiText)) {
+        const weather = await getWeather('Colombo');
+        const tasks = todos.slice(0, 5).map(t => t.text).join(', ');
+        const news = await getNews('Sri Lanka');
+        const brief = `Sir, your update: ${weather}. Pending tasks: ${tasks || 'None'}. Top news: ${news.split('\n')[0]}`;
+        finalOutput += `\n\n[SIRI BRIEFING: ${brief}]`;
+    }
+    finalOutput = finalOutput.replace(updateRegex, '');
+
+    // 16. Financial Intel
+    const financeRegex = /\[GET_FINANCE:\s*(.+?)\]/gi;
+    let finMatch;
+    while ((finMatch = financeRegex.exec(aiText)) !== null) {
+        const query = finMatch[1].trim();
+        const info = await getNews(`${query} stock price currency`);
+        finalOutput += `\n\n[FINANCIAL INTEL: ${info}]`;
+    }
+    finalOutput = finalOutput.replace(financeRegex, '');
 
     const resultText = finalOutput.trim();
     // If the model only output tags and they were all removed, provide a fallback natural reply
@@ -1329,6 +1340,8 @@ app.get('/api/assistant/ask', async (req, res) => {
         - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: city], [ADD_TODO: task]
         - [GET_NEWS: topic], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
         - [GET_CALENDAR], [PLAY_MUSIC: query], [GOOGLE_SEARCH: query]
+        - [GET_DAILY_UPDATE] (Use for "What's my day like?" or "Good morning")
+        - [GET_FINANCE: symbol/query] (Stocks & Currency)
         - [SMART_HOME: on/off] (Controls Sir's Sonoff Light)
         - [BOOK_APPT: Name | Date | Time | Service]
         
