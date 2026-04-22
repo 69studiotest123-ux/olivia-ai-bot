@@ -542,13 +542,23 @@
                         startVisualTimer(data.duration);
                     } else if (data.type === 'music') {
                         playMusic(data.query, data.videoId);
+                    } else if (data.type === 'device') {
+                        handleDeviceAction(data.action);
                     }
                 } catch(err) {}
             };
-            eventSource.onerror = () => {
-                eventSource.close();
-                setTimeout(initSSE, 5000);
             };
+        }
+
+        function handleDeviceAction(action) {
+            console.log("Device Action Received:", action);
+            if (action === 'vibrate' && navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+            } else if (action === 'fullscreen') {
+                toggleFullscreen();
+            } else if (action === 'alert') {
+                alert("Olivia Alert: Immediate Attention Required, Sir.");
+            }
         }
 
         let timerInterval;

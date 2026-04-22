@@ -80,10 +80,9 @@ function saveSettings() {
 let streamClients = [];
 let waConnectionStatus = 'disconnected'; // Current WhatsApp connection status
 
-function notifyClients(type = 'update', data = null) {
-    const payload = JSON.stringify({ type, ...data });
+function notifyClients(type = 'update', data = {}) {
     streamClients.forEach(client => {
-        try { client.write(`data: ${payload}\n\n`); } catch (e) {}
+        try { client.write(`data: ${JSON.stringify({ type, ...data })}\n\n`); } catch (e) {}
     });
 }
 
@@ -988,7 +987,14 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(timerRegex, '');
 
-    finalOutput = finalOutput.replace(googleRegex, '');
+    // 17. Device Control (PWA Side)
+    const deviceRegex = /\[DEVICE_ACTION:\s*(.+?)\]/gi;
+    let devMatch;
+    while ((devMatch = deviceRegex.exec(aiText)) !== null) {
+        notifyClients('device', { action: devMatch[1].trim() });
+        finalOutput += `\n\n[DEVICE PROTOCOL: ${devMatch[1]} triggered, Sir.]`;
+    }
+    finalOutput = finalOutput.replace(deviceRegex, '');
     
     // 15. Daily Update (Siri Parity)
     const updateRegex = /\[GET_DAILY_UPDATE\]/gi;
@@ -1064,6 +1070,7 @@ async function getGroqResponse(message, history = [], from = "") {
                 - [BOOK_APPT: Name | Date | Time | Service]
                 - [UPDATE_BI: industry | update], [TRACK_EXPENSE: amount | desc]
                 - [SET_TIMER: seconds], [PLAY_MUSIC: search query]
+                - [DEVICE_ACTION: action] (e.g., vibrate, alert, fullscreen)
                 
                 CRITICAL INSTRUCTION:
                 1. ALWAYS reply with a natural language sentence in Singlish BEFORE using any tool tags.
@@ -1340,8 +1347,9 @@ app.get('/api/assistant/ask', async (req, res) => {
         - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: city], [ADD_TODO: task]
         - [GET_NEWS: topic], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
         - [GET_CALENDAR], [PLAY_MUSIC: query], [GOOGLE_SEARCH: query]
-        - [GET_DAILY_UPDATE] (Use for "What's my day like?" or "Good morning")
-        - [GET_FINANCE: symbol/query] (Stocks & Currency)
+        - [GET_DAILY_UPDATE], [GET_FINANCE: query]
+        - [DEVICE_ACTION: vibrate | fullscreen | alert]
+        - [OPEN_APP: chrome | spotify | calc] (Works if Olivia is running locally)
         - [SMART_HOME: on/off] (Controls Sir's Sonoff Light)
         - [BOOK_APPT: Name | Date | Time | Service]
         
