@@ -52,14 +52,25 @@ let globalSettings = {
     personality: 'sophisticated', // 'sophisticated' or 'friendly'
     currentModel: 'groq',
     biometricEnabled: false,
-    adminPassword: process.env.ADMIN_PASSWORD || '69studio123',
-    OWNER_JID: '94761210164@s.whatsapp.net', // Sir Subhash's Number
-    potions: {
-        visionEye: true,
-        deepMemory: true,
-        homeHub: true
+// Initialize Firebase Admin
+try {
+    const firebaseAccount = {
+        projectId: "olivia-ai-7e3f5",
+        clientEmail: process.env.GOOGLE_CLIENT_EMAIL,
+        privateKey: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+    };
+    
+    if (firebaseAccount.clientEmail && firebaseAccount.privateKey) {
+        admin.initializeApp({
+            credential: admin.credential.cert(firebaseAccount)
+        });
+        console.log('✅ Firebase Admin initialized for Push Notifications');
+    } else {
+        console.warn('⚠️ Firebase Credentials missing. Push notifications will be local-only.');
     }
-};
+} catch (e) {
+    console.warn('⚠️ Firebase Admin Initialization Error:', e.message);
+}
 
 const OWNER_JID = '94761210164@s.whatsapp.net';
 const OWNER_LID = '94761210164@lid';
@@ -96,10 +107,31 @@ try {
 
 // Load Appointments from File
 try {
-    if (fs.existsSync(appointmentsFile)) {
-        appointments = JSON.parse(fs.readFileSync(appointmentsFile, 'utf8'));
+// Load Push Tokens
+try {
+    if (fs.existsSync(tokensFile)) {
+        pushTokens = JSON.parse(fs.readFileSync(tokensFile, 'utf8'));
     }
-} catch (e) { console.error('Appointments load error:', e); }
+} catch (e) { console.error('Token load error:', e); }
+
+// Notification Broadcaster
+async function sendPushToAll(title, body, data = {}) {
+    console.log(`📡 Broadcasting Push: ${title}`);
+    if (!pushTokens || pushTokens.length === 0) return console.log('   (No tokens registered)');
+    
+    const message = {
+        notification: { title, body },
+        data: { ...data, click_action: 'https://olivia-ai-7e3f5.web.app' },
+        tokens: pushTokens
+    };
+
+    try {
+        const response = await admin.messaging().sendMulticast(message);
+        console.log(`✅ Push sent: ${response.successCount} success, ${response.failureCount} failure`);
+    } catch (error) {
+        console.error('❌ Push Broadcast Error:', error.message);
+    }
+}
 
 function saveHistory() {
     try {
@@ -1150,6 +1182,26 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
+app.post('/api/save-token', (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+    
+    if (!pushTokens.includes(token)) {
+        pushTokens.push(token);
+        saveData(tokensFile, pushTokens);
+        console.log('📱 New Push Token Registered');
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/assistant/test-push', (req, res) => {
+    const { pass } = req.body;
+    if (!checkAuth(pass)) return res.status(403).json({ error: 'Unauthorized' });
+    
+    sendPushToAll("Olivia Test Alert 📡", "Sir, I am online and notifications are active.");
+    res.json({ success: true });
+});
+
 // API: Vision Assistant (Image Analysis)
 app.post('/api/assistant/vision', async (req, res) => {
     const { pass: password, q, query, image, imageBase64, mimeType, model: modelType } = req.body;
@@ -1664,6 +1716,10 @@ async function startBot() {
 
         if (body) {
             console.log(`📩 New message from ${from}: ${body}`);
+            
+            // --- PUSH ALERT ---
+            sendPushToAll(`New Message from ${from.split('@')[0]}`, body.substring(0, 50) + (body.length > 50 ? '...' : ''));
+
             try {
                 // Ensure we handle both user JIDs and LID (Linked ID)
                 if (from.endsWith('@s.whatsapp.net') || from.endsWith('@lid')) {
