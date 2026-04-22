@@ -518,6 +518,7 @@
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let wakeWordRec;
         let pttRec;
+        let isResponding = false;
 
         function initHomePod() {
             if (!SpeechRec) {
@@ -593,7 +594,7 @@
         }
 
         function startWakeWordListening() {
-            if (wakeWordRec) return;
+            if (wakeWordRec || pttRec || isResponding) return;
             wakeWordRec = new SpeechRec();
             wakeWordRec.lang = 'en-US';
             wakeWordRec.continuous = true;
@@ -621,8 +622,14 @@
         }
 
         async function startManualListening() {
-            if (pttRec) return;
+            if (pttRec || isResponding) return;
             
+            // Cleanly stop wake word if running
+            if (wakeWordRec) { 
+                try { wakeWordRec.stop(); } catch(e){} 
+                wakeWordRec = null; 
+            }
+
             // Audio Context for Visualization
             let audioContext, analyser, dataArray, source;
             try {
@@ -691,7 +698,14 @@
                         const text = event.results[i][0].transcript;
                         status.innerText = `"${text}"`;
                         sub.innerText = "Olivia is thinking...";
+                        
+                        // Critical: Stop recognition before processing to avoid feedback
+                        if (pttRec) {
+                            try { pttRec.stop(); } catch(e){}
+                            pttRec = null;
+                        }
                         if (audioContext) audioContext.close();
+                        
                         await processCommand(text);
                     } else {
                         interim += event.results[i][0].transcript;
@@ -712,20 +726,25 @@
         }
 
         async function processCommand(msg) {
+            if (isResponding) return;
             if (!password) {
                 document.getElementById('status-text').innerText = "Session Expired";
                 document.getElementById('sub-status').innerText = "Please open HomePod from the main app.";
                 setTimeout(() => window.location.href = '/?error=session_expired', 3000);
                 return;
             }
+            isResponding = true;
             try {
                 const model = localStorage.getItem('olivia_currentModel') || 'groq';
-                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+                
+                const res = await fetch(`${API_BASE}/api/assistant/ask?pass=${password}&q=${encodeURIComponent(msg)}&model=${model}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 const data = await res.json();
                 
                 if (data.answer) {
                     const fullText = data.answer;
-                    // Extract natural text (remove anything in [BRACKETS])
                     const naturalText = fullText.replace(/\[.+?\]/g, '').trim();
                     const systemInfo = (fullText.match(/\[.+?\]/g) || []).join(' ');
 
@@ -733,12 +752,14 @@
                     document.getElementById('sub-status').innerText = systemInfo || "Responding...";
                     
                     await speakText(naturalText || "Command executed, Sir.");
-                } else if (data.error) {
-                    document.getElementById('status-text').innerText = "System Error";
-                    document.getElementById('sub-status').innerText = data.error;
+                } else {
+                    isResponding = false;
+                    startWakeWordListening();
                 }
             } catch (e) {
+                isResponding = false;
                 document.getElementById('status-text').innerText = "Downlink Lost";
+                setTimeout(startWakeWordListening, 2000);
             }
         }
 
@@ -762,6 +783,7 @@
                         document.getElementById('orbBtn').classList.add('listening');
                         audio.onended = () => { 
                             document.getElementById('orbBtn').classList.remove('listening'); 
+                            isResponding = false;
                             // Continuous Conversation: Start listening again after a small delay
                             setTimeout(startManualListening, 500);
                         };
@@ -799,6 +821,7 @@
                     ut.rate = 1.0;
                     ut.onend = () => { 
                         document.getElementById('orbBtn').classList.remove('listening');
+                        isResponding = false;
                         // Continuous Conversation: Start listening again after a small delay
                         setTimeout(startManualListening, 500);
                     };
