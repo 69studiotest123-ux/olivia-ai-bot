@@ -1298,6 +1298,7 @@ app.get('/api/assistant/ask', async (req, res) => {
     const { pass: password, q: query, model: modelType, system: customSystem, history: historyRaw } = req.query;
 
     if (!checkAuth(password)) return res.status(403).json({ error: 'Unauthorized' });
+    if (!query) return res.status(400).json({ error: 'Query is required' });
 
     try {
         const rawHistory = Object.fromEntries(chatHistory);
@@ -1324,7 +1325,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         ${memoryContext}
         
         TOOL INTEGRATION:
-        - [SET_REMINDER: msg | 2024-05-10 14:00], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
+        - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
         - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
         - [GET_CALENDAR], [HOME_ACTION: entity | cmd], [PLAY_MUSIC: query]
         - [SMART_HOME: on/off] (Use for Sir's Sonoff Light)
@@ -1353,11 +1354,9 @@ app.get('/api/assistant/ask', async (req, res) => {
 
         let answer = "";
 
-        if (modelType === "gemini") {
-            if (!genAI) {
-                console.warn('⚠️ Gemini requested but not initialized. Falling back to Groq.');
-                // Fallback logic below will handle it
-            } else {
+        // Model Routing Logic
+        if (modelType === "gemini" && genAI) {
+            try {
                 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
                 const chat = model.startChat({
                     history: history.map(h => ({
@@ -1368,21 +1367,26 @@ app.get('/api/assistant/ask', async (req, res) => {
                 const result = await chat.sendMessage(`${systemPrompt}\n\nUser: ${query}`);
                 const response = await result.response;
                 answer = response.text();
-            }
+            } catch (e) { console.warn("Gemini failing, falling back...", e.message); }
         } 
         
-        if (!answer && modelType === "chatgpt") {
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    ...history,
-                    { role: "user", content: query }
-                ],
-            });
-            answer = completion.choices[0].message.content;
-        } else { // Default to Groq Llama
-            if (!groq) throw new Error('Groq client not initialized. Add GROQ_API_KEY to Render environment.');
+        if (!answer && modelType === "chatgpt" && openai) {
+            try {
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4o",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        ...history,
+                        { role: "user", content: query }
+                    ],
+                });
+                answer = completion.choices[0].message.content;
+            } catch (e) { console.warn("ChatGPT failing, falling back...", e.message); }
+        } 
+        
+        // Final Fallback to Groq
+        if (!answer) {
+            if (!groq) throw new Error('Groq client not initialized. Add GROQ_API_KEY.');
             const chatCompletion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },
