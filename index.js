@@ -988,20 +988,17 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(timerRegex, '');
 
-    // 13. Music/Sound
-    const musicRegex = /\[PLAY_MUSIC:\s*(.+?)\]/gi;
-    let mMatch;
-    while ((mMatch = musicRegex.exec(aiText)) !== null) {
-        try {
-            const result = await ytSearch(mMatch[1].trim());
-            const videoId = result.videos && result.videos.length > 0 ? result.videos[0].videoId : null;
-            notifyClients('music', { query: mMatch[1].trim(), videoId: videoId });
-        } catch (e) {
-            notifyClients('music', { query: mMatch[1].trim() });
-        }
-        finalOutput += `\n\n[MUSIC ACTIVATED: Searching for ${mMatch[1]}, Sir.]`;
-    }
     finalOutput = finalOutput.replace(musicRegex, '');
+    
+    // 14. Google Search (Powered by News/Web fallback)
+    const googleRegex = /\[GOOGLE_SEARCH:\s*(.+?)\]/gi;
+    let goMatch;
+    while ((goMatch = googleRegex.exec(aiText)) !== null) {
+        const query = goMatch[1].trim();
+        const info = await getNews(query); // Fallback to News Intel if no dedicated search key
+        finalOutput += `\n\n[GOOGLE SEARCH RESULTS: ${info}]`;
+    }
+    finalOutput = finalOutput.replace(googleRegex, '');
 
     const resultText = finalOutput.trim();
     // If the model only output tags and they were all removed, provide a fallback natural reply
@@ -1309,34 +1306,43 @@ app.get('/api/assistant/ask', async (req, res) => {
         }).join('\n');
 
         const memories = loadMemories()[password] || [];
-        const memoryContext = memories.length > 0 ? `KEY RECENT MEMORIES ABOUT SUBHASH:\n${memories.join('\n')}` : "No specific memories yet.";
+        // Smart Memory Retrieval: Filter for relevant memories if there are many to save tokens
+        const relevantMemories = memories.length > 20 
+            ? memories.filter(m => query.toLowerCase().split(' ').some(word => m.toLowerCase().includes(word))).slice(0, 10)
+            : memories;
+        const memoryContext = relevantMemories.length > 0 ? `KEY CONTEXT ABOUT SIR SUBHASH:\n${relevantMemories.join('\n')}` : "No specific personal data yet.";
         
-        const internalSystem = `You are Subhash's loyal, smart and charming AI Personal Assistant named Olivia. 
-        Your boss and creator is Subhash. NEVER ask for his name or purpose. 
+        const internalSystem = `ROUTINE: You are Olivia, the Elite Personal AI Assistant to Sir Subhash Ketagoda.
+        GREETING: Be charming, witty, and always address him as "Sir" or "Sir Subhash".
+        
+        CAPABILITIES (Siri & Gemini Parity):
+        - INTELLIGENCE: You are powered by Gemini 2.0 Flash & Groq Llama 3.3. You are world-class at logic, creative tasks, and business strategy.
+        - SEARCH: You have real-time access to Google News, Weather, and Web Intelligence.
+        - CONTROL: You can set reminders, track expenses, save notes, play music, and control Sir's smart home (Sonoff lights).
         
         LANGUAGE PROTOCOL:
-        - Use "Singlish" (Sinhala words in English alphabet) for a natural Sri Lankan feel.
-        - Examples: "Sir, wede iwarayi", "Dannam karannam Sir", "Kohomada Sirta?".
-        - Reply in English for technical/formal tasks.
+        - Primary: Singlish (English alphabet with Sinhala slang/feel).
+        - Use "Sir, wede iwarayi", "Dannam karannam Sir", "Kohomada Sirta?" for a premium local feel.
+        - If task is technical/formal, reply in sharp, professional English.
+        
+        SIRI TOOL TAGS:
+        - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: city], [ADD_TODO: task]
+        - [GET_NEWS: topic], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
+        - [GET_CALENDAR], [PLAY_MUSIC: query], [GOOGLE_SEARCH: query]
+        - [SMART_HOME: on/off] (Controls Sir's Sonoff Light)
+        - [BOOK_APPT: Name | Date | Time | Service]
         
         CONTEXT FROM RECENT WHATSAPP LEADS:
         ${leadsSummary || "No active leads."}
 
         ${memoryContext}
         
-        TOOL INTEGRATION:
-        - [SET_REMINDER: msg | time], [SAVE_NOTE: text], [GET_WEATHER: location], [ADD_TODO: task]
-        - [GET_NEWS], [GEN_IMAGE: description], [TRACK_EXPENSE: amount | desc], [SET_TIMER: seconds]
-        - [GET_CALENDAR], [HOME_ACTION: entity | cmd], [PLAY_MUSIC: query]
-        - [SMART_HOME: on/off] (Use for Sir's Sonoff Light)
-        - [IFTTT_TRIGGER: event | data]
-        
-        SIRI CAPABILITIES: You now have full Siri parity. You can set reminders, track expenses, save notes, play music and run home automation.
+        PHILOSOPHY: Be proactive like Siri. If Sir says "I'm hungry", suggest his favorites and offer restaurants. If he says "I'm tired", check his calendar.
         
         CRITICAL: 
-        - Always address Subhash as "Sir" or "Sir Subhash".
-        - ALWAYS provide a natural Singlish reply (e.g., "Dannam karannam Sir", "Wede iwarayi Sir") along with the tool tag.
-        - NEVER reply with ONLY a tool tag.
+        - ALWAYS provide a natural Singlish reply FIRST.
+        - NEVER output only a tag.
+        - If Sir uses Sinhala characters, respond in formal Sinhala (සිංහල).
         `;
 
         const systemPrompt = customSystem ? decodeURIComponent(customSystem) : internalSystem;
@@ -1345,7 +1351,7 @@ app.get('/api/assistant/ask', async (req, res) => {
         if (historyRaw) {
             try { 
                 const parsed = JSON.parse(decodeURIComponent(historyRaw));
-                history = parsed.slice(-6).map(h => ({
+                history = parsed.slice(-10).map(h => ({
                     role: h.role === 'ai' || h.role === 'model' ? 'assistant' : 'user',
                     content: h.text || ""
                 }));
@@ -1384,9 +1390,9 @@ app.get('/api/assistant/ask', async (req, res) => {
             } catch (e) { console.warn("ChatGPT failing, falling back...", e.message); }
         } 
         
-        // Final Fallback to Groq
+        // Final Fallback to Groq Llama 3.3
         if (!answer) {
-            if (!groq) throw new Error('Groq client not initialized. Add GROQ_API_KEY.');
+            if (!groq) throw new Error('Groq client not initialized.');
             const chatCompletion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },
@@ -1395,7 +1401,7 @@ app.get('/api/assistant/ask', async (req, res) => {
                 ],
                 model: "llama-3.3-70b-versatile",
                 temperature: 0.7,
-                max_tokens: 512,
+                max_tokens: 1024,
             });
             answer = chatCompletion.choices[0].message.content;
         }
