@@ -119,8 +119,9 @@
             line-height: 1;
             background: linear-gradient(to bottom, #fff, #888);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
-            drop-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
         }
 
         #date {
@@ -547,6 +548,9 @@
                     }
                 } catch(err) {}
             };
+            eventSource.onerror = () => {
+                eventSource.close();
+                setTimeout(initSSE, 5000);
             };
         }
 
