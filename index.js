@@ -281,7 +281,17 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static('public'));
+app.use(express.static('public', {
+    etag: false,
+    maxAge: 0,
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html') || path.endsWith('sw.js')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 
 // --- HEALTH CHECK (RENDER BOOT STACK) ---
 app.get('/health', (req, res) => {
@@ -1716,6 +1726,9 @@ app.post('/api/auth/biometric/verify', (req, res) => {
 
 // --- FINAL EXPRESS WRAPUP ---
 app.get('*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

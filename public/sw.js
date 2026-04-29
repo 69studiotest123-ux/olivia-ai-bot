@@ -40,10 +40,22 @@ self.addEventListener('fetch', (event) => {
     return event.respondWith(fetch(event.request));
   }
 
+  // NEW: Network-First strategy for main assets (no more stale cache)
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        return response || fetch(event.request);
+        // If network is good, update the cache and return the response
+        if (response.status === 200 && ASSETS.includes(new URL(event.request.url).pathname)) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // If network fails, fallback to cache
+        return caches.match(event.request);
       })
   );
 });
