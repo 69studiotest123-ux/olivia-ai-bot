@@ -7,7 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
-    <title>Olivia | AI Assistant</title>
+    <title>Olivia | AI Assistant v2.0.4</title>
+    <meta name="version" content="2.0.4">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="olivia.png">
@@ -2765,6 +2766,13 @@
                         </button>
                     </div>
                 </div>
+                <div class="setting-row" style="cursor:pointer;" onclick="forceSystemUpdate()">
+                    <div>
+                        <h4 style="color:var(--success)">System Update</h4>
+                        <p>Force reload and clear cache for new features</p>
+                    </div>
+                    <i class="fas fa-sync-alt" style="color:var(--success)"></i>
+                </div>
                 <div class="setting-row" style="cursor:pointer;" onclick="clearLogs()">
                     <div>
                         <h4 style="color:var(--primary)">Clear All Logs</h4>
@@ -3313,17 +3321,39 @@
             }
         }
 
+        function forceSystemUpdate() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                    showToast('System Updated', 'Reloading for new features...', 'fa-sync');
+                    setTimeout(() => window.location.reload(true), 1500);
+                });
+            } else {
+                window.location.reload(true);
+            }
+        }
+
         function playMusic(query, videoId) {
+            console.log('🎵 Music Command Received:', query, videoId);
             const player = document.getElementById('musicPlayer');
             const container = document.getElementById('musicContainer');
             if (player && container) {
+                // Use the provided videoId or fallback to search if null
                 const url = videoId 
                     ? `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${window.location.origin}`
                     : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1&origin=${window.location.origin}`;
+                
                 player.src = url;
                 container.style.display = 'flex';
                 document.getElementById('musicSub').innerText = query;
                 showToast('Music Started', 'Now playing: ' + query, 'fa-music');
+                
+                // Interaction hint for iOS/Mobile
+                console.log('💡 Note: If music doesn\'t play automatically, tap the player once.');
+            } else {
+                console.error('❌ Music Player elements not found in DOM!');
             }
         }
 
