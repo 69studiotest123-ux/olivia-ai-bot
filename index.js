@@ -17,6 +17,7 @@ import admin from 'firebase-admin';
 import cors from 'cors';
 import multer from 'multer';
 import ytSearch from 'yt-search';
+import cron from 'node-cron';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -51,7 +52,8 @@ let globalSettings = {
     voiceEnabled: true,
     personality: 'sophisticated', // 'sophisticated' or 'friendly'
     currentModel: 'groq',
-    biometricEnabled: false,
+    biometricEnabled: false
+};
 // Initialize Firebase Admin
 try {
     const firebaseAccount = {
@@ -106,7 +108,7 @@ try {
 } catch (e) { console.error('History load error:', e); }
 
 // Load Appointments from File
-try {
+
 // Load Push Tokens
 try {
     if (fs.existsSync(tokensFile)) {
@@ -452,114 +454,7 @@ const checkAuth = (pass) => {
     return pass === masterPass;
 };
 
-async function sendPushToAll(title, body) {
-    if (pushTokens.length === 0) {
-        console.log('📡 No push tokens found. User needs to refresh the PWA to register.');
-        return;
-    }
-    console.log(`📡 Attempting to send Push Notif to ${pushTokens.length} devices...`);
 
-    if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-        console.warn('⚠️ Google credentials missing for Push Notif. Add them to .env.');
-        return;
-    }
-
-    try {
-        const privateKey = cleanKey(process.env.GOOGLE_PRIVATE_KEY);
-
-        const auth = new google.auth.JWT({
-            email: process.env.GOOGLE_CLIENT_EMAIL,
-            key: privateKey,
-            scopes: ['https://www.googleapis.com/auth/firebase.messaging']
-        });
-
-        // Get OAuth2 Access Token for HTTP v1 API
-        const tokens = await auth.authorize();
-        const accessToken = tokens.access_token;
-        const projectId = process.env.FIREBASE_PROJECT_ID || "olivia-ai-7e3f5";
-
-        for (const token of pushTokens) {
-            try {
-                const publicUrl = process.env.RENDER_EXTERNAL_URL || "https://olivia-ai-bot-1.onrender.com";
-                const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({
-                        message: {
-                            token: token,
-                            data: { 
-                                title: `Olivia AI | ${title}`, 
-                                body: body,
-                                icon: `${publicUrl}/olivia.png`,
-                                badge: `${publicUrl}/olivia.png`,
-                                click_action: publicUrl,
-                                // Adding lockscreen-specific hints for the SW
-                                urgency: "high",
-                                requireInteraction: "true"
-                            },
-                            android: { 
-                                priority: "high",
-                                notification: {
-                                    icon: "stock_ticker_update",
-                                    color: "#ff4d4d",
-                                    sound: "default",
-                                    vibrate_timings: ["0.2s", "0.1s", "0.2s"],
-                                    notification_priority: "PRIORITY_MAX",
-                                    visibility: "PUBLIC"
-                                }
-                            },
-                            webpush: {
-                                headers: {
-                                    Urgency: "high"
-                                },
-                                notification: {
-                                    body: body,
-                                    icon: `${publicUrl}/olivia.png`,
-                                    badge: `${publicUrl}/olivia.png`,
-                                    vibrate: [200, 100, 200],
-                                    requireInteraction: true,
-                                    actions: [
-                                        { action: 'open', title: 'Open Olivia' }
-                                    ]
-                                },
-                                fcm_options: {
-                                    link: publicUrl
-                                }
-                            },
-                            apns: { 
-                                payload: { 
-                                    aps: { 
-                                        sound: "default",
-                                        badge: 1,
-                                        "mutable-content": 1,
-                                        "content-available": 1
-                                    } 
-                                } 
-                            }
-                        }
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.error) {
-                    console.error('Push failed for token:', token, data.error.message);
-                    if (data.error.message.includes('denied') || data.error.status === 'PERMISSION_DENIED') {
-                        console.error('🔑 ACTION REQUIRED: Your service account is missing the "Firebase Cloud Messaging API (V1) Admin" role.');
-                    }
-                } else {
-                    console.log('✅ Push sent successfully to:', token.substring(0, 10) + '...');
-                }
-            } catch (e) { 
-                console.error('Network error during push for token:', token, e.message); 
-            }
-        }
-    } catch (authError) {
-        console.error('Failed to authenticate with Google for push notifications:', authError.message);
-    }
-}
 
 // API: Save Push Token
 app.post('/api/save-token', (req, res) => {
@@ -1018,6 +913,23 @@ async function processAiTools(aiText, jid) {
         finalOutput += `\n\n[TIMER ACTIVATED: ${tMatch[1]} seconds, Sir.]`;
     }
     finalOutput = finalOutput.replace(timerRegex, '');
+
+    // 13. Music Player
+    const musicRegex = /\[PLAY_MUSIC:\s*(.+?)\]/gi;
+    let mMatch;
+    while ((mMatch = musicRegex.exec(aiText)) !== null) {
+        const query = mMatch[1].trim();
+        try {
+            const r = await ytSearch(query);
+            const videoId = r?.videos?.length > 0 ? r.videos[0].videoId : null;
+            notifyClients('music', { query: query, videoId: videoId });
+            finalOutput += `\n\n[MUSIC CORE: Now playing ${query}, Sir.]`;
+        } catch (e) {
+            console.error("Music Search Error:", e);
+            finalOutput += `\n\n[MUSIC CORE: Error locating ${query}, Sir.]`;
+        }
+    }
+    finalOutput = finalOutput.replace(musicRegex, '');
 
     // 17. Device Control (PWA Side)
     const deviceRegex = /\[DEVICE_ACTION:\s*(.+?)\]/gi;
@@ -1495,7 +1407,7 @@ app.post('/api/assistant/tts', async (req, res) => {
 
     try {
         const audio = await xiClient.generate({
-            voice: voiceId || "Lcf7u9Pa96uMc9P6vV3L", // Default: Bella (Sinhala Girl tone)
+            voice: voiceId || "bMxLr8fP6hzNRRi9nJxU", // Default requested by user
             text: text,
             model_id: "eleven_multilingual_v2",
             voice_settings: {
@@ -1557,7 +1469,6 @@ async function monitorTrends() {
 setInterval(monitorTrends, 6 * 60 * 60 * 1000);
 
 // --- REMINDER CHECKER JOB ---
-import cron from 'node-cron';
 cron.schedule('* * * * *', () => { // Every minute
     const now = new Date();
     let changed = false;

@@ -2736,7 +2736,7 @@
                     <div style="width:100%;">
                         <h4>ElevenLabs Voice ID</h4>
                         <input type="text" id="voiceIdInput" placeholder="Enter Voice ID..." onchange="saveSetting('voiceId', this.value)" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:10px; color:white; font-size:0.8rem; margin-top:10px;">
-                        <p style="font-size:0.65rem; color:var(--text-dim); margin-top:8px;">Default: Bella (Multilingual v2)</p>
+                        <p style="font-size:0.65rem; color:var(--text-dim); margin-top:8px;">Default: New Voice ID (Active)</p>
                     </div>
                 </div>
                 <div class="setting-row" style="cursor:pointer;" onclick="document.getElementById('modelSelector').focus();">
@@ -2966,7 +2966,7 @@
             }
         });
 
-        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) 
             ? window.location.origin 
             : 'https://olivia-ai-bot-1.onrender.com';
         let password = new URLSearchParams(window.location.search).get('pass') || localStorage.getItem('olivia_pass');
@@ -3012,6 +3012,7 @@
         let isAppLocked = false;
         let lastApptsHash = "";
         let lastLeadsHash = "";
+        let historyLoaded = false;
         let audioUnlocked = false;
         let currentAudio = null;
         let allLeadsData = {};
@@ -3105,12 +3106,14 @@
                     document.getElementById('loginError').innerText = 'Session expired. Please re-enter password.';
                 } else {
                     localStorage.setItem('olivia_pass', password);
-                    res.json().then(data => {
-                        renderLeads(data);
-                        refreshAppointments();
-                        loadTodos();
-                    });
-                    initSSE();
+                        res.json().then(data => {
+                            renderLeads(data);
+                            refreshAppointments();
+                            loadTodos();
+                            loadSettings();
+                            loadChatHistory();
+                        });
+                        initSSE();
                 }
             }).catch(err => {
                 clearTimeout(wakeTimeout);
@@ -3574,7 +3577,8 @@
         const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel - Natural Female
 
         async function speakText(text) {
-            if (!document.getElementById('voiceToggle').checked) return;
+            if (!currentSettings.voiceEnabled) return;
+            if (document.getElementById('voiceToggle') && !document.getElementById('voiceToggle').checked) return;
             
             // Stop any currently playing audio
             if (currentAudio) {
@@ -3585,7 +3589,7 @@
 
             const avatar = document.getElementById('mainAvatar');
             const mouth = document.querySelector('.avatar-mouth');
-            const voiceId = localStorage.getItem('olivia_voice_id') || "Lcf7u9Pa96uMc9P6vV3L"; // Bella (Sinhala Girl)
+            const voiceId = currentSettings.voiceId || "bMxLr8fP6hzNRRi9nJxU"; // Default requested by user
 
             // --- POTION: EMOTION DETECTION ---
             let mood = 'neutral';
@@ -3655,7 +3659,7 @@
 
             } catch (err) {
                 console.warn('ElevenLabs error, falling back:', err);
-                fallbackSpeak(text, avatar);
+                fallbackSpeak(cleanText, avatar);
             }
         }
 
@@ -5115,7 +5119,7 @@
         }
 
         async function syncChatHistory() {
-            if (!password) return;
+            if (!password || !historyLoaded) return;
             try {
                 await fetch(`${API_BASE}/api/assistant/chat/save`, {
                     method: 'POST',
@@ -5144,6 +5148,7 @@
                     if (msgWrap.querySelector('.thinking-shimmer')) return;
                     
                     chatHistory = data;
+                    historyLoaded = true;
                     msgWrap.innerHTML = ''; // Clear current
                     chatHistory.forEach(msg => {
                         appendBubble(msg.role, msg.text);

@@ -536,7 +536,7 @@
 
             const avatar = document.getElementById('mainAvatar');
             const mouth = document.querySelector('.avatar-mouth');
-            const voiceId = localStorage.getItem('olivia_voice_id') || "Lcf7u9Pa96uMc9P6vV3L"; // Bella (Sinhala Girl)
+            const voiceId = localStorage.getItem('olivia_voice_id') || "bMxLr8fP6hzNRRi9nJxU"; // Default requested by user
 
             // --- POTION: EMOTION DETECTION ---
             let mood = 'neutral';
