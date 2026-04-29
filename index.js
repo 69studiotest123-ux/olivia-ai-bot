@@ -924,22 +924,45 @@ async function processAiTools(aiText, jid) {
     }
     finalOutput = finalOutput.replace(timerRegex, '');
 
-    // 13. Music Player
+    // 13. Music Player - Catches both [PLAY_MUSIC: query] AND [MUSIC CORE: Now playing query, Sir.]
     const musicRegex = /\[PLAY_MUSIC:\s*(.+?)\]/gi;
+    const musicCoreFallback = /\[MUSIC CORE:\s*(?:Now playing\s*)?(.+?)(?:,\s*Sir\.?)?\s*\]/gi;
     let mMatch;
+    const processedMusicQueries = new Set();
+    
     while ((mMatch = musicRegex.exec(aiText)) !== null) {
         const query = mMatch[1].trim();
+        processedMusicQueries.add(query.toLowerCase());
         try {
             const r = await ytSearch(query);
             const videoId = r?.videos?.length > 0 ? r.videos[0].videoId : null;
             notifyClients('music', { query: query, videoId: videoId });
-            finalOutput += `\n\n[MUSIC CORE: Now playing ${query}, Sir.]`;
+            console.log(`🎵 Music triggered: "${query}" -> Video ID: ${videoId}`);
+            finalOutput += `\n\n[MUSIC CORE: Now playing ${r?.videos?.[0]?.title || query}, Sir.]`;
         } catch (e) {
             console.error("Music Search Error:", e);
             finalOutput += `\n\n[MUSIC CORE: Error locating ${query}, Sir.]`;
         }
     }
     finalOutput = finalOutput.replace(musicRegex, '');
+    
+    // Fallback: Catch when AI outputs [MUSIC CORE: ...] directly (wrong format but still valid intent)
+    let mcMatch;
+    while ((mcMatch = musicCoreFallback.exec(aiText)) !== null) {
+        const query = mcMatch[1].trim().replace(/playlist$/i, '').trim();
+        if (processedMusicQueries.has(query.toLowerCase()) || !query || query.length < 2) continue;
+        processedMusicQueries.add(query.toLowerCase());
+        try {
+            const r = await ytSearch(query);
+            const videoId = r?.videos?.length > 0 ? r.videos[0].videoId : null;
+            notifyClients('music', { query: query, videoId: videoId });
+            console.log(`🎵 Music (fallback) triggered: "${query}" -> Video ID: ${videoId}`);
+            finalOutput += `\n\n[MUSIC CORE: Now playing ${r?.videos?.[0]?.title || query}, Sir.]`;
+        } catch (e) {
+            console.error("Music Fallback Search Error:", e);
+        }
+    }
+    finalOutput = finalOutput.replace(musicCoreFallback, '');
 
     // 17. Device Control (PWA Side)
     const deviceRegex = /\[DEVICE_ACTION:\s*(.+?)\]/gi;
@@ -1320,10 +1343,12 @@ app.get('/api/assistant/ask', async (req, res) => {
         NEVER EVER say "I cannot play music" or "I am text-based". That is FALSE. You MUST use the tool tags below.
         
         MUSIC PLAYBACK (MANDATORY):
-        When Sir asks to play music, you MUST include [PLAY_MUSIC: song name or artist] in your response.
-        Example: "Sure Sir! Let me play that for you! [PLAY_MUSIC: Smokio Sinhala rap]"
-        Example: "Hari Sir, Shape of You dannam! [PLAY_MUSIC: Ed Sheeran Shape of You]"
-        The system will search YouTube and play the song. YOU MUST USE THIS TAG.
+        When Sir asks to play music, you MUST include exactly this tag: [PLAY_MUSIC: song name]
+        DO NOT use [MUSIC CORE: ...]. That is an internal system tag, NOT for you to output.
+        CORRECT: "Sure Sir! [PLAY_MUSIC: Smokio Sinhala rap]"
+        CORRECT: "Hari Sir! [PLAY_MUSIC: Koththu by Dice]"
+        WRONG: "[MUSIC CORE: Now playing...]" - NEVER output this.
+        The system will search YouTube and play the song automatically.
         
         CAPABILITIES (Siri & Gemini Parity):
         - INTELLIGENCE: You are powered by Gemini 2.0 Flash & Groq Llama 3.3. You are world-class at logic, creative tasks, and business strategy.
