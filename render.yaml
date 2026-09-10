@@ -17,3 +17,5 @@ services:
         value: 10
       - key: USE_AI
         value: false
+      - key: TZ
+        value: Asia/Colombo

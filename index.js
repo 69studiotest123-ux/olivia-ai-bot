@@ -16,6 +16,9 @@ import zlib from 'zlib';
 import http from 'http';
 import { fileURLToPath } from 'url';
 
+// Force Sri Lanka Timezone (Asia/Colombo) for all date operations
+process.env.TZ = 'Asia/Colombo';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const authFolder = path.join(__dirname, 'auth_info_baileys');
@@ -29,6 +32,23 @@ const OWNER_NUMBER = (process.env.OWNER_NUMBER || '').replace(/[^0-9]/g, '');
 const COOLDOWN_MINUTES = parseInt(process.env.COOLDOWN_MINUTES || '10', 10);
 const USE_AI = process.env.USE_AI === 'true' && !!process.env.GEMINI_API_KEY;
 const PORT = process.env.PORT || 3000;
+
+/**
+ * Format any date cleanly in Sri Lanka Time (Asia/Colombo)
+ */
+function formatSLTime(date) {
+    if (!date) return '';
+    return new Date(date).toLocaleString('en-US', {
+        timeZone: 'Asia/Colombo',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: true
+    });
+}
 
 // --- Auto-Restore Session from Environment Variable (for 24/7 Cloud Hosting) ---
 if (process.env.SESSION_DATA && (!fs.existsSync(authFolder) || fs.readdirSync(authFolder).length === 0)) {
@@ -145,6 +165,17 @@ function parseScheduledTime(timeStr) {
         return d;
     }
 
+    // "HH:mm" (e.g. "14:30" or "10:00")
+    const timeOnlyMatch = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (timeOnlyMatch) {
+        const d = new Date(now);
+        d.setHours(parseInt(timeOnlyMatch[1], 10), parseInt(timeOnlyMatch[2], 10), 0, 0);
+        if (d.getTime() <= now.getTime()) {
+            d.setDate(d.getDate() + 1); // If time has passed today, schedule for tomorrow
+        }
+        return d;
+    }
+
     // Standard date string (e.g. "2026-09-15 10:30" or "2026-09-15T10:30")
     const parsed = new Date(s.replace(' ', 'T'));
     if (!isNaN(parsed.getTime())) {
@@ -237,7 +268,7 @@ setInterval(async () => {
                         const confirmMsg = `🔔 *[Auto-Reminder Sent]*\n\n` +
                                            `✅ Payment reminder successfully delivered to: *+${rem.phone}*\n` +
                                            `💬 *Message:* "${rem.message}"\n` +
-                                           `⏱️ *Time:* ${new Date().toLocaleTimeString()}`;
+                                           `⏱️ *Time:* ${formatSLTime(new Date())}`;
                         await currentSock.sendMessage(ownerJid, { text: confirmMsg });
                     }
                 } catch (sendErr) {
@@ -321,7 +352,7 @@ const server = http.createServer(async (req, res) => {
         reminders.push(newReminder);
         saveReminders(reminders);
 
-        console.log(`📅 Web UI Scheduled Reminder for +${phone} at ${scheduledTime.toLocaleString()}`);
+        console.log(`📅 Web UI Scheduled Reminder for +${phone} at ${formatSLTime(scheduledTime)}`);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true, reminder: newReminder }));
@@ -410,7 +441,7 @@ const server = http.createServer(async (req, res) => {
                 pendingReminders.map(r => `
                     <div class="rem-item">
                         <div>
-                            <strong>+${r.phone}</strong> — <em>${new Date(r.time).toLocaleString()}</em><br>
+                            <strong>+${r.phone}</strong> — <em>${formatSLTime(r.time)}</em><br>
                             <span style="color:#8696a0;">"${r.message}"</span>
                         </div>
                         <button class="del-btn" onclick="cancelRem('${r.id}')">Cancel</button>
@@ -625,13 +656,13 @@ async function startBot() {
 
                     const confirmText = `✅ *Payment Reminder Scheduled!*\n\n` +
                                         `📱 *Client:* +${phone}\n` +
-                                        `📅 *Date & Time:* ${scheduledDate.toLocaleString()}\n` +
+                                        `📅 *Date & Time:* ${formatSLTime(scheduledDate)}\n` +
                                         `💬 *Message:* "${rawMsg}"\n` +
                                         `🆔 *ID:* \`${newRem.id}\`\n\n` +
                                         `_Olivia will automatically send this message at the scheduled time!_ ⏰`;
 
                     await sock.sendMessage(from, { text: confirmText }, { quoted: msg });
-                    console.log(`📅 Reminder scheduled for +${phone} at ${scheduledDate.toLocaleString()}`);
+                    console.log(`📅 Reminder scheduled for +${phone} at ${formatSLTime(scheduledDate)}`);
                     continue;
                 }
 
@@ -646,7 +677,7 @@ async function startBot() {
                         let listText = `📋 *Active Scheduled Reminders (${pending.length}):*\n\n`;
                         pending.forEach((r, idx) => {
                             listText += `*${idx + 1}.* +${r.phone}\n` +
-                                        `⏱️ ${new Date(r.time).toLocaleString()}\n` +
+                                        `⏱️ ${formatSLTime(r.time)}\n` +
                                         `💬 "${r.message}"\n` +
                                         `🆔 \`${r.id}\`\n\n`;
                         });
