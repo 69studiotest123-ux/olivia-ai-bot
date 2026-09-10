@@ -368,6 +368,15 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ success: true }));
     }
 
+    // API: Clear Sent History
+    if (url === '/api/reminders/clear-history' && req.method === 'POST') {
+        let reminders = loadReminders();
+        reminders = reminders.filter(r => r.status === 'pending');
+        saveReminders(reminders);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+    }
+
     // QR Code Image Route
     if (url === '/qr') {
         if (!lastQR) {
@@ -384,6 +393,15 @@ const server = http.createServer(async (req, res) => {
     const uptimeMin = Math.floor(process.uptime() / 60);
     const reminders = loadReminders();
     const pendingReminders = reminders.filter(r => r.status === 'pending');
+    const sentReminders = reminders.filter(r => r.status === 'sent' || r.status === 'failed').reverse();
+
+    const reminderTemplates = {
+        friendly: `Hi, this is Olivia, the AI Assistant from 69 Studio. 😊\n\nJust a friendly reminder regarding your outstanding payment of Rs. [AMOUNT].\n\nPlease settle the payment at your earliest convenience. Thank you for your continued support! 🙏\n\nBest regards,\nOlivia | 69 Studio`,
+        advance: `Hi! This is Olivia from 69 Studio. 📸\n\nTo confirm and lock in your project/booking date, kindly deposit the advance payment of Rs. [AMOUNT].\n\nPlease share the payment slip or transaction screenshot once done. Thank you! 🙏\n\nBest regards,\nOlivia | 69 Studio`,
+        delivery: `Hello! Great news — your project files from 69 Studio are ready for delivery! 🎨\n\nKindly settle the final balance of Rs. [AMOUNT] so we can share the high-resolution download link immediately.\n\nThank you,\n69 Studio`,
+        bank: `Hello! Here are the official payment transfer details for 69 Studio:\n\n🏦 Bank: Commercial Bank / Sampath Bank\n💳 Account Name: Subhash / 69 Studio\n🔢 Account No: [A/C NUMBER]\n📍 Branch: [BRANCH]\n\nPlease share a screenshot of the deposit slip once transferred. Thank you! 🙏`,
+        urgent: `Hello! This is an urgent follow-up reminder from 69 Studio regarding the pending payment of Rs. [AMOUNT] which is now overdue.\n\nIf you have already settled this, please share the transaction receipt with Subhash. Thank you for your prompt attention.`
+    };
 
     const html = `<!DOCTYPE html>
 <html>
@@ -402,13 +420,104 @@ const server = http.createServer(async (req, res) => {
         
         /* Form styling */
         label { display: block; font-size: 13px; color: #8696a0; margin-top: 12px; text-align: left; }
-        input, textarea { width: 100%; box-sizing: border-box; background: #202c33; border: 1px solid #2a3942; border-radius: 8px; padding: 10px; color: #e9edef; font-size: 14px; margin-top: 4px; }
-        input:focus, textarea:focus { outline: none; border-color: #00a884; }
+        input, select, textarea { width: 100%; box-sizing: border-box; background: #202c33; border: 1px solid #2a3942; border-radius: 8px; padding: 10px; color: #e9edef; font-size: 14px; margin-top: 4px; }
+        select { cursor: pointer; }
+        input[type="datetime-local"] { color-scheme: dark; cursor: pointer; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #00a884; }
         button { background: #00a884; color: #111; font-weight: 600; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 16px; font-size: 15px; }
         button:hover { background: #06cf9c; }
         
-        .rem-item { background: #202c33; border-radius: 8px; padding: 10px 14px; margin-top: 8px; text-align: left; font-size: 13px; border-left: 3px solid #00a884; display: flex; justify-content: space-between; align-items: center; }
-        .del-btn { background: #ea4335; color: #fff; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; width: auto; margin-top: 0; }
+        .preset-btn {
+            background: #202c33;
+            color: #8696a0;
+            border: 1px solid #2a3942;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            width: auto;
+            margin-top: 0;
+            transition: all 0.2s;
+        }
+        .preset-btn:hover {
+            background: #2a3942;
+            color: #00a884;
+            border-color: #00a884;
+        }
+        
+        .tabs-header {
+            display: flex;
+            border-bottom: 1px solid #222e35;
+            margin-top: 24px;
+            margin-bottom: 14px;
+            gap: 4px;
+        }
+        .tab-btn {
+            background: transparent;
+            color: #8696a0;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            width: auto;
+            margin-top: 0;
+            border-radius: 0;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            color: #e9edef;
+            background: rgba(255,255,255,0.03);
+        }
+        .tab-btn.active {
+            color: #00a884;
+            border-bottom: 2px solid #00a884;
+        }
+
+        .rem-item { background: #202c33; border-radius: 8px; padding: 12px 14px; margin-top: 8px; text-align: left; font-size: 13px; border-left: 3px solid #00a884; display: flex; justify-content: space-between; align-items: center; }
+        .rem-item.sent-item { border-left: 3px solid #53bdeb; }
+        .del-btn { background: #ea4335; color: #fff; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 12px; width: auto; margin-top: 0; }
+        .del-btn:hover { background: #d93025; }
+        .clear-btn { background: transparent; border: 1px solid #ea4335; color: #ea4335; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; width: auto; margin: 0; transition: all 0.2s; }
+        .clear-btn:hover { background: #ea4335; color: #fff; }
+        
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; font-size: 16px; }
+        .countdown-badge {
+            background: rgba(0, 168, 132, 0.15);
+            color: #00a884;
+            border: 1px solid #00a884;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: monospace;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .countdown-badge.expired {
+            background: rgba(234, 67, 53, 0.15);
+            color: #ea4335;
+            border-color: #ea4335;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .status-badge.sent {
+            background: rgba(0, 168, 132, 0.15);
+            color: #00a884;
+            border: 1px solid #00a884;
+        }
+        .status-badge.failed {
+            background: rgba(234, 67, 53, 0.15);
+            color: #ea4335;
+            border: 1px solid #ea4335;
+        }
     </style>
 </head>
 <body>
@@ -426,25 +535,81 @@ const server = http.createServer(async (req, res) => {
             <label>Client Phone Number:</label>
             <input type="text" id="remPhone" placeholder="e.g. 0771234567 or 94771234567" required>
 
-            <label>Schedule Time (e.g. "2h", "30m", "tomorrow 10:00", or pick date):</label>
-            <input type="text" id="remTime" placeholder="e.g. 2h, tomorrow 10:00, or 2026-09-15 10:30" required>
+            <label>📅 Pick Date & Time from Calendar (Click to open):</label>
+            <input type="datetime-local" id="remTime" required onclick="try{this.showPicker()}catch(e){}">
+            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                <button type="button" class="preset-btn" onclick="setPreset(15)">+15m</button>
+                <button type="button" class="preset-btn" onclick="setPreset(60)">+1 Hour</button>
+                <button type="button" class="preset-btn" onclick="setPreset(180)">+3 Hours</button>
+                <button type="button" class="preset-btn" onclick="setTomorrow(10, 0)">Tomorrow 10 AM</button>
+                <button type="button" class="preset-btn" onclick="setTomorrow(14, 0)">Tomorrow 2 PM</button>
+                <button type="button" class="preset-btn" onclick="setDaysAhead(2, 10, 0)">In 2 Days (10 AM)</button>
+                <button type="button" class="preset-btn" onclick="setDaysAhead(7, 10, 0)">In 1 Wk (10 AM)</button>
+            </div>
 
-            <label>Reminder Message:</label>
-            <textarea id="remMsg" rows="3" placeholder="Hello! Friendly payment reminder regarding 69 Studio for Rs. 15,000..." required></textarea>
+            <label style="margin-top: 14px;">⚡ Quick Message Template (Optional):</label>
+            <select id="templateSelect" onchange="applyTemplate(this.value)">
+                <option value="">-- Choose a Pre-made Template or Type Below --</option>
+                <option value="friendly">💵 Friendly Payment Reminder (සාමාන්‍ය Payment)</option>
+                <option value="advance">📸 Advance / Booking Confirmation (Advance මුදල්)</option>
+                <option value="delivery">🎨 Project Ready / Final Balance (වැඩ නිමවීම & Balance)</option>
+                <option value="bank">🏦 Bank Account & Transfer Details (බැංකු විස්තර)</option>
+                <option value="urgent">⚠️ Overdue Urgent Reminder (පරක්කු වූ Payment)</option>
+            </select>
+
+            <label style="margin-top: 14px;">Reminder Message:</label>
+            <textarea id="remMsg" rows="4" placeholder="Hello! Friendly payment reminder regarding 69 Studio for Rs. 15,000..." required></textarea>
 
             <button type="submit">Schedule Reminder 🚀</button>
         </form>
 
-        <h2>📋 Pending Reminders (${pendingReminders.length})</h2>
-        <div id="remList">
-            ${pendingReminders.length === 0 ? '<p style="text-align:center;">No pending reminders right now.</p>' : 
+        <div class="tabs-header">
+            <button type="button" id="tabPendingBtn" onclick="switchTab('pending')" class="tab-btn active">
+                📋 Pending (${pendingReminders.length})
+            </button>
+            <button type="button" id="tabHistoryBtn" onclick="switchTab('history')" class="tab-btn">
+                📜 Sent History (${sentReminders.length})
+            </button>
+        </div>
+
+        <div id="pendingTabContent">
+            ${pendingReminders.length === 0 ? '<p style="text-align:center; padding: 14px 0;">No pending reminders right now.</p>' : 
                 pendingReminders.map(r => `
                     <div class="rem-item">
-                        <div>
-                            <strong>+${r.phone}</strong> — <em>${formatSLTime(r.time)}</em><br>
-                            <span style="color:#8696a0;">"${r.message}"</span>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong>+${r.phone}</strong>
+                                <span class="countdown-badge" data-target="${r.time}">⏳ Calculating...</span>
+                            </div>
+                            <em style="color:#8696a0; font-size: 12px;">📅 ${formatSLTime(r.time)}</em><br>
+                            <span style="color:#e9edef; margin-top: 4px; display: inline-block;">"${r.message}"</span>
                         </div>
-                        <button class="del-btn" onclick="cancelRem('${r.id}')">Cancel</button>
+                        <button class="del-btn" style="margin-left: 12px;" onclick="cancelRem('${r.id}')">Cancel</button>
+                    </div>
+                `).join('')}
+        </div>
+
+        <div id="historyTabContent" style="display: none;">
+            ${sentReminders.length > 0 ? `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; color: #8696a0;">Delivered client reminders:</span>
+                    <button type="button" class="clear-btn" onclick="clearHistory()">Clear All History 🗑️</button>
+                </div>` : ''}
+            ${sentReminders.length === 0 ? '<p style="text-align:center; padding: 14px 0;">No sent reminder history yet.</p>' : 
+                sentReminders.map(r => `
+                    <div class="rem-item sent-item">
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong>+${r.phone}</strong>
+                                <span class="status-badge ${r.status === 'sent' ? 'sent' : 'failed'}">
+                                    ${r.status === 'sent' ? '✅ Delivered' : '❌ Failed'}
+                                </span>
+                            </div>
+                            <em style="color:#8696a0; font-size: 12px;">📅 Sent: ${formatSLTime(r.sentAt || r.time)}</em><br>
+                            <span style="color:#e9edef; margin-top: 4px; display: inline-block;">"${r.message}"</span>
+                            ${r.error ? `<br><small style="color:#ea4335;">⚠️ Error: ${r.error}</small>` : ''}
+                        </div>
+                        <button class="del-btn" style="margin-left: 12px;" onclick="deleteSingleHistory('${r.id}')" title="Delete from history">✕</button>
                     </div>
                 `).join('')}
         </div>
@@ -454,8 +619,16 @@ const server = http.createServer(async (req, res) => {
         document.getElementById('remForm').onsubmit = async (e) => {
             e.preventDefault();
             const phone = document.getElementById('remPhone').value;
-            const time = document.getElementById('remTime').value;
+            const rawTime = document.getElementById('remTime').value;
             const message = document.getElementById('remMsg').value;
+
+            let time = rawTime;
+            try {
+                const dateObj = new Date(rawTime);
+                if (!isNaN(dateObj.getTime())) {
+                    time = dateObj.toISOString();
+                }
+            } catch (err) {}
 
             const res = await fetch('/api/reminders', {
                 method: 'POST',
@@ -480,6 +653,131 @@ const server = http.createServer(async (req, res) => {
             });
             location.reload();
         }
+
+        // Live Real-Time Countdown Timer
+        function updateCountdowns() {
+            const badges = document.querySelectorAll('.countdown-badge');
+            const now = Date.now();
+
+            badges.forEach(badge => {
+                const target = new Date(badge.getAttribute('data-target')).getTime();
+                const diff = target - now;
+
+                if (diff <= 0) {
+                    badge.textContent = '🚀 Sending now...';
+                    badge.className = 'countdown-badge expired';
+                } else {
+                    const totalSeconds = Math.floor(diff / 1000);
+                    const days = Math.floor(totalSeconds / 86400);
+                    const hours = Math.floor((totalSeconds % 86400) / 3600);
+                    const minutes = Math.floor((totalSeconds % 3600) / 60);
+                    const seconds = totalSeconds % 60;
+
+                    let text = '⏳ in ';
+                    if (days > 0) text += days + 'd ';
+                    if (hours > 0 || days > 0) text += hours + 'h ';
+                    text += String(minutes).padStart(2, '0') + 'm ' + String(seconds).padStart(2, '0') + 's';
+
+                    badge.textContent = text;
+                    badge.className = 'countdown-badge';
+                }
+            });
+        }
+
+        setInterval(updateCountdowns, 1000);
+        updateCountdowns();
+
+        // Setup Date-Time Calendar Input Min and Default values
+        function initTimeInput() {
+            var timeInput = document.getElementById('remTime');
+            var now = new Date();
+            function pad(n) { return n < 10 ? '0' + n : n; }
+            function toLocal(d) {
+                return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            }
+
+            timeInput.min = toLocal(now);
+            var defaultTime = new Date(now.getTime() + 60 * 60 * 1000);
+            timeInput.value = toLocal(defaultTime);
+        }
+
+        function setPreset(mins) {
+            var target = new Date(Date.now() + mins * 60 * 1000);
+            function pad(n) { return n < 10 ? '0' + n : n; }
+            document.getElementById('remTime').value = target.getFullYear() + '-' + pad(target.getMonth() + 1) + '-' + pad(target.getDate()) + 'T' + pad(target.getHours()) + ':' + pad(target.getMinutes());
+        }
+
+        function setTomorrow(hours, mins) {
+            var target = new Date();
+            target.setDate(target.getDate() + 1);
+            target.setHours(hours, mins, 0, 0);
+            function pad(n) { return n < 10 ? '0' + n : n; }
+            document.getElementById('remTime').value = target.getFullYear() + '-' + pad(target.getMonth() + 1) + '-' + pad(target.getDate()) + 'T' + pad(target.getHours()) + ':' + pad(target.getMinutes());
+        }
+
+        function setDaysAhead(days, hours, mins) {
+            var target = new Date();
+            target.setDate(target.getDate() + days);
+            target.setHours(hours || 10, mins || 0, 0, 0);
+            function pad(n) { return n < 10 ? '0' + n : n; }
+            document.getElementById('remTime').value = target.getFullYear() + '-' + pad(target.getMonth() + 1) + '-' + pad(target.getDate()) + 'T' + pad(target.getHours()) + ':' + pad(target.getMinutes());
+        }
+
+        // 69 Studio Quick Message Templates
+        const templates = ${JSON.stringify(reminderTemplates)};
+
+        function applyTemplate(key) {
+            if (!key || !templates[key]) return;
+            document.getElementById('remMsg').value = templates[key];
+        }
+
+        // Tabs: Pending vs Sent History
+        function switchTab(tab) {
+            const pendingTab = document.getElementById('pendingTabContent');
+            const historyTab = document.getElementById('historyTabContent');
+            const tabPendingBtn = document.getElementById('tabPendingBtn');
+            const tabHistoryBtn = document.getElementById('tabHistoryBtn');
+
+            if (tab === 'pending') {
+                pendingTab.style.display = 'block';
+                historyTab.style.display = 'none';
+                tabPendingBtn.classList.add('active');
+                tabHistoryBtn.classList.remove('active');
+            } else {
+                pendingTab.style.display = 'none';
+                historyTab.style.display = 'block';
+                tabPendingBtn.classList.remove('active');
+                tabHistoryBtn.classList.add('active');
+            }
+        }
+
+        // Clear All Sent History
+        async function clearHistory() {
+            if (!confirm('Are you sure you want to clear all delivered reminders history?')) return;
+            const res = await fetch('/api/reminders/clear-history', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to clear history');
+            }
+        }
+
+        // Delete Single History Record
+        async function deleteSingleHistory(id) {
+            if (!confirm('Remove this reminder from history?')) return;
+            const res = await fetch('/api/reminders/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            }
+        }
+
+        initTimeInput();
     </script>
 </body>
 </html>`;
@@ -699,6 +997,34 @@ async function startBot() {
                         await sock.sendMessage(from, { text: `✅ Reminder \`${remId}\` has been cancelled.` }, { quoted: msg });
                     } else {
                         await sock.sendMessage(from, { text: `❌ Reminder ID \`${remId}\` not found.` }, { quoted: msg });
+                    }
+                    continue;
+                }
+
+                // 4. .bank <phone> (Send 69 Studio bank transfer details)
+                if (lowerCmd.startsWith('.bank ') || lowerCmd === '.bank') {
+                    let targetPhone = bodyText.substring(5).trim();
+                    let targetJid = from;
+
+                    if (targetPhone) {
+                        const sanitized = sanitizePhoneNumber(targetPhone);
+                        if (sanitized && sanitized.length >= 9) {
+                            targetJid = `${sanitized}@s.whatsapp.net`;
+                        }
+                    }
+
+                    const bankMsg = `🏦 *69 Studio - Payment Transfer Details*\n\n` +
+                                    `💳 *Bank:* Commercial Bank / Sampath Bank\n` +
+                                    `👤 *Account Name:* Subhash / 69 Studio\n` +
+                                    `🔢 *Account No:* [A/C NUMBER]\n` +
+                                    `📍 *Branch:* Colombo\n\n` +
+                                    `_Please share a screenshot of the deposit slip once transferred. Thank you!_ 🙏`;
+
+                    await sock.sendMessage(targetJid, { text: bankMsg });
+                    if (targetJid !== from) {
+                        await sock.sendMessage(from, { text: `✅ Bank transfer details sent to *+${targetJid.replace(/@.*$/, '')}*!` }, { quoted: msg });
+                    } else {
+                        await sock.sendMessage(from, { text: `✅ Bank transfer details generated!` }, { quoted: msg });
                     }
                     continue;
                 }
