@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: olivia-whatsapp-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: BOT_NAME
+        value: Olivia
+      - key: OWNER_NAME
+        value: Subhash
+      - key: MY_WEBSITE
+        value: https://69studiobysubash.online/
+      - key: COOLDOWN_MINUTES
+        value: 10
+      - key: USE_AI
+        value: false
