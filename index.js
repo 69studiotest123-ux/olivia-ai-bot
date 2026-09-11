@@ -1282,8 +1282,8 @@ const server = http.createServer(async (req, res) => {
                             (c.lastContact ? '<br><span style="font-size:11px;color:#666;">Last: ' + new Date(c.lastContact).toLocaleDateString() + '</span>' : '') +
                         '</div>' +
                         '<div class="contact-actions">' +
-                            '<button class="preset-btn" onclick="prefillReminder(\'' + c.phone + '\')" title="New Reminder">📅</button>' +
-                            '<button class="preset-btn" onclick="quickSendTo(\'' + c.phone + '\')" title="Quick Send">⚡</button>' +
+                            '<button class="preset-btn" data-phone="' + c.phone + '" onclick="prefillReminder(this.dataset.phone)" title="New Reminder">📅</button>' +
+                            '<button class="preset-btn" data-phone="' + c.phone + '" onclick="quickSendTo(this.dataset.phone)" title="Quick Send">⚡</button>' +
                         '</div>' +
                     '</div>';
                 }).join('');
