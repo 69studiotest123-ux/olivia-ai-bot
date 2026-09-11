@@ -296,62 +296,66 @@ YOUR PRIMARY TASK:
 }
 
 /**
- * Schedule Reminder Engine: checks every 20 seconds
+ * Schedule Reminder Engine: checks every 5 seconds for timely delivery
  */
 setInterval(async () => {
-    if (!currentSock || currentStatus !== 'connected') return;
+    try {
+        if (!currentSock || currentStatus !== 'connected') return;
 
-    const reminders = loadReminders();
-    if (!reminders || reminders.length === 0) return;
+        const reminders = loadReminders();
+        if (!reminders || reminders.length === 0) return;
 
-    const now = new Date();
-    let updated = false;
+        const now = new Date();
+        let updated = false;
 
-    for (const rem of reminders) {
-        if (rem.status === 'pending') {
-            const scheduled = new Date(rem.time);
+        for (const rem of reminders) {
+            if (rem.status === 'pending') {
+                const scheduled = new Date(rem.time);
 
-            if (now >= scheduled) {
-                console.log(`⏰ Firing scheduled reminder for +${rem.phone}...`);
-                rem.status = 'sending';
+                if (now >= scheduled) {
+                    console.log(`⏰ Firing scheduled reminder for +${rem.phone}...`);
+                    rem.status = 'sending';
 
-                try {
-                    const recipientJid = `${rem.phone}@s.whatsapp.net`;
-                    await currentSock.sendMessage(recipientJid, { text: rem.message });
-                    rem.status = 'sent';
-                    rem.sentAt = new Date().toISOString();
-                    updated = true;
-                    console.log(`✅ Scheduled payment reminder delivered to +${rem.phone}!`);
+                    try {
+                        const recipientJid = `${rem.phone}@s.whatsapp.net`;
+                        await currentSock.sendMessage(recipientJid, { text: rem.message });
+                        rem.status = 'sent';
+                        rem.sentAt = new Date().toISOString();
+                        updated = true;
+                        console.log(`✅ Scheduled payment reminder delivered to +${rem.phone}!`);
 
-                    // Add dashboard notification
-                    addNotification('reminder_sent', `Payment reminder delivered to +${rem.phone}`);
+                        // Add dashboard notification
+                        addNotification('reminder_sent', `Payment reminder delivered to +${rem.phone}`);
 
-                    // Notify Subhash (Owner)
-                    const ownerJid = OWNER_NUMBER 
-                        ? `${OWNER_NUMBER}@s.whatsapp.net` 
-                        : (currentSock.user?.id ? currentSock.user.id.split(':')[0] + '@s.whatsapp.net' : null);
+                        // Notify Subhash (Owner)
+                        const ownerJid = OWNER_NUMBER 
+                            ? `${OWNER_NUMBER}@s.whatsapp.net` 
+                            : (currentSock.user?.id ? currentSock.user.id.split(':')[0] + '@s.whatsapp.net' : null);
 
-                    if (ownerJid) {
-                        const confirmMsg = `🔔 *[Auto-Reminder Sent]*\n\n` +
-                                           `✅ Payment reminder successfully delivered to: *+${rem.phone}*\n` +
-                                           `💬 *Message:* "${rem.message}"\n` +
-                                           `⏱️ *Time:* ${formatSLTime(new Date())}`;
-                        await currentSock.sendMessage(ownerJid, { text: confirmMsg });
+                        if (ownerJid) {
+                            const confirmMsg = `🔔 *[Auto-Reminder Sent]*\n\n` +
+                                               `✅ Payment reminder successfully delivered to: *+${rem.phone}*\n` +
+                                               `💬 *Message:* "${rem.message}"\n` +
+                                               `⏱️ *Time:* ${formatSLTime(new Date())}`;
+                            await currentSock.sendMessage(ownerJid, { text: confirmMsg });
+                        }
+                    } catch (sendErr) {
+                        console.error(`❌ Failed to send scheduled reminder to ${rem.phone}:`, sendErr.message);
+                        rem.status = 'failed';
+                        rem.error = sendErr.message;
+                        updated = true;
                     }
-                } catch (sendErr) {
-                    console.error(`❌ Failed to send scheduled reminder to ${rem.phone}:`, sendErr.message);
-                    rem.status = 'failed';
-                    rem.error = sendErr.message;
-                    updated = true;
                 }
             }
         }
-    }
 
-    if (updated) {
-        saveReminders(reminders);
+        if (updated) {
+            saveReminders(reminders);
+        }
+    } catch (loopErr) {
+        console.error('⚠️ Error in reminder worker loop:', loopErr.message);
     }
-}, 20000); // Check every 20s
+}, 5000); // Fast 5s check
 
 /**
  * Helper to parse POST body
@@ -1492,12 +1496,35 @@ async function startBot() {
             if (isOwner && bodyText.startsWith('.')) {
                 const lowerCmd = bodyText.toLowerCase();
 
-                // 1. .remind <phone> | <time> | <message>
-                if (lowerCmd.startsWith('.remind ')) {
-                    const parts = bodyText.substring(8).split('|');
+                // 1. .remind / .schedule / .sched <phone> | <time> | <message>
+                const isScheduleCmd = lowerCmd.startsWith('.remind ') || 
+                                     lowerCmd.startsWith('.schedule ') || 
+                                     lowerCmd.startsWith('.sched ') ||
+                                     lowerCmd.startsWith('.shedeoll ');
+
+                if (lowerCmd === '.remind' || lowerCmd === '.schedule' || lowerCmd === '.sched' || lowerCmd === '.shedeoll') {
+                    await sock.sendMessage(from, { 
+                        text: `📅 *How to Schedule a Reminder:*\n\n` +
+                              `Use: \`.schedule <phone> | <time> | <message>\`\n\n` +
+                              `*Examples:*\n` +
+                              `• \`.schedule 0771234567 | 10m | Advance payment reminder\`\n` +
+                              `• \`.schedule 0771234567 | 2h | Project files are ready!\`\n` +
+                              `• \`.schedule 0771234567 | tomorrow 10:00 | Friendly reminder\`\n\n` +
+                              `_Tip: You can view pending reminders with \`.reminders\`_`
+                    }, { quoted: msg });
+                    continue;
+                }
+
+                if (isScheduleCmd) {
+                    const content = bodyText.replace(/^\.(remind|schedule|sched|shedeoll)\s+/i, '');
+                    let parts = content.split('|');
+                    if (parts.length < 3 && content.includes(',')) {
+                        parts = content.split(',');
+                    }
+
                     if (parts.length < 3) {
                         await sock.sendMessage(from, { 
-                            text: `❌ *Format Error!*\nUse: \`.remind <phone> | <time> | <message>\`\n\n*Examples:*\n• \`.remind 0771234567 | 2h | Payment reminder for 69 Studio\`\n• \`.remind 0771234567 | tomorrow 10:00 | Please settle the invoice\`\n• \`.remind 0771234567 | 2026-09-15 14:00 | Payment reminder\``
+                            text: `❌ *Format Error!*\nUse: \`.schedule <phone> | <time> | <message>\`\n\n*Example:*\n\`.schedule 0771234567 | 15m | Payment reminder for 69 Studio\``
                         }, { quoted: msg });
                         continue;
                     }
@@ -1515,7 +1542,7 @@ async function startBot() {
                     }
 
                     if (!scheduledDate || scheduledDate.getTime() <= Date.now()) {
-                        await sock.sendMessage(from, { text: `❌ Invalid time: "${rawTime}". Must be a future time (e.g. 2h, 30m, tomorrow 10:00).` }, { quoted: msg });
+                        await sock.sendMessage(from, { text: `❌ Invalid time: "${rawTime}". Must be a future time (e.g. 15m, 2h, tomorrow 10:00).` }, { quoted: msg });
                         continue;
                     }
 
@@ -1545,7 +1572,7 @@ async function startBot() {
                 }
 
                 // 2. .reminders (List all pending reminders)
-                if (lowerCmd === '.reminders' || lowerCmd === '.remind list') {
+                if (lowerCmd === '.reminders' || lowerCmd === '.remind list' || lowerCmd === '.scheduled' || lowerCmd === '.schedules') {
                     const reminders = loadReminders();
                     const pending = reminders.filter(r => r.status === 'pending');
 
