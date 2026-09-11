@@ -16,6 +16,10 @@ services:
       - key: COOLDOWN_MINUTES
         value: 10
       - key: USE_AI
-        value: false
+        value: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_DATA
+        sync: false
       - key: TZ
         value: Asia/Colombo

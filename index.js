@@ -1466,8 +1466,7 @@ async function startBot() {
             // Strictly ignore groups & newsletters
             const isGroupOrChannel = from.endsWith('@g.us') || 
                                      from.endsWith('@newsletter') || 
-                                     from.includes('@broadcast') || 
-                                     !!msg.key.participant;
+                                     from.includes('@broadcast');
             if (isGroupOrChannel) continue;
 
             // Only direct 1-on-1 chats
@@ -1628,11 +1627,38 @@ async function startBot() {
                         `• \`.block <phone>\` — Block auto-reply for a number\n` +
                         `• \`.unblock <phone>\` — Unblock auto-reply\n` +
                         `• \`.blocklist\` — View all blocked numbers\n\n` +
-                        `📊 *Status:*\n` +
+                        `📊 *Diagnostic & Status:*\n` +
+                        `• \`.test [message]\` — Test auto-reply system (live preview)\n` +
                         `• \`.status\` — Bot status summary\n\n` +
                         `_Type any command to get started!_ ✨`;
 
                     await sock.sendMessage(from, { text: helpText }, { quoted: msg });
+                    continue;
+                }
+
+                // 5.1 .test [message] (Test auto-reply system directly from owner phone)
+                if (lowerCmd === '.test' || lowerCmd.startsWith('.test ')) {
+                    const testInput = bodyText.substring(5).trim();
+                    if (!testInput) {
+                        const testStatus = `🤖 *${BOT_NAME} Auto-Reply System Test*\n\n` +
+                            `🟢 *Status:* 100% ONLINE & ACTIVE\n` +
+                            `🤖 *AI Mode:* ${USE_AI ? 'Enabled (gemini-3.6-flash)' : 'Standard Auto-Reply'}\n` +
+                            `⏱️ *Cooldown:* ${COOLDOWN_MINUTES} mins\n` +
+                            `🌐 *Website:* ${MY_WEBSITE}\n\n` +
+                            `💡 *Tip:* Type \`.test <message>\` to preview how Olivia replies to clients!\n` +
+                            `*Example:* \`.test Hello, I need a custom design quote\``;
+                        await sock.sendMessage(from, { text: testStatus }, { quoted: msg });
+                    } else {
+                        let sampleReply = '';
+                        if (USE_AI) {
+                            sampleReply = await getSmartAIReply(testInput, senderName || OWNER_NAME);
+                        } else {
+                            sampleReply = getBusyMessage(senderName || OWNER_NAME);
+                        }
+                        await sock.sendMessage(from, { 
+                            text: `🧪 *Auto-Reply Preview for:* "${testInput}"\n\n${sampleReply}` 
+                        }, { quoted: msg });
+                    }
                     continue;
                 }
 
@@ -1862,26 +1888,31 @@ async function startBot() {
                 }
             }
 
-            // Ignore messages sent by Owner for auto-reply
-            if (isOwner) continue;
+            // Log all incoming direct messages
+            console.log(`📩 [Incoming 1-on-1] From: ${senderName || 'Unknown'} (+${senderNumber}): "${bodyText || '[Media/Other]'}"`);
 
-            // Check if sender is blocked from auto-reply
-            if (isBlocked(senderNumber)) {
-                console.log(`🔒 Skipped auto-reply for ${senderName || senderNumber} (BLOCKED).`);
+            // Ignore messages sent by Owner for auto-reply (Owner does not receive bot busy replies)
+            if (isOwner) {
+                console.log(`ℹ️ [Auto-Reply] Skipped: Message was sent by owner / self-chat.`);
                 continue;
             }
 
-            // Only reply to new messages
+            // Check if sender is blocked from auto-reply
+            if (isBlocked(senderNumber)) {
+                console.log(`🔒 [Auto-Reply] Skipped: +${senderNumber} is on the blocked list.`);
+                continue;
+            }
+
+            // Only reply to recent messages (ignore old history synced on startup, allow up to 10 min window)
             const msgTimestampSec = typeof msg.messageTimestamp === 'number' 
                 ? msg.messageTimestamp 
                 : (msg.messageTimestamp?.low || Number(msg.messageTimestamp) || 0);
             const msgTimeMs = msgTimestampSec * 1000;
 
-            if (msgTimeMs && (msgTimeMs < botStartTime - 5000 || (Date.now() - msgTimeMs) > 120000)) {
+            if (msgTimeMs && (msgTimeMs < botStartTime - 15000 || (Date.now() - msgTimeMs) > 600000)) {
+                console.log(`⏳ [Auto-Reply] Skipped: Message is old or synced history (age: ${Math.round((Date.now() - msgTimeMs) / 1000)}s).`);
                 continue;
             }
-
-            console.log(`📩 New message from ${senderName || senderNumber}: ${bodyText || '[Media/Other]'}`);
 
             // Anti-spam cooldown
             const now = Date.now();
@@ -1889,7 +1920,8 @@ async function startBot() {
             const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
 
             if (now - lastTime < cooldownMs) {
-                console.log(`⏳ Skipped auto-reply for ${senderName || senderNumber} (Already notified within last ${COOLDOWN_MINUTES} mins).`);
+                const remainingMins = Math.ceil((cooldownMs - (now - lastTime)) / 60000);
+                console.log(`⏳ [Auto-Reply] Skipped: +${senderNumber} is within cooldown (Next reply available in ${remainingMins} mins).`);
                 continue;
             }
 
