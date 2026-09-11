@@ -283,11 +283,11 @@ YOUR PRIMARY TASK:
 5. Keep it short, warm, and conversational. Do not write essays.`;
 
         const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-3.6-flash',
             systemInstruction: systemPrompt
         });
 
-        const result = await model.sendMessage(userText);
+        const result = await model.generateContent(userText);
         return result.response.text().trim();
     } catch (e) {
         console.warn('AI reply failed, using standard message:', e.message);
