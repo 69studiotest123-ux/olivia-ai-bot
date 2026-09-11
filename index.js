@@ -23,6 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const authFolder = path.join(__dirname, 'auth_info_baileys');
 const remindersFile = path.join(__dirname, 'reminders.json');
+const blockedFile = path.join(__dirname, 'blocked.json');
+const notesFile = path.join(__dirname, 'notes.json');
 
 // --- Settings from .env ---
 const BOT_NAME = process.env.BOT_NAME || 'Olivia';
@@ -105,6 +107,68 @@ function saveReminders(reminders) {
         fs.writeFileSync(remindersFile, JSON.stringify(reminders, null, 2));
     } catch (e) {
         console.error('Error saving reminders:', e.message);
+    }
+}
+
+// --- Blocked Contacts Helpers ---
+function loadBlocked() {
+    try {
+        if (fs.existsSync(blockedFile)) {
+            return JSON.parse(fs.readFileSync(blockedFile, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading blocked list:', e.message);
+    }
+    return [];
+}
+
+function saveBlocked(blocked) {
+    try {
+        fs.writeFileSync(blockedFile, JSON.stringify(blocked, null, 2));
+    } catch (e) {
+        console.error('Error saving blocked list:', e.message);
+    }
+}
+
+function isBlocked(phoneNumber) {
+    const blocked = loadBlocked();
+    const sanitized = sanitizePhoneNumber(phoneNumber);
+    return blocked.some(b => b === sanitized || b === phoneNumber);
+}
+
+// --- Client Notes Helpers ---
+function loadNotes() {
+    try {
+        if (fs.existsSync(notesFile)) {
+            return JSON.parse(fs.readFileSync(notesFile, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading notes:', e.message);
+    }
+    return {};
+}
+
+function saveNotes(notes) {
+    try {
+        fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2));
+    } catch (e) {
+        console.error('Error saving notes:', e.message);
+    }
+}
+
+// --- Notification Tracking (in-memory for dashboard SSE) ---
+let recentNotifications = [];
+function addNotification(type, message) {
+    recentNotifications.push({
+        id: 'notif_' + Date.now(),
+        type,
+        message,
+        time: new Date().toISOString(),
+        read: false
+    });
+    // Keep only last 50
+    if (recentNotifications.length > 50) {
+        recentNotifications = recentNotifications.slice(-50);
     }
 }
 
@@ -259,6 +323,9 @@ setInterval(async () => {
                     updated = true;
                     console.log(`✅ Scheduled payment reminder delivered to +${rem.phone}!`);
 
+                    // Add dashboard notification
+                    addNotification('reminder_sent', `Payment reminder delivered to +${rem.phone}`);
+
                     // Notify Subhash (Owner)
                     const ownerJid = OWNER_NUMBER 
                         ? `${OWNER_NUMBER}@s.whatsapp.net` 
@@ -377,6 +444,135 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ success: true }));
     }
 
+    // API: Send Now (Quick Direct Message from Dashboard)
+    if (url === '/api/send-now' && req.method === 'POST') {
+        const body = await getJsonBody(req);
+        const phone = sanitizePhoneNumber(body.phone);
+
+        if (!phone || phone.length < 9) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Invalid phone number.' }));
+        }
+
+        if (!body.message || body.message.trim().length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Message cannot be empty.' }));
+        }
+
+        if (!currentSock || currentStatus !== 'connected') {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'WhatsApp is not connected.' }));
+        }
+
+        try {
+            const recipientJid = `${phone}@s.whatsapp.net`;
+            await currentSock.sendMessage(recipientJid, { text: body.message.trim() });
+            console.log(`⚡ Quick Send from Dashboard to +${phone}`);
+
+            addNotification('send', `Message sent to +${phone}`);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, phone }));
+        } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Failed to send: ' + e.message }));
+        }
+    }
+
+    // API: Get Contacts (Contact Book)
+    if (url === '/api/contacts' && req.method === 'GET') {
+        const reminders = loadReminders();
+        const notes = loadNotes();
+        const blocked = loadBlocked();
+        const contactMap = {};
+
+        for (const rem of reminders) {
+            if (!contactMap[rem.phone]) {
+                contactMap[rem.phone] = { phone: rem.phone, totalReminders: 0, lastContact: null, sentCount: 0, pendingCount: 0 };
+            }
+            contactMap[rem.phone].totalReminders++;
+            if (rem.status === 'sent') contactMap[rem.phone].sentCount++;
+            if (rem.status === 'pending') contactMap[rem.phone].pendingCount++;
+
+            const remTime = new Date(rem.sentAt || rem.time);
+            if (!contactMap[rem.phone].lastContact || remTime > new Date(contactMap[rem.phone].lastContact)) {
+                contactMap[rem.phone].lastContact = remTime.toISOString();
+            }
+        }
+
+        const contacts = Object.values(contactMap).map(c => ({
+            ...c,
+            notes: (notes[c.phone] || []).length,
+            isBlocked: blocked.includes(c.phone)
+        }));
+
+        contacts.sort((a, b) => new Date(b.lastContact || 0) - new Date(a.lastContact || 0));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(contacts));
+    }
+
+    // API: Analytics
+    if (url === '/api/analytics' && req.method === 'GET') {
+        const reminders = loadReminders();
+        const totalSent = reminders.filter(r => r.status === 'sent').length;
+        const totalFailed = reminders.filter(r => r.status === 'failed').length;
+        const totalPending = reminders.filter(r => r.status === 'pending').length;
+        const uniqueContacts = [...new Set(reminders.map(r => r.phone))].length;
+        const successRate = (totalSent + totalFailed) > 0 ? Math.round((totalSent / (totalSent + totalFailed)) * 100) : 0;
+
+        // Daily counts for last 7 days
+        const dailyCounts = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dayStr = d.toISOString().split('T')[0];
+            const count = reminders.filter(r => {
+                const rDate = (r.sentAt || r.createdAt || r.time || '').split('T')[0];
+                return rDate === dayStr && (r.status === 'sent' || r.status === 'failed');
+            }).length;
+            dailyCounts.push({ date: dayStr, day: d.toLocaleDateString('en-US', { weekday: 'short' }), count });
+        }
+
+        // Top 5 contacts
+        const phoneCount = {};
+        reminders.forEach(r => { phoneCount[r.phone] = (phoneCount[r.phone] || 0) + 1; });
+        const topContacts = Object.entries(phoneCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([phone, count]) => ({ phone, count }));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+            totalSent, totalFailed, totalPending, uniqueContacts, successRate,
+            dailyCounts, topContacts,
+            uptime: Math.floor(process.uptime()),
+            botStatus: currentStatus
+        }));
+    }
+
+    // API: Notifications (for browser push)
+    if (url === '/api/notifications' && req.method === 'GET') {
+        const unread = recentNotifications.filter(n => !n.read);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ notifications: unread, count: unread.length }));
+    }
+
+    // API: Mark Notifications as Read
+    if (url === '/api/notifications/read' && req.method === 'POST') {
+        recentNotifications.forEach(n => { n.read = true; });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+    }
+
+    // API: Get Notes for a Phone
+    if (url.startsWith('/api/notes/') && req.method === 'GET') {
+        const phone = sanitizePhoneNumber(url.split('/api/notes/')[1] || '');
+        const notes = loadNotes();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(notes[phone] || []));
+    }
+
     // QR Code Image Route
     if (url === '/qr') {
         if (!lastQR) {
@@ -399,8 +595,14 @@ const server = http.createServer(async (req, res) => {
         friendly: `Hi, this is Olivia, the AI Assistant from 69 Studio. 😊\n\nJust a friendly reminder regarding your outstanding payment of Rs. [AMOUNT].\n\nPlease settle the payment at your earliest convenience. Thank you for your continued support! 🙏\n\nBest regards,\nOlivia | 69 Studio`,
         advance: `Hi! This is Olivia from 69 Studio. 📸\n\nTo confirm and lock in your project/booking date, kindly deposit the advance payment of Rs. [AMOUNT].\n\nPlease share the payment slip or transaction screenshot once done. Thank you! 🙏\n\nBest regards,\nOlivia | 69 Studio`,
         delivery: `Hello! Great news — your project files from 69 Studio are ready for delivery! 🎨\n\nKindly settle the final balance of Rs. [AMOUNT] so we can share the high-resolution download link immediately.\n\nThank you,\n69 Studio`,
-        bank: `Hello! Here are the official payment transfer details for 69 Studio:\n\n🏦 Bank: Commercial Bank / Sampath Bank\n💳 Account Name: Subhash / 69 Studio\n🔢 Account No: [A/C NUMBER]\n📍 Branch: [BRANCH]\n\nPlease share a screenshot of the deposit slip once transferred. Thank you! 🙏`,
-        urgent: `Hello! This is an urgent follow-up reminder from 69 Studio regarding the pending payment of Rs. [AMOUNT] which is now overdue.\n\nIf you have already settled this, please share the transaction receipt with Subhash. Thank you for your prompt attention.`
+        bank: `Hello! Here are the official payment transfer details for 69 Studio:\n\n🏦 Bank: SAMPATH BANK PLC\n💳 Account Name: K S SALIYA\n🔢 Account No: 1122 5249 1630\n📍 Branch: RAJAGIRIYA BRANCH\n\nPlease share a screenshot of the deposit slip once transferred. Thank you! 🙏`,
+        urgent: `Hello! This is an urgent follow-up reminder from 69 Studio regarding the pending payment of Rs. [AMOUNT] which is now overdue.\n\nIf you have already settled this, please share the transaction receipt with Subhash. Thank you for your prompt attention.`,
+        thankyou: `Hi! This is Olivia from 69 Studio. 🙏\n\nThank you so much for your payment of Rs. [AMOUNT]! We truly appreciate your trust and support.\n\nYour project is in great hands, and we'll keep you updated on the progress. Feel free to reach out anytime!\n\nBest regards,\nOlivia | 69 Studio`,
+        followup: `Hi! This is Olivia from 69 Studio. 📞\n\nJust following up on our recent conversation. We wanted to check if you had any questions or if you'd like to proceed with the project.\n\nFeel free to reply here or contact Subhash directly. We'd love to work with you!\n\nBest regards,\nOlivia | 69 Studio`,
+        appointment: `Hi! This is Olivia from 69 Studio. 📅\n\nFriendly reminder about your upcoming appointment/session with 69 Studio on [DATE] at [TIME].\n\nPlease confirm your availability or let us know if you need to reschedule.\n\nLooking forward to seeing you! 😊\nOlivia | 69 Studio`,
+        quotation: `Hi! This is Olivia from 69 Studio. 📋\n\nHere's the quotation for your requested project:\n\n🎯 Project: [PROJECT NAME]\n💰 Total: Rs. [AMOUNT]\n📅 Timeline: [DURATION]\n\nThis quote is valid for 7 days. To confirm, please deposit the advance payment of Rs. [ADVANCE].\n\nFeel free to ask any questions!\nOlivia | 69 Studio`,
+        welcome: `Welcome to 69 Studio! 👋🎨\n\nI'm Olivia, the AI assistant for Subhash at 69 Studio. We specialize in creative design, photography, and digital solutions.\n\nFeel free to share your project idea, and we'll get back to you with a custom quote!\n\n🌐 Visit us: ${MY_WEBSITE}\n\nBest regards,\nOlivia | 69 Studio`,
+        review: `Hi! This is Olivia from 69 Studio. ⭐\n\nWe hope you're happy with the work from 69 Studio! Your feedback means the world to us.\n\nWould you mind leaving a quick review? It helps us grow and serve you even better! 🙏\n\n⭐ Leave a review: [REVIEW LINK]\n\nThank you for choosing 69 Studio!\nOlivia | 69 Studio`
     };
 
     const html = `<!DOCTYPE html>
@@ -518,16 +720,197 @@ const server = http.createServer(async (req, res) => {
             color: #ea4335;
             border: 1px solid #ea4335;
         }
+
+        /* Analytics Cards */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin: 12px 0;
+        }
+        .stat-card {
+            background: #202c33;
+            border-radius: 10px;
+            padding: 14px 10px;
+            text-align: center;
+            border: 1px solid #2a3942;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: #00a884;
+        }
+        .stat-card .stat-num {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00a884;
+            display: block;
+        }
+        .stat-card .stat-label {
+            font-size: 11px;
+            color: #8696a0;
+            margin-top: 4px;
+            display: block;
+        }
+        .chart-bar-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            height: 80px;
+            margin: 14px 0 6px 0;
+            padding: 0 4px;
+        }
+        .chart-bar-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .chart-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #00a884, #065f46);
+            border-radius: 4px 4px 0 0;
+            min-height: 4px;
+            transition: height 0.5s ease;
+        }
+        .chart-bar-label {
+            font-size: 10px;
+            color: #8696a0;
+            margin-top: 4px;
+            text-align: center;
+        }
+        .chart-bar-count {
+            font-size: 10px;
+            color: #00a884;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        /* Quick Send */
+        .quick-send-form {
+            background: #202c33;
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 12px;
+            border: 1px solid #2a3942;
+        }
+        .quick-send-form label {
+            margin-top: 8px;
+        }
+        .quick-send-form label:first-child {
+            margin-top: 0;
+        }
+        .send-now-btn {
+            background: #53bdeb;
+            color: #111;
+        }
+        .send-now-btn:hover {
+            background: #3eaadb;
+        }
+
+        /* Contact Book */
+        .contact-item {
+            background: #202c33;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-top: 8px;
+            text-align: left;
+            font-size: 13px;
+            border-left: 3px solid #53bdeb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .contact-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .contact-actions button {
+            width: auto;
+            margin: 0;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            background: #00a884;
+            color: #111;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.4s ease;
+        }
+        .toast.show {
+            transform: translateX(0);
+        }
+        .notif-bell {
+            position: relative;
+            cursor: pointer;
+            font-size: 18px;
+            display: inline-block;
+        }
+        .notif-count {
+            position: absolute;
+            top: -6px;
+            right: -8px;
+            background: #ea4335;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="card">
         <div style="text-align: center;">
-            <span class="badge">${currentStatus === 'connected' ? '🟢 ONLINE 24/7' : '🟡 ' + currentStatus.toUpperCase()}</span>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+                <span class="badge">${currentStatus === 'connected' ? '🟢 ONLINE 24/7' : '🟡 ' + currentStatus.toUpperCase()}</span>
+                <span class="notif-bell" id="notifBell" onclick="checkNotifications()">🔔<span class="notif-count" id="notifCount">0</span></span>
+            </div>
             <h1>🤖 ${BOT_NAME}</h1>
             <p>Personal Assistant for <strong>${OWNER_NAME}</strong> | Uptime: <strong>${uptimeMin} mins</strong></p>
             <p>🌐 Website: <a href="${MY_WEBSITE}" target="_blank">${MY_WEBSITE}</a></p>
             ${lastQR ? '<div class="qr-box"><img src="/qr" alt="QR Code" width="200"><p style="color:#111;margin:6px 0 0 0;font-size:12px;">Scan with WhatsApp</p></div>' : ''}
+        </div>
+
+        <!-- Analytics Section -->
+        <h2>📊 Analytics Overview</h2>
+        <div class="analytics-grid">
+            <div class="stat-card">
+                <span class="stat-num" id="statPending">${pendingReminders.length}</span>
+                <span class="stat-label">⏳ Pending</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-num" id="statSent">${sentReminders.filter(r => r.status === 'sent').length}</span>
+                <span class="stat-label">✅ Sent</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-num" id="statFailed">${sentReminders.filter(r => r.status === 'failed').length}</span>
+                <span class="stat-label">❌ Failed</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-num" id="statContacts">${[...new Set(reminders.map(r => r.phone))].length}</span>
+                <span class="stat-label">👥 Contacts</span>
+            </div>
+        </div>
+        <div id="chartArea" style="background: #202c33; border-radius: 10px; padding: 12px; margin-top: 8px; border: 1px solid #2a3942;">
+            <p style="font-size: 12px; color: #8696a0; margin: 0 0 4px 0;">Last 7 Days Activity:</p>
+            <div class="chart-bar-container" id="barChart">Loading...</div>
         </div>
 
         <h2>📅 Schedule Payment Auto-Reminder</h2>
@@ -555,6 +938,12 @@ const server = http.createServer(async (req, res) => {
                 <option value="delivery">🎨 Project Ready / Final Balance (වැඩ නිමවීම & Balance)</option>
                 <option value="bank">🏦 Bank Account & Transfer Details (බැංකු විස්තර)</option>
                 <option value="urgent">⚠️ Overdue Urgent Reminder (පරක්කු වූ Payment)</option>
+                <option value="thankyou">🙏 Thank You for Payment (ගෙවීම් ස්තුතිය)</option>
+                <option value="followup">📞 Follow-Up Reminder (Follow-Up)</option>
+                <option value="appointment">📅 Appointment Reminder (හමුවීම් මතක්)</option>
+                <option value="quotation">📋 Quotation / Price Quote (මිල ගණන්)</option>
+                <option value="welcome">👋 Welcome New Client (නව Client)</option>
+                <option value="review">⭐ Review Request (ප්‍රතිපෝෂණ)</option>
             </select>
 
             <label style="margin-top: 14px;">Reminder Message:</label>
@@ -613,7 +1002,28 @@ const server = http.createServer(async (req, res) => {
                     </div>
                 `).join('')}
         </div>
+
+        <!-- Quick Send Section -->
+        <h2>⚡ Quick Send Message</h2>
+        <div class="quick-send-form">
+            <form id="quickSendForm">
+                <label>Phone Number:</label>
+                <input type="text" id="qsPhone" placeholder="e.g. 0771234567" required>
+                <label style="margin-top: 10px;">Message:</label>
+                <textarea id="qsMsg" rows="3" placeholder="Type your message here..." required></textarea>
+                <button type="submit" class="send-now-btn">Send Now ⚡</button>
+            </form>
+        </div>
+
+        <!-- Contact Book Section -->
+        <h2>📇 Contact Book</h2>
+        <div id="contactBookArea">
+            <p style="text-align:center; color: #8696a0; font-size: 13px;">Loading contacts...</p>
+        </div>
     </div>
+
+    <!-- Toast Notification Element -->
+    <div class="toast" id="toastNotif"></div>
 
     <script>
         document.getElementById('remForm').onsubmit = async (e) => {
@@ -778,6 +1188,177 @@ const server = http.createServer(async (req, res) => {
         }
 
         initTimeInput();
+
+        // --- Quick Send Form ---
+        document.getElementById('quickSendForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const phone = document.getElementById('qsPhone').value;
+            const message = document.getElementById('qsMsg').value;
+
+            const res = await fetch('/api/send-now', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, message })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('✅ Message sent to +' + (data.phone || phone) + '!');
+                document.getElementById('qsPhone').value = '';
+                document.getElementById('qsMsg').value = '';
+            } else {
+                alert('❌ Error: ' + (data.error || 'Failed to send'));
+            }
+        };
+
+        // --- Toast Notification ---
+        function showToast(message, duration) {
+            const toast = document.getElementById('toastNotif');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, duration || 4000);
+        }
+
+        // --- Analytics Chart ---
+        async function loadAnalytics() {
+            try {
+                const res = await fetch('/api/analytics');
+                const data = await res.json();
+
+                // Update stat cards
+                const sp = document.getElementById('statPending');
+                const ss = document.getElementById('statSent');
+                const sf = document.getElementById('statFailed');
+                const sc = document.getElementById('statContacts');
+                if (sp) sp.textContent = data.totalPending;
+                if (ss) ss.textContent = data.totalSent;
+                if (sf) sf.textContent = data.totalFailed;
+                if (sc) sc.textContent = data.uniqueContacts;
+
+                // Build bar chart
+                const chart = document.getElementById('barChart');
+                if (chart && data.dailyCounts) {
+                    const maxCount = Math.max(...data.dailyCounts.map(d => d.count), 1);
+                    chart.innerHTML = data.dailyCounts.map(d => {
+                        const height = Math.max((d.count / maxCount) * 60, 4);
+                        return '<div class="chart-bar-wrapper">' +
+                            '<span class="chart-bar-count">' + d.count + '</span>' +
+                            '<div class="chart-bar" style="height:' + height + 'px"></div>' +
+                            '<span class="chart-bar-label">' + d.day + '</span>' +
+                            '</div>';
+                    }).join('');
+                }
+            } catch (e) {
+                console.warn('Analytics load failed:', e);
+            }
+        }
+        loadAnalytics();
+
+        // --- Contact Book ---
+        async function loadContacts() {
+            try {
+                const res = await fetch('/api/contacts');
+                const contacts = await res.json();
+                const area = document.getElementById('contactBookArea');
+
+                if (!contacts || contacts.length === 0) {
+                    area.innerHTML = '<p style="text-align:center; padding: 14px 0; color: #8696a0;">No contacts in history yet.</p>';
+                    return;
+                }
+
+                area.innerHTML = contacts.map(c => {
+                    return '<div class="contact-item">' +
+                        '<div style="flex:1;">' +
+                            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                                '<strong>+' + c.phone + '</strong>' +
+                                (c.isBlocked ? '<span class="status-badge failed">🔒 Blocked</span>' : '') +
+                            '</div>' +
+                            '<span style="font-size:12px;color:#8696a0;">' +
+                                '✅ ' + c.sentCount + ' sent | ⏳ ' + c.pendingCount + ' pending | 📝 ' + c.notes + ' notes' +
+                            '</span>' +
+                            (c.lastContact ? '<br><span style="font-size:11px;color:#666;">Last: ' + new Date(c.lastContact).toLocaleDateString() + '</span>' : '') +
+                        '</div>' +
+                        '<div class="contact-actions">' +
+                            '<button class="preset-btn" onclick="prefillReminder(\'' + c.phone + '\')" title="New Reminder">📅</button>' +
+                            '<button class="preset-btn" onclick="quickSendTo(\'' + c.phone + '\')" title="Quick Send">⚡</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } catch (e) {
+                console.warn('Contact book load failed:', e);
+            }
+        }
+        loadContacts();
+
+        function prefillReminder(phone) {
+            document.getElementById('remPhone').value = phone;
+            document.getElementById('remPhone').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function quickSendTo(phone) {
+            document.getElementById('qsPhone').value = phone;
+            document.getElementById('qsMsg').focus();
+            document.getElementById('qsPhone').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- Browser Notifications ---
+        let notifPermission = 'default';
+        async function initNotifications() {
+            if ('Notification' in window) {
+                notifPermission = Notification.permission;
+                if (notifPermission === 'default') {
+                    notifPermission = await Notification.requestPermission();
+                }
+            }
+        }
+        initNotifications();
+
+        let lastNotifCount = 0;
+        async function checkNotifications() {
+            try {
+                const res = await fetch('/api/notifications');
+                const data = await res.json();
+                const countEl = document.getElementById('notifCount');
+
+                if (data.count > 0) {
+                    countEl.style.display = 'inline';
+                    countEl.textContent = data.count;
+                    document.title = '(' + data.count + ') ' + '${BOT_NAME} - Dashboard';
+
+                    // Show browser notification for new ones
+                    if (data.count > lastNotifCount && notifPermission === 'granted') {
+                        const latest = data.notifications[data.notifications.length - 1];
+                        new Notification('🤖 ${BOT_NAME}', {
+                            body: latest.message,
+                            icon: '/favicon.ico',
+                            tag: latest.id
+                        });
+                        showToast(latest.message);
+                    }
+                    lastNotifCount = data.count;
+                } else {
+                    countEl.style.display = 'none';
+                    document.title = '${BOT_NAME} - Dashboard';
+                    lastNotifCount = 0;
+                }
+
+                // Mark as read when bell is clicked
+                if (data.count > 0) {
+                    await fetch('/api/notifications/read', { method: 'POST' });
+                }
+            } catch (e) {
+                console.warn('Notification check failed:', e);
+            }
+        }
+
+        // Auto-check notifications every 30 seconds
+        setInterval(checkNotifications, 30000);
+        checkNotifications();
+
+        // Auto-refresh analytics every 60 seconds
+        setInterval(() => {
+            loadAnalytics();
+            loadContacts();
+        }, 60000);
     </script>
 </body>
 </html>`;
@@ -1014,10 +1595,10 @@ async function startBot() {
                     }
 
                     const bankMsg = `🏦 *69 Studio - Payment Transfer Details*\n\n` +
-                                    `💳 *Bank:* Commercial Bank / Sampath Bank\n` +
-                                    `👤 *Account Name:* Subhash / 69 Studio\n` +
-                                    `🔢 *Account No:* [A/C NUMBER]\n` +
-                                    `📍 *Branch:* Colombo\n\n` +
+                                    `💳 *Bank:* SAMPATH BANK PLC\n` +
+                                    `👤 *Account Name:* K S SALIYA\n` +
+                                    `🔢 *Account No:* 1122 5249 1630\n` +
+                                    `📍 *Branch:* RAJAGIRIYA BRANCH\n\n` +
                                     `_Please share a screenshot of the deposit slip once transferred. Thank you!_ 🙏`;
 
                     await sock.sendMessage(targetJid, { text: bankMsg });
@@ -1028,10 +1609,267 @@ async function startBot() {
                     }
                     continue;
                 }
+
+                // 5. .help (Show all available commands)
+                if (lowerCmd === '.help' || lowerCmd === '.commands' || lowerCmd === '.menu') {
+                    const helpText = `🤖 *${BOT_NAME} — Owner Commands*\n\n` +
+                        `📋 *Reminder Commands:*\n` +
+                        `• \`.remind <phone> | <time> | <message>\` — Schedule a reminder\n` +
+                        `• \`.reminders\` — View all pending reminders\n` +
+                        `• \`.delremind <id>\` — Cancel a reminder\n\n` +
+                        `💬 *Messaging Commands:*\n` +
+                        `• \`.send <phone> | <message>\` — Send instant message\n` +
+                        `• \`.broadcast <message>\` — Send to all contacts\n` +
+                        `• \`.bank <phone>\` — Send bank transfer details\n\n` +
+                        `📝 *Notes & Contacts:*\n` +
+                        `• \`.note <phone> | <note>\` — Add client note\n` +
+                        `• \`.notes <phone>\` — View client notes\n\n` +
+                        `🔒 *Auto-Reply Control:*\n` +
+                        `• \`.block <phone>\` — Block auto-reply for a number\n` +
+                        `• \`.unblock <phone>\` — Unblock auto-reply\n` +
+                        `• \`.blocklist\` — View all blocked numbers\n\n` +
+                        `📊 *Status:*\n` +
+                        `• \`.status\` — Bot status summary\n\n` +
+                        `_Type any command to get started!_ ✨`;
+
+                    await sock.sendMessage(from, { text: helpText }, { quoted: msg });
+                    continue;
+                }
+
+                // 6. .send <phone> | <message> (Quick direct message)
+                if (lowerCmd.startsWith('.send ')) {
+                    const parts = bodyText.substring(6).split('|');
+                    if (parts.length < 2) {
+                        await sock.sendMessage(from, {
+                            text: `❌ *Format Error!*\nUse: \`.send <phone> | <message>\`\n\n*Example:*\n\`.send 0771234567 | Your payment has been received!\``
+                        }, { quoted: msg });
+                        continue;
+                    }
+
+                    const targetPhone = sanitizePhoneNumber(parts[0].trim());
+                    const sendMsg = parts.slice(1).join('|').trim();
+
+                    if (!targetPhone || targetPhone.length < 9) {
+                        await sock.sendMessage(from, { text: `❌ Invalid phone number.` }, { quoted: msg });
+                        continue;
+                    }
+
+                    const targetJid = `${targetPhone}@s.whatsapp.net`;
+                    await sock.sendMessage(targetJid, { text: sendMsg });
+                    await sock.sendMessage(from, {
+                        text: `✅ Message sent to *+${targetPhone}*!\n💬 "${sendMsg.substring(0, 100)}${sendMsg.length > 100 ? '...' : ''}"`
+                    }, { quoted: msg });
+                    console.log(`📤 Direct message sent to +${targetPhone}`);
+                    continue;
+                }
+
+                // 7. .broadcast <message> (Send to all known contacts)
+                if (lowerCmd.startsWith('.broadcast ')) {
+                    const broadcastMsg = bodyText.substring(11).trim();
+                    if (!broadcastMsg) {
+                        await sock.sendMessage(from, { text: `❌ Please provide a message.\nUse: \`.broadcast <message>\`` }, { quoted: msg });
+                        continue;
+                    }
+
+                    const reminders = loadReminders();
+                    const uniquePhones = [...new Set(reminders.map(r => r.phone))];
+
+                    if (uniquePhones.length === 0) {
+                        await sock.sendMessage(from, { text: `❌ No contacts found in reminder history.` }, { quoted: msg });
+                        continue;
+                    }
+
+                    await sock.sendMessage(from, {
+                        text: `📡 Broadcasting to *${uniquePhones.length}* contacts...`
+                    }, { quoted: msg });
+
+                    let successCount = 0;
+                    let failCount = 0;
+
+                    for (const phone of uniquePhones) {
+                        try {
+                            await sock.sendMessage(`${phone}@s.whatsapp.net`, { text: broadcastMsg });
+                            successCount++;
+                            await sleep(1000); // Rate limiting
+                        } catch (e) {
+                            failCount++;
+                            console.error(`Failed to broadcast to +${phone}:`, e.message);
+                        }
+                    }
+
+                    await sock.sendMessage(from, {
+                        text: `✅ *Broadcast Complete!*\n\n📤 Sent: *${successCount}*\n❌ Failed: *${failCount}*\n📋 Total: *${uniquePhones.length}*`
+                    });
+                    console.log(`📡 Broadcast sent to ${successCount}/${uniquePhones.length} contacts`);
+                    continue;
+                }
+
+                // 8. .status (Bot status summary)
+                if (lowerCmd === '.status') {
+                    const reminders = loadReminders();
+                    const pending = reminders.filter(r => r.status === 'pending').length;
+                    const sent = reminders.filter(r => r.status === 'sent').length;
+                    const failed = reminders.filter(r => r.status === 'failed').length;
+                    const uniqueContacts = [...new Set(reminders.map(r => r.phone))].length;
+                    const blocked = loadBlocked();
+                    const uptimeMin = Math.floor(process.uptime() / 60);
+                    const uptimeHrs = Math.floor(uptimeMin / 60);
+                    const uptimeRemMin = uptimeMin % 60;
+
+                    const statusText = `📊 *${BOT_NAME} Status Report*\n\n` +
+                        `🟢 *Status:* ${currentStatus === 'connected' ? 'Online & Active' : currentStatus}\n` +
+                        `⏱️ *Uptime:* ${uptimeHrs}h ${uptimeRemMin}m\n` +
+                        `🤖 *AI Mode:* ${USE_AI ? 'Enabled (Gemini)' : 'Standard Auto-Reply'}\n\n` +
+                        `📋 *Reminders:*\n` +
+                        `  ⏳ Pending: *${pending}*\n` +
+                        `  ✅ Sent: *${sent}*\n` +
+                        `  ❌ Failed: *${failed}*\n\n` +
+                        `👥 *Contacts Served:* ${uniqueContacts}\n` +
+                        `🔒 *Blocked Numbers:* ${blocked.length}\n` +
+                        `⏰ *Cooldown:* ${COOLDOWN_MINUTES} mins\n\n` +
+                        `🌐 *Dashboard:* ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + PORT}`;
+
+                    await sock.sendMessage(from, { text: statusText }, { quoted: msg });
+                    continue;
+                }
+
+                // 9. .block <phone> (Block auto-reply for a number)
+                if (lowerCmd.startsWith('.block ')) {
+                    const rawPhone = bodyText.substring(7).trim();
+                    const phone = sanitizePhoneNumber(rawPhone);
+
+                    if (!phone || phone.length < 9) {
+                        await sock.sendMessage(from, { text: `❌ Invalid phone number: "${rawPhone}"` }, { quoted: msg });
+                        continue;
+                    }
+
+                    const blocked = loadBlocked();
+                    if (blocked.includes(phone)) {
+                        await sock.sendMessage(from, { text: `⚠️ *+${phone}* is already blocked.` }, { quoted: msg });
+                    } else {
+                        blocked.push(phone);
+                        saveBlocked(blocked);
+                        await sock.sendMessage(from, { text: `🔒 *+${phone}* has been blocked from auto-reply.` }, { quoted: msg });
+                        console.log(`🔒 Blocked auto-reply for +${phone}`);
+                    }
+                    continue;
+                }
+
+                // 10. .unblock <phone>
+                if (lowerCmd.startsWith('.unblock ')) {
+                    const rawPhone = bodyText.substring(9).trim();
+                    const phone = sanitizePhoneNumber(rawPhone);
+
+                    if (!phone || phone.length < 9) {
+                        await sock.sendMessage(from, { text: `❌ Invalid phone number: "${rawPhone}"` }, { quoted: msg });
+                        continue;
+                    }
+
+                    let blocked = loadBlocked();
+                    if (blocked.includes(phone)) {
+                        blocked = blocked.filter(b => b !== phone);
+                        saveBlocked(blocked);
+                        await sock.sendMessage(from, { text: `🔓 *+${phone}* has been unblocked. Auto-reply is now active.` }, { quoted: msg });
+                        console.log(`🔓 Unblocked auto-reply for +${phone}`);
+                    } else {
+                        await sock.sendMessage(from, { text: `⚠️ *+${phone}* is not in the blocked list.` }, { quoted: msg });
+                    }
+                    continue;
+                }
+
+                // 11. .blocklist (View all blocked numbers)
+                if (lowerCmd === '.blocklist' || lowerCmd === '.blocked') {
+                    const blocked = loadBlocked();
+                    if (blocked.length === 0) {
+                        await sock.sendMessage(from, { text: `🔓 *No blocked numbers.* All contacts receive auto-replies.` }, { quoted: msg });
+                    } else {
+                        let listText = `🔒 *Blocked Numbers (${blocked.length}):*\n\n`;
+                        blocked.forEach((phone, idx) => {
+                            listText += `${idx + 1}. +${phone}\n`;
+                        });
+                        listText += `\n_To unblock: \`.unblock <phone>\`_`;
+                        await sock.sendMessage(from, { text: listText }, { quoted: msg });
+                    }
+                    continue;
+                }
+
+                // 12. .note <phone> | <note> (Add client note)
+                if (lowerCmd.startsWith('.note ')) {
+                    const parts = bodyText.substring(6).split('|');
+                    if (parts.length < 2) {
+                        await sock.sendMessage(from, {
+                            text: `❌ *Format Error!*\nUse: \`.note <phone> | <note text>\`\n\n*Example:*\n\`.note 0771234567 | Logo project - Rs.15000 pending\``
+                        }, { quoted: msg });
+                        continue;
+                    }
+
+                    const phone = sanitizePhoneNumber(parts[0].trim());
+                    const noteText = parts.slice(1).join('|').trim();
+
+                    if (!phone || phone.length < 9) {
+                        await sock.sendMessage(from, { text: `❌ Invalid phone number.` }, { quoted: msg });
+                        continue;
+                    }
+
+                    const notes = loadNotes();
+                    if (!notes[phone]) notes[phone] = [];
+                    notes[phone].push({
+                        text: noteText,
+                        createdAt: new Date().toISOString()
+                    });
+                    saveNotes(notes);
+
+                    await sock.sendMessage(from, {
+                        text: `📝 *Note added for +${phone}!*\n💬 "${noteText}"\n\n_Total notes for this contact: ${notes[phone].length}_`
+                    }, { quoted: msg });
+                    continue;
+                }
+
+                // 13. .notes <phone> (View client notes)
+                if (lowerCmd.startsWith('.notes ') || lowerCmd === '.notes') {
+                    const rawPhone = bodyText.substring(7).trim();
+
+                    if (!rawPhone) {
+                        // Show all contacts with notes
+                        const notes = loadNotes();
+                        const phones = Object.keys(notes);
+                        if (phones.length === 0) {
+                            await sock.sendMessage(from, { text: `📝 *No client notes saved yet.*` }, { quoted: msg });
+                        } else {
+                            let listText = `📝 *Contacts with Notes (${phones.length}):*\n\n`;
+                            phones.forEach((phone, idx) => {
+                                listText += `${idx + 1}. +${phone} — ${notes[phone].length} note(s)\n`;
+                            });
+                            listText += `\n_View notes: \`.notes <phone>\`_`;
+                            await sock.sendMessage(from, { text: listText }, { quoted: msg });
+                        }
+                        continue;
+                    }
+
+                    const phone = sanitizePhoneNumber(rawPhone);
+                    const notes = loadNotes();
+
+                    if (!notes[phone] || notes[phone].length === 0) {
+                        await sock.sendMessage(from, { text: `📝 *No notes found for +${phone}.*` }, { quoted: msg });
+                    } else {
+                        let notesList = `📝 *Notes for +${phone}* (${notes[phone].length}):\n\n`;
+                        notes[phone].forEach((n, idx) => {
+                            notesList += `*${idx + 1}.* ${n.text}\n   _${formatSLTime(n.createdAt)}_\n\n`;
+                        });
+                        await sock.sendMessage(from, { text: notesList }, { quoted: msg });
+                    }
+                    continue;
+                }
             }
 
             // Ignore messages sent by Owner for auto-reply
             if (isOwner) continue;
+
+            // Check if sender is blocked from auto-reply
+            if (isBlocked(senderNumber)) {
+                console.log(`🔒 Skipped auto-reply for ${senderName || senderNumber} (BLOCKED).`);
+                continue;
+            }
 
             // Only reply to new messages
             const msgTimestampSec = typeof msg.messageTimestamp === 'number' 
